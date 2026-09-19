@@ -128,6 +128,11 @@ body::before {
 }
 
 .titlebar {
+  /* 必读：backdrop-filter 会生成层叠上下文，若不自己定位+给层级，
+     标题栏里的下拉菜单（⋯ 更多 / 导出）会被后面的编辑器盖住——
+     看得见、点不动。 */
+  position: relative;
+  z-index: 30;
   height: var(--titlebar-h);
   flex: 0 0 auto;
   display: flex;
@@ -173,6 +178,9 @@ body::before {
 /* ============================ 侧栏 ============================ */
 
 .sidebar {
+  /* 同上：侧栏里的「新建」模板菜单也得靠这一层才盖得住正文 */
+  position: relative;
+  z-index: 20;
   width: var(--sidebar-w);
   flex: 0 0 var(--sidebar-w);
   display: flex;
