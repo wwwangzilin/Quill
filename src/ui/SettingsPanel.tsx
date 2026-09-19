@@ -19,6 +19,8 @@ interface Props {
   onAiEnabled: (next: boolean) => void
   aiDelay: number
   onAiDelay: (next: number) => void
+  goal: number
+  onGoal: (next: number) => void
 }
 
 export default function SettingsPanel({
@@ -30,6 +32,8 @@ export default function SettingsPanel({
   onAiEnabled,
   aiDelay,
   onAiDelay,
+  goal,
+  onGoal,
 }: Props) {
   const [url, setUrl] = useState('')
   const [ca, setCa] = useState('')
@@ -249,6 +253,24 @@ export default function SettingsPanel({
               <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
                 正文、便签、磁贴三处同步生效
               </span>
+            </div>
+          </div>
+
+          <div className="sc-group">
+            <div className="sc-title">写作</div>
+            <label className="field">
+              <span>每日字数目标 · {goal > 0 ? `${goal} 字` : '不设目标'}</span>
+              <input
+                type="range"
+                min={0}
+                max={3000}
+                step={100}
+                value={goal}
+                onChange={(e) => onGoal(Number(e.target.value))}
+              />
+            </label>
+            <div className="hint">
+              侧栏会显示今天写了多少、还差多少，以及连续写了多少天。拖到 0 就是不设目标。
             </div>
           </div>
 

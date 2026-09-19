@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
-import type { JSONContent } from '@tiptap/core'
+import type { JSONContent, Editor } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { buildExtensions } from './extensions'
 import { formatWhen } from '../core/time'
@@ -32,6 +32,8 @@ interface Props {
   aiEnabled: boolean
   /** 停手多少毫秒之后才请求 */
   aiDelay: number
+  /** 把编辑器实例交给上层（复制富文本、问文档之类要用） */
+  onReady?: (editor: Editor) => void
 }
 
 interface Stats {
@@ -95,6 +97,7 @@ export default function EditorPane({
   onOpenDoc,
   aiEnabled,
   aiDelay,
+  onReady,
 }: Props) {
   const [stats, setStats] = useState<Stats>(() => countStats(doc.content))
   const [slash, setSlash] = useState<SlashState | null>(null)
@@ -222,6 +225,11 @@ export default function EditorPane({
     if (!editor || !import.meta.env.DEV) return
     ;(window as unknown as Record<string, unknown>).__quillEditor = editor
   }, [editor])
+
+  // 上层要拿编辑器实例（复制富文本等）
+  useEffect(() => {
+    if (editor && onReady) onReady(editor)
+  }, [editor, onReady])
 
   // 专注模式：靠根节点上的 class 切换，装饰器会据此淡化非当前块
   useEffect(() => {

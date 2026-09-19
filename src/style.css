@@ -2209,6 +2209,182 @@ body.quill-dragging * {
    命令面板 / 反向链接 / AI 问答 / 选中改写
    ========================================================================== */
 
+/* 今日进度 + 连续天数 */
+.goal {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 2px 0 10px;
+}
+.goal-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.goal-today b {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+}
+.goal-rest {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.goal-rest.done {
+  color: var(--accent-2);
+}
+.goal-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+.goal-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--grad);
+  transition: width 0.45s var(--ease-out);
+}
+.goal-streak {
+  color: var(--accent-1);
+}
+
+/* ==========================================================================
+   表格 / 代码高亮
+   ========================================================================== */
+
+.ProseMirror .tableWrapper {
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  overflow: hidden;
+}
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid var(--border-strong);
+  padding: 6px 10px;
+  vertical-align: top;
+  min-width: 3em;
+  position: relative;
+}
+.ProseMirror th {
+  background: var(--surface-hover);
+  font-weight: 600;
+  text-align: left;
+  color: var(--text);
+}
+.ProseMirror td {
+  color: var(--text-2);
+}
+.ProseMirror th p,
+.ProseMirror td p {
+  margin: 0;
+}
+.ProseMirror .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent-1);
+  pointer-events: none;
+}
+
+/* 代码块 + 语法高亮（暖色系，跟纸墨主题配套，不用霓虹） */
+.ProseMirror pre {
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.72;
+  color: var(--text);
+}
+.ProseMirror pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--text-3);
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-name,
+.hljs-tag {
+  color: #c07a63;
+}
+.hljs-string,
+.hljs-attr,
+.hljs-attribute,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: #8aa89b;
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link {
+  color: #cba56b;
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section {
+  color: #d3ae74;
+}
+.hljs-type,
+.hljs-class .hljs-title,
+.hljs-title.class_ {
+  color: #b08d5f;
+}
+.hljs-variable,
+.hljs-template-variable,
+.hljs-params {
+  color: var(--text-2);
+}
+.hljs-meta,
+.hljs-doctag {
+  color: var(--text-3);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 700;
+}
+.hljs-addition {
+  color: #8aa89b;
+  background: rgba(138, 168, 155, 0.12);
+}
+.hljs-deletion {
+  color: #c07a63;
+  background: rgba(192, 122, 99, 0.12);
+}
+
 /* ---------- 命令面板（Ctrl+P） ---------- */
 @keyframes mask-in {
   from {

@@ -4,6 +4,7 @@ import { formatWhen, groupOf } from '../core/time'
 import { storage } from '../core/storage'
 import { TEMPLATES } from '../core/templates'
 import Heatmap from './Heatmap'
+import { activeDays, goalProgress, streakDays } from '../core/stats'
 import type { DocMeta } from '../core/types'
 
 interface Props {
@@ -13,6 +14,8 @@ interface Props {
   tags: string[]
   activeTag: string | null
   stats: Record<string, number>
+  /** 每日写作目标（0 = 不设目标） */
+  goal: number
   onSelect: (id: string) => void
   onCreate: (templateId: string) => void
   onDelete: (id: string) => void
@@ -44,6 +47,7 @@ export default function Sidebar({
   tags,
   activeTag,
   stats,
+  goal,
   onSelect,
   onCreate,
   onDelete,
@@ -56,6 +60,10 @@ export default function Sidebar({
   const [tplOpen, setTplOpen] = useState(false)
   const [hits, setHits] = useState<Record<string, string>>({})
   const [searching, setSearching] = useState(false)
+
+  const progress = goalProgress(stats, goal)
+  const streak = streakDays(stats)
+  const weekActive = activeDays(stats, 7)
 
   // 标题之外的正文搜索：防抖 260ms，逐篇扫内容
   useEffect(() => {
@@ -252,6 +260,36 @@ export default function Sidebar({
             ♻
           </button>
         </div>
+
+        {/* 今日进度 + 连续天数：热力图光看图没数，这儿给两个具体数字 */}
+        <div className="goal">
+          <div className="goal-line">
+            <span className="goal-today">
+              今天 <b>{progress.today}</b> 字
+            </span>
+            <span className="grow" />
+            {progress.goal > 0 ? (
+              <span className={'goal-rest' + (progress.done ? ' done' : '')}>
+                {progress.done ? '已达标 ✓' : `还差 ${progress.remain}`}
+              </span>
+            ) : (
+              <span className="goal-rest">没设目标</span>
+            )}
+          </div>
+          {progress.goal > 0 && (
+            <div className="goal-bar">
+              <span style={{ width: `${Math.round(progress.ratio * 100)}%` }} />
+            </div>
+          )}
+          <div className="goal-line">
+            <span className="goal-streak">
+              {streak > 0 ? `连续写作 ${streak} 天` : '今天开个头吧'}
+            </span>
+            <span className="grow" />
+            <span className="goal-rest">近 7 天写了 {weekActive} 天</span>
+          </div>
+        </div>
+
         <Heatmap stats={stats} weeks={12} />
       </div>
     </aside>

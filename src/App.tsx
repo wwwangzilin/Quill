@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { JSONContent } from '@tiptap/core'
+import type { JSONContent, Editor } from '@tiptap/core'
 import EditorPane from './editor/EditorPane'
 import Sidebar from './ui/Sidebar'
 import MindMap from './ui/MindMap'
@@ -101,6 +101,8 @@ export default function App() {
   const [aiDelay, setAiDelay] = useSetting('ai-delay', 800)
   /** 「问这篇文档」面板 */
   const [chatOpen, setChatOpen] = useState(false)
+  /** 每日写作目标（0 = 不设目标） */
+  const [dailyGoal, setDailyGoal] = useSetting('daily-goal', 500)
   /** 编辑器实例的重建键：只在新开文档时递增，改名导致的 id 变化不重建（否则光标会飞） */
   const [sessionKey, setSessionKey] = useState(0)
 
@@ -108,6 +110,33 @@ export default function App() {
   const liveRef = useRef<{ title: string; content: JSONContent } | null>(null)
   const timerRef = useRef<number | null>(null)
   const lastCharsRef = useRef(0)
+  /** 当前编辑器实例（复制富文本等要用） */
+  const editorRef = useRef<Editor | null>(null)
+  const handleEditorReady = useCallback((ed: Editor) => {
+    editorRef.current = ed
+  }, [])
+
+  /** 复制为富文本：粘到公众号 / Word 里格式还在 */
+  const copyRichText = useCallback(async () => {
+    const ed = editorRef.current
+    if (!ed || ed.isDestroyed) {
+      toast.info('先打开一篇文档')
+      return
+    }
+    try {
+      const html = ed.getHTML()
+      const text = ed.getText()
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([text], { type: 'text/plain' }),
+        }),
+      ])
+      toast.success('已复制为富文本', '粘到公众号 / Word 里格式还在')
+    } catch (err) {
+      toast.error('复制失败', String(err).slice(0, 120))
+    }
+  }, [])
 
   /* ---------------- 持久化 ---------------- */
 
@@ -502,6 +531,14 @@ export default function App() {
     { key: 'md', icon: '⇩', label: '导出 Markdown', hint: '.md', disabled: !doc, onSelect: exportMd },
     { key: 'json', icon: '⇩', label: '导出 JSON', hint: '.json', disabled: !doc, onSelect: exportJson },
     {
+      key: 'richcopy',
+      icon: '⧉',
+      label: '复制为富文本',
+      hint: '含格式',
+      disabled: !doc,
+      onSelect: () => void copyRichText(),
+    },
+    {
       key: 'history',
       icon: '⏱',
       label: '版本历史',
@@ -567,6 +604,7 @@ export default function App() {
     { id: 'map', title: '切到思维导图', icon: '◈', run: () => switchView('mindmap') },
     { id: 'export-md', title: '导出 Markdown', hint: '.md', icon: '⇩', run: exportMd },
     { id: 'export-json', title: '导出 JSON', hint: '.json', icon: '⇩', run: exportJson },
+    { id: 'richcopy', title: '复制为富文本（含格式）', icon: '⧉', run: () => void copyRichText() },
     {
       id: 'theme',
       title: '切换亮色 / 暗色主题',
@@ -632,6 +670,8 @@ export default function App() {
         onAiEnabled={setAiEnabled}
         aiDelay={aiDelay}
         onAiDelay={setAiDelay}
+        goal={dailyGoal}
+        onGoal={setDailyGoal}
       />
       <QuickCapture
         open={quickOpen}
@@ -702,6 +742,7 @@ export default function App() {
           tags={allTags}
           activeTag={activeTag}
           stats={stats}
+          goal={dailyGoal}
           onSelect={(id) => void openDoc(id)}
           onCreate={(templateId) => void createNew(templateId)}
           onDelete={(id) => void removeDoc(id)}
@@ -743,6 +784,7 @@ export default function App() {
                 if (target) void openDoc(target.id)
                 else toast.info('还没有这篇文档', title)
               }}
+              onReady={handleEditorReady}
               />
               <BacklinksPanel
                 doc={{ id: doc.id, title: doc.title }}

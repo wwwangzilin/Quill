@@ -55,6 +55,28 @@ function block(node: JSONContent, depth: number): string {
     }
     case 'horizontalRule':
       return '---'
+    case 'table': {
+      const rows = node.content ?? []
+      if (!rows.length) return ''
+      const cellText = (cell: JSONContent): string =>
+        (cell.content ?? [])
+          .map((c) => (c.type === 'paragraph' ? inline(c) : block(c, 0)))
+          .join(' ')
+          // 表格里没法放换行，竖线要转义，不然会把单元格切开
+          .replace(/\|/g, '\\|')
+          .replace(/\n+/g, ' ')
+          .trim()
+      const rowCells = (row: JSONContent) => (row.content ?? []).map(cellText)
+      const head = rowCells(rows[0])
+      const width = Math.max(head.length, ...rows.map((r) => (r.content ?? []).length), 1)
+      const pad = (arr: string[]) => [...arr, ...Array(Math.max(0, width - arr.length)).fill('')]
+      const lines = [
+        `| ${pad(head).join(' | ')} |`,
+        `| ${Array(width).fill('---').join(' | ')} |`,
+        ...rows.slice(1).map((r) => `| ${pad(rowCells(r)).join(' | ')} |`),
+      ]
+      return lines.join('\n')
+    }
     case 'image': {
       const src = relOf(String(node.attrs?.src ?? ''))
       const alt = String(node.attrs?.alt ?? '')

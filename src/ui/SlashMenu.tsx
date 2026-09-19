@@ -94,6 +94,19 @@ export const SLASH_ITEMS: SlashItem[] = [
     run: (e) => e.chain().focus().toggleHighlight().run(),
   },
   {
+    id: 'table',
+    label: '表格',
+    hint: '3×3 的 GFM 表格',
+    glyph: '▦',
+    aliases: ['table', 'grid', '表格', '行列'],
+    run: (e) =>
+      e
+        .chain()
+        .focus()
+        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+        .run(),
+  },
+  {
     id: 'hr',
     label: '分割线',
     hint: '横向隔断',

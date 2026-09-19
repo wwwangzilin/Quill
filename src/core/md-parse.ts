@@ -26,15 +26,69 @@ const HEADING = /^(#{1,6})\s+(.*)$/
 const QUOTE = /^\s*>\s?/
 const LIST = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/
 const RULE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/
+/** GFM 表格行：以 | 开头或结尾 */
+const TABLE_ROW = /^\s*\|.*\|\s*$/
+/** 分隔行：| --- | :--: | */
+const TABLE_SEP = /^\s*\|?[\s:|-]*-[\s:|-]*\|[\s:|-]*$/
 
 function indentOf(s: string): number {
   const m = s.match(/^[\t ]*/)
   return (m?.[0] ?? '').replace(/\t/g, '  ').length
 }
 
+/* ----------------------------- 表格 ----------------------------- */
+
+/** 拆一行表格单元格（`\|` 是转义出来的竖线，不能当分隔符） */
+function splitCells(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split(/(?<!\\)\|/)
+    .map((s) => s.replace(/\\\|/g, '|').trim())
+}
+
+function cellNode(type: 'tableCell' | 'tableHeader', text: string): JSONContent {
+  return {
+    type,
+    attrs: { colspan: 1, rowspan: 1, colwidth: null },
+    content: [{ type: 'paragraph', content: inline(text) }],
+  }
+}
+
+function parseTable(lines: string[], start: number): { node: JSONContent; end: number } {
+  const head = splitCells(lines[start])
+  const rows: string[][] = []
+  let i = start + 2 // 跳过表头和分隔行
+  while (i < lines.length && TABLE_ROW.test(lines[i])) {
+    rows.push(splitCells(lines[i]))
+    i += 1
+  }
+  const width = Math.max(head.length, ...rows.map((r) => r.length))
+  const fill = (arr: string[]) => [...arr, ...Array(Math.max(0, width - arr.length)).fill('')]
+  return {
+    node: {
+      type: 'table',
+      content: [
+        { type: 'tableRow', content: fill(head).map((t) => cellNode('tableHeader', t)) },
+        ...rows.map((r) => ({
+          type: 'tableRow',
+          content: fill(r).map((t) => cellNode('tableCell', t)),
+        })),
+      ],
+    },
+    end: i,
+  }
+}
+
 function isBlockStart(line: string): boolean {
   return (
-    HEADING.test(line) || QUOTE.test(line) || LIST.test(line) || FENCE.test(line) || RULE.test(line)
+    HEADING.test(line) ||
+    QUOTE.test(line) ||
+    LIST.test(line) ||
+    FENCE.test(line) ||
+    RULE.test(line) ||
+    TABLE_ROW.test(line)
   )
 }
 
@@ -202,6 +256,14 @@ function parseBlocks(lines: string[]): JSONContent[] {
     if (vid) {
       out.push({ type: 'video', attrs: { src: assetUrl(vid[1]), title: null } })
       i += 1
+      continue
+    }
+
+    // GFM 表格：表头行 + 分隔行 + 若干数据行
+    if (TABLE_ROW.test(line) && TABLE_SEP.test(lines[i + 1] ?? '')) {
+      const { node, end } = parseTable(lines, i)
+      out.push(node)
+      i = end
       continue
     }
 

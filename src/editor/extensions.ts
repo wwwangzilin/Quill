@@ -11,6 +11,12 @@ import { WikiLink } from './wikilink'
 import { BlockGutter } from './gutter'
 import { Video } from './media'
 import { AiComplete } from './aiComplete'
+import { TableKit } from '@tiptap/extension-table'
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import { createLowlight, common } from 'lowlight'
+
+/** 代码块语法高亮的语言包：常用语言全都有，纯前端、不加其它依赖 */
+const lowlight = createLowlight(common)
 import Image from '@tiptap/extension-image'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { EditorView } from '@tiptap/pm/view'
@@ -155,7 +161,12 @@ export function buildExtensions(placeholder: string) {
     AiComplete,
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
+      // 用带语法高亮的代码块替换掉自带的
+      codeBlock: false,
     }),
+    CodeBlockLowlight.configure({ lowlight, defaultLanguage: null }),
+    // GFM 表格：写进 .md 就是标准的 | a | b | 语法，别的编辑器照样认
+    TableKit.configure({ table: { resizable: false } }),
     Placeholder.configure({ placeholder }),
     TaskList,
     TaskItem.configure({ nested: true }),
