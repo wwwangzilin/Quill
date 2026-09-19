@@ -1,24 +1,25 @@
 /* ==========================================================================
    Quill — 设计系统
-   暗色沉浸 + 毛玻璃 + 紫→蓝→粉霓虹点缀
+   纸墨感：暖灰底 + 琥珀金点缀（刻意避开高饱和霓虹）
    ========================================================================== */
 
 :root {
   color-scheme: dark;
-  --bg: #0b0b0f;
-  --surface: rgba(24, 24, 32, 0.68);
-  --surface-solid: #15151c;
-  --surface-hover: rgba(255, 255, 255, 0.055);
-  --surface-active: rgba(255, 255, 255, 0.095);
-  --border: rgba(255, 255, 255, 0.075);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --text: #eaeaf2;
-  --text-2: #9d9dae;
-  --text-3: #67677a;
-  --accent-1: #a06bff;
-  --accent-2: #4d9dff;
-  --accent-3: #ff6bcb;
-  --grad: linear-gradient(120deg, var(--accent-1), var(--accent-2) 55%, var(--accent-3));
+  --bg: #0f0e0d;
+  --surface: rgba(26, 25, 23, 0.72);
+  --surface-solid: #171614;
+  --surface-hover: rgba(255, 250, 240, 0.05);
+  --surface-active: rgba(255, 250, 240, 0.085);
+  --border: rgba(255, 248, 235, 0.075);
+  --border-strong: rgba(255, 248, 235, 0.14);
+  --text: #e8e4dc;
+  --text-2: #a09a90;
+  --text-3: #6d6862;
+  --accent-1: #cba56b;
+  --accent-2: #8aa89b;
+  --accent-3: #c07a63;
+  --accent-soft: rgba(203, 165, 107, 0.14);
+  --grad: linear-gradient(135deg, #d3ae74, #a8843f);
   --radius-sm: 8px;
   --radius: 12px;
   --radius-lg: 18px;
@@ -35,18 +36,23 @@
 
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #fbfbfa;
-  --surface: rgba(255, 255, 255, 0.78);
-  --surface-solid: #ffffff;
-  --surface-hover: rgba(0, 0, 0, 0.04);
-  --surface-active: rgba(0, 0, 0, 0.07);
-  --border: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.16);
-  --text: #1c1c22;
-  --text-2: #5c5c6b;
-  --text-3: #9a9aa8;
-  --shadow: 0 12px 44px rgba(20, 20, 40, 0.12);
-  --shadow-sm: 0 4px 16px rgba(20, 20, 40, 0.08);
+  --bg: #faf7f2;
+  --surface: rgba(255, 253, 249, 0.82);
+  --surface-solid: #fffdf9;
+  --surface-hover: rgba(60, 50, 30, 0.045);
+  --surface-active: rgba(60, 50, 30, 0.075);
+  --border: rgba(60, 50, 30, 0.1);
+  --border-strong: rgba(60, 50, 30, 0.18);
+  --text: #221f1b;
+  --text-2: #5b544b;
+  --text-3: #948c81;
+  --accent-1: #9c7420;
+  --accent-2: #4f7268;
+  --accent-3: #9c4f3a;
+  --accent-soft: rgba(156, 116, 32, 0.12);
+  --grad: linear-gradient(135deg, #b98f36, #8a6518);
+  --shadow: 0 12px 44px rgba(40, 30, 15, 0.12);
+  --shadow-sm: 0 4px 16px rgba(40, 30, 15, 0.08);
 }
 
 * {
@@ -78,17 +84,15 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(760px 520px at 12% -8%, rgba(160, 107, 255, 0.16), transparent 62%),
-    radial-gradient(680px 480px at 92% 4%, rgba(77, 157, 255, 0.12), transparent 60%),
-    radial-gradient(620px 520px at 72% 104%, rgba(255, 107, 203, 0.1), transparent 62%);
+    radial-gradient(820px 540px at 14% -12%, rgba(203, 165, 107, 0.085), transparent 66%),
+    radial-gradient(700px 500px at 90% 6%, rgba(138, 168, 155, 0.055), transparent 62%);
   z-index: 0;
 }
 
 [data-theme="light"] body::before {
   background:
-    radial-gradient(760px 520px at 12% -8%, rgba(160, 107, 255, 0.14), transparent 62%),
-    radial-gradient(680px 480px at 92% 4%, rgba(77, 157, 255, 0.1), transparent 60%),
-    radial-gradient(620px 520px at 72% 104%, rgba(255, 107, 203, 0.09), transparent 62%);
+    radial-gradient(820px 540px at 14% -12%, rgba(156, 116, 32, 0.07), transparent 66%),
+    radial-gradient(700px 500px at 90% 6%, rgba(79, 114, 104, 0.05), transparent 62%);
 }
 
 ::-webkit-scrollbar {
@@ -578,11 +582,11 @@ body::before {
   font-size: 0.88em;
   padding: 2px 6px;
   border-radius: 5px;
-  background: rgba(160, 107, 255, 0.14);
-  color: #d9c4ff;
+  background: var(--accent-soft);
+  color: #e2c793;
 }
 [data-theme="light"] .ProseMirror code {
-  color: #6a3fd0;
+  color: #7a5716;
 }
 
 .ProseMirror pre {
@@ -612,7 +616,7 @@ body::before {
 }
 
 .ProseMirror mark {
-  background: rgba(255, 107, 203, 0.28);
+  background: rgba(203, 165, 107, 0.3);
   color: inherit;
   border-radius: 3px;
   padding: 1px 2px;
@@ -715,7 +719,7 @@ body::before {
 }
 .mm-link {
   fill: none;
-  stroke: rgba(140, 140, 180, 0.4);
+  stroke: rgba(180, 170, 155, 0.35);
   stroke-width: 1.4;
 }
 .mm-link.root {
@@ -984,16 +988,14 @@ body,
 /* ---------- 视图切换 ---------- */
 .editor-scroll,
 .pane {
-  animation: view-in var(--dur) var(--ease-out) both;
+  animation: view-in 0.18s var(--ease-out) both;
 }
 @keyframes view-in {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.994);
   }
   to {
     opacity: 1;
-    transform: none;
   }
 }
 
@@ -1011,20 +1013,16 @@ body,
 
 /* ---------- 文档列表入场 ---------- */
 .doc-item {
-  animation: item-in 0.36s var(--ease-out) both;
-  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
-    transform var(--dur-fast) var(--ease);
-}
-.doc-item:hover {
-  transform: translateX(3px);
+  animation: item-in 0.2s var(--ease-out) both;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 .doc-item:active {
-  transform: translateX(3px) scale(0.985);
+  transform: scale(0.996);
 }
 @keyframes item-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -1038,11 +1036,8 @@ body,
     color var(--dur-fast) var(--ease), transform 0.12s var(--ease), box-shadow var(--dur-fast) var(--ease),
     filter var(--dur-fast) var(--ease);
 }
-.btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
 .btn:active:not(:disabled) {
-  transform: translateY(0) scale(0.96);
+  transform: scale(0.975);
 }
 .btn:disabled {
   opacity: 0.4;
@@ -1065,10 +1060,7 @@ body,
   }
 }
 .menu button {
-  transition: background var(--dur-fast) var(--ease), padding-left var(--dur-fast) var(--ease);
-}
-.menu button:hover {
-  padding-left: 14px;
+  transition: background var(--dur-fast) var(--ease);
 }
 
 /* ---------- Toast ---------- */
@@ -1125,10 +1117,10 @@ body,
   margin-top: 1px;
 }
 .toast.error .t-icon {
-  background: linear-gradient(135deg, #ff6bcb, #ff5a7a);
+  background: linear-gradient(135deg, #c07a63, #a1574a);
 }
 .toast.success .t-icon {
-  background: linear-gradient(135deg, #4dc882, #38b2ac);
+  background: linear-gradient(135deg, #7d9b8a, #5f7f6e);
 }
 .toast .t-body {
   display: flex;
@@ -1523,38 +1515,89 @@ body,
 .ProseMirror > * > .drag-handle,
 .ProseMirror li > .drag-handle {
   position: absolute;
-  left: -2.75em;
-  top: 0.3em;
+  left: -2.55em;
+  top: 0.36em;
   width: 15px;
-  height: 18px;
+  height: 15px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  place-items: center;
+  padding: 1px 2px;
+  border-radius: 4px;
   cursor: grab;
   opacity: 0;
-  border-radius: 4px;
+  /* 关键：告诉浏览器这里不是滚动区，否则 pointer 事件会被手势抢走 */
+  touch-action: none;
+  user-select: none;
   transition: opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
-.ProseMirror > * > .drag-handle::before,
-.ProseMirror li > .drag-handle::before {
-  content: "";
-  position: absolute;
-  inset: 3px 4px;
-  background-image: radial-gradient(currentColor 1.1px, transparent 1.2px);
-  background-size: 5px 5px;
-  opacity: 0.8;
+.ProseMirror .drag-handle i {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
 }
 .ProseMirror > *:hover > .drag-handle,
 .ProseMirror li:hover > .drag-handle {
-  opacity: 0.45;
+  opacity: 0.5;
 }
 .ProseMirror .drag-handle:hover {
   opacity: 1 !important;
   background: var(--surface-active);
 }
-.ProseMirror .drag-handle:active {
-  cursor: grabbing;
-}
 .ProseMirror .drag-handle.dragging {
   opacity: 1 !important;
-  background: var(--grad);
+  background: var(--accent-soft);
+  cursor: grabbing;
+}
+
+/* 拖拽进行中：整页锁定光标与选择 */
+body.quill-dragging,
+body.quill-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+/* 正文里的媒体 */
+.ProseMirror img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 6px 0;
+  border-radius: var(--radius);
+}
+.ProseMirror img.ProseMirror-selectednode,
+.ProseMirror .quill-video.ProseMirror-selectednode {
+  outline: 2px solid var(--accent-1);
+  outline-offset: 2px;
+}
+.ProseMirror .quill-video {
+  display: block;
+  max-width: 100%;
+  margin: 6px 0;
+  border-radius: var(--radius);
+  background: #000;
+}
+
+/* 右侧块类型标记 */
+.ProseMirror .gutter-label {
+  position: absolute;
+  right: -4.4em;
+  top: 0.34em;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  opacity: 0.42;
+  user-select: none;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.ProseMirror > *:hover > .gutter-label {
+  opacity: 0.85;
+  color: var(--accent-1);
 }
 
 .drag-line {
@@ -1687,17 +1730,17 @@ body,
   transform: scale(1.4);
 }
 .heat-cell.l1 {
-  background: rgba(160, 107, 255, 0.32);
+  background: rgba(203, 165, 107, 0.3);
 }
 .heat-cell.l2 {
-  background: rgba(160, 107, 255, 0.55);
+  background: rgba(203, 165, 107, 0.52);
 }
 .heat-cell.l3 {
-  background: rgba(140, 120, 255, 0.78);
+  background: rgba(203, 165, 107, 0.76);
 }
 .heat-cell.l4 {
   background: var(--accent-1);
-  box-shadow: 0 0 8px rgba(160, 107, 255, 0.6);
+  box-shadow: 0 0 8px rgba(203, 165, 107, 0.5);
 }
 
 .side-foot {
@@ -1750,12 +1793,12 @@ body,
    ========================================================================== */
 
 .ProseMirror .search-hit {
-  background: rgba(255, 214, 102, 0.3);
+  background: rgba(214, 178, 92, 0.28);
   border-radius: 3px;
 }
 .ProseMirror .search-hit.active {
-  background: rgba(255, 170, 60, 0.62);
-  box-shadow: 0 0 0 1px rgba(255, 170, 60, 0.85);
+  background: rgba(214, 178, 92, 0.6);
+  box-shadow: 0 0 0 1px rgba(214, 178, 92, 0.85);
 }
 
 .find-bar {
@@ -1876,12 +1919,12 @@ body,
 /* 双向链接 [[标题]] */
 .ProseMirror .wikilink {
   color: var(--accent-2);
-  background: rgba(77, 157, 255, 0.13);
+  background: rgba(138, 168, 155, 0.14);
   border-radius: 4px;
   padding: 1px 3px;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .ProseMirror .wikilink:hover {
-  background: rgba(77, 157, 255, 0.28);
+  background: rgba(138, 168, 155, 0.28);
 }

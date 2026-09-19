@@ -4,6 +4,8 @@ import type { JSONContent } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { buildExtensions } from './extensions'
 import { formatWhen } from '../core/time'
+import { storage } from '../core/storage'
+import { toast } from '../ui/toast'
 import type { Doc } from '../core/types'
 import SlashMenu, { filterSlash, type SlashItem } from '../ui/SlashMenu'
 import FindBar from '../ui/FindBar'
@@ -222,6 +224,40 @@ export default function EditorPane({
 
   const items = useMemo(() => (slash ? filterSlash(slash.query) : []), [slash])
 
+  /** 选本地文件 → 存进仓库 assets/ → 插入节点 */
+  const pickMedia = useCallback(
+    (kind: 'image' | 'video') => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = kind === 'image' ? 'image/*' : 'video/*'
+      input.onchange = async () => {
+        const file = input.files?.[0]
+        if (!file || !editor) return
+        try {
+          const buf = await file.arrayBuffer()
+          const bytes = new Uint8Array(buf)
+          let binary = ''
+          const chunk = 0x8000
+          for (let i = 0; i < bytes.length; i += chunk) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+          }
+          const b64 = btoa(binary)
+          const src = storage.saveAsset
+            ? await storage.saveAsset(file.name, b64)
+            : `data:${file.type};base64,${b64}`
+          const attrs =
+            kind === 'image' ? { src, alt: file.name, title: null } : { src, title: file.name }
+          editor.chain().focus().insertContent({ type: kind, attrs }).run()
+          toast.success(kind === 'image' ? '已插入图片' : '已插入视频', file.name)
+        } catch (err) {
+          toast.error('插入失败', String(err))
+        }
+      }
+      input.click()
+    },
+    [editor],
+  )
+
   const runSlash = useCallback(
     (item: SlashItem) => {
       if (!editor) return
@@ -230,10 +266,14 @@ export default function EditorPane({
       const idx = before.lastIndexOf('/')
       const start = idx >= 0 ? from - (before.length - idx) : from
       editor.chain().focus().deleteRange({ from: start, to: from }).run()
-      item.run(editor)
       setSlash(null)
+      if (item.media) {
+        pickMedia(item.media)
+        return
+      }
+      item.run(editor)
     },
-    [editor],
+    [editor, pickMedia],
   )
 
   const wikiItems = useMemo(() => {

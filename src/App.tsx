@@ -16,6 +16,7 @@ import { initStorage, storage } from './core/storage'
 import { docToMarkdown, safeFileName } from './core/markdown'
 import type { Doc, DocMeta, ViewMode } from './core/types'
 import { WELCOME } from './core/welcome'
+import { setAssetResolver } from './core/asset'
 
 type Saving = 'idle' | 'saving' | 'saved'
 
@@ -160,6 +161,17 @@ export default function App() {
       if (cancelled) return
       setVaultMode(store.kind === 'vault')
       setVaultLabel(store.label)
+
+      // 让编辑器能把文档里的 assets/xxx 换成 WebView 能取的 URL
+      if (store.kind === 'vault') {
+        try {
+          const { convertFileSrc } = await import('@tauri-apps/api/core')
+          const base = store.label
+          setAssetResolver((rel) => convertFileSrc(`${base}\\${rel.replace(/\//g, '\\')}`))
+        } catch {
+          /* 浏览器模式没有这个 API */
+        }
+      }
 
       let list = await store.list()
       if (!list.length) {

@@ -6,6 +6,8 @@ export interface SlashItem {
   hint: string
   glyph: string
   aliases: string[]
+  /** 媒体项：不走编辑器命令，而是弹文件选择器 */
+  media?: 'image' | 'video'
   run: (editor: Editor) => void
 }
 
@@ -98,6 +100,24 @@ export const SLASH_ITEMS: SlashItem[] = [
     glyph: '—',
     aliases: ['hr', 'rule', 'divider', '分割', '分隔'],
     run: (e) => e.chain().focus().setHorizontalRule().run(),
+  },
+  {
+    id: 'image',
+    label: '图片',
+    hint: '从本机选一张图',
+    glyph: '▣',
+    aliases: ['image', 'img', 'photo', 'picture', '图片', '照片', '插图'],
+    media: 'image',
+    run: () => {},
+  },
+  {
+    id: 'video',
+    label: '视频',
+    hint: '插入本地视频',
+    glyph: '▷',
+    aliases: ['video', 'movie', 'mp4', '视频', '影片'],
+    media: 'video',
+    run: () => {},
   },
 ]
 

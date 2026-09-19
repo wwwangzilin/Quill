@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
+import { relOf } from './asset'
 
 /**
  * Tiptap JSON → Markdown
@@ -54,6 +55,15 @@ function block(node: JSONContent, depth: number): string {
     }
     case 'horizontalRule':
       return '---'
+    case 'image': {
+      const src = relOf(String(node.attrs?.src ?? ''))
+      const alt = String(node.attrs?.alt ?? '')
+      return src ? `![${alt}](${src})` : ''
+    }
+    case 'video': {
+      const src = relOf(String(node.attrs?.src ?? ''))
+      return src ? `<video src="${src}" controls></video>` : ''
+    }
     case 'bulletList':
       return listBlock(node, depth, () => '- ')
     case 'orderedList':

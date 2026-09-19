@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
+import { assetUrl } from './asset'
 
 /**
  * Markdown → Tiptap JSON。
@@ -181,6 +182,25 @@ function parseBlocks(lines: string[]): JSONContent[] {
 
     if (RULE.test(line)) {
       out.push({ type: 'horizontalRule' })
+      i += 1
+      continue
+    }
+
+    // 图片：整行 ![alt](src)
+    const img = line.match(/^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/)
+    if (img) {
+      out.push({
+        type: 'image',
+        attrs: { src: assetUrl(img[2]), alt: img[1] || null, title: null },
+      })
+      i += 1
+      continue
+    }
+
+    // 视频：整行 <video src="..."></video>
+    const vid = line.match(/^<video\s+[^>]*src="([^"]+)"[^>]*>\s*<\/video>\s*$/i)
+    if (vid) {
+      out.push({ type: 'video', attrs: { src: assetUrl(vid[1]), title: null } })
       i += 1
       continue
     }

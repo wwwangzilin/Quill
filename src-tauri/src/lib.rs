@@ -195,6 +195,13 @@ fn git_push_now(app: tauri::AppHandle) -> Result<String, String> {
     git::push(&dir)
 }
 
+/// 把选中的图片/视频写进仓库的 assets/ 目录，返回可写进 Markdown 的相对路径
+#[tauri::command]
+fn save_asset(app: tauri::AppHandle, name: String, data: String) -> Result<String, String> {
+    let dir = prepare(&app)?;
+    vault::save_asset(&dir, &name, &data)
+}
+
 /// 在资源管理器里打开仓库目录 —— 「文档都是纯 md 文件」这件事要能被亲眼验证
 #[tauri::command]
 fn reveal_vault(app: tauri::AppHandle) -> Result<(), String> {
@@ -265,7 +272,8 @@ pub fn run() {
             reveal_vault,
             git_remote_info,
             save_git_settings,
-            git_push_now
+            git_push_now,
+            save_asset
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

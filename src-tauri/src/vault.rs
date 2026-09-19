@@ -427,6 +427,56 @@ pub fn get_stats(dir: &Path) -> HashMap<String, u64> {
         .unwrap_or_default()
 }
 
+/// base64 解码（手写，省一个依赖）
+fn decode_base64(input: &str) -> Result<Vec<u8>, String> {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut lookup = [255u8; 256];
+    for (i, &c) in TABLE.iter().enumerate() {
+        lookup[c as usize] = i as u8;
+    }
+    let clean: Vec<u8> = input
+        .bytes()
+        .filter(|b| !b.is_ascii_whitespace() && *b != b'=')
+        .collect();
+    let mut out = Vec::with_capacity(clean.len() * 3 / 4);
+    let mut buf: u32 = 0;
+    let mut bits = 0u32;
+    for b in clean {
+        let v = lookup[b as usize];
+        if v == 255 {
+            return Err("媒体数据不是合法的 base64".into());
+        }
+        buf = (buf << 6) | v as u32;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((buf >> bits) as u8);
+        }
+    }
+    Ok(out)
+}
+
+/// 把媒体文件写进 assets/，返回相对路径（写进 Markdown 用的那种）
+pub fn save_asset(dir: &Path, name: &str, data: &str) -> Result<String, String> {
+    let assets = dir.join("assets");
+    std::fs::create_dir_all(&assets).map_err(|e| format!("创建 assets 目录失败: {e}"))?;
+
+    let safe: String = name
+        .chars()
+        .map(|c| match c {
+            '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            c if (c as u32) < 0x20 => '_',
+            c => c,
+        })
+        .collect();
+    let file_name = format!("{}_{}", now_secs(), safe.trim());
+    let bytes = decode_base64(data)?;
+    std::fs::write(assets.join(&file_name), bytes).map_err(|e| format!("写入媒体失败: {e}"))?;
+
+    commit(dir, &format!("插入媒体 {}", safe.trim()));
+    Ok(format!("assets/{file_name}"))
+}
+
 pub fn info(dir: &Path) -> VaultInfo {
     VaultInfo {
         path: dir.to_string_lossy().to_string(),

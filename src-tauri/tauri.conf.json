@@ -20,11 +20,15 @@
         "center": true,
         "resizable": true,
         "fullscreen": false,
-        "backgroundColor": "#0b0b0f"
+        "backgroundColor": "#0f0e0d"
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$DOCUMENT/**"]
+      }
     }
   },
   "bundle": {

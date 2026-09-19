@@ -61,6 +61,8 @@ export interface DocStorage {
   remoteInfo?(): Promise<RemoteInfo>
   saveGitSettings?(url: string, ca?: string, token?: string): Promise<void>
   pushNow?(): Promise<string>
+  /** 把媒体写进仓库的 assets/，返回相对路径 */
+  saveAsset?(name: string, data: string): Promise<string>
 }
 
 /* ------------------------- 浏览器：IndexedDB ------------------------- */

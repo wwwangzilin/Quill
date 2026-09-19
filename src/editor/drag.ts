@@ -7,18 +7,18 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 /**
  * 块拖拽排序。
  *
- * 做法是给每个可拖块（顶层块 + 列表项）插一个装饰器手柄，
- * 用原生 HTML5 拖放 + ProseMirror 事务完成移动；
- * 拖拽过程中按鼠标位置吸附到最近的块边界，并画一条落点指示线。
+ * 刻意**不用 HTML5 原生拖放**：编辑器是 contenteditable，浏览器会把子元素的
+ * draggable 拦掉（光标变成「禁止」，根本拖不动）。这里改成 pointer 事件自己算：
+ * 按下手柄 → 跟随鼠标找最近的块边界 → 画落点线 → 松手用事务移动。
  */
 export const DragSort = Extension.create({
   name: 'quillDragSort',
 
   addProseMirrorPlugins() {
     const editor = this.editor
+    let line: HTMLElement | null = null
     let dragging: { pos: number; node: PMNode } | null = null
     let dropAt: number | null = null
-    let line: HTMLElement | null = null
 
     const hostOf = (view: EditorView): HTMLElement =>
       (view.dom.parentElement as HTMLElement) ?? view.dom
@@ -36,13 +36,7 @@ export const DragSort = Extension.create({
       if (line) line.style.display = 'none'
     }
 
-    const reset = () => {
-      dragging = null
-      dropAt = null
-      hideLine()
-    }
-
-    /** 鼠标位置 → 最近的可拖块边界 */
+    /** 鼠标位置 → 最近的块（优先最深的列表项，否则顶层块） */
     const nearestBlock = (view: EditorView, clientX: number, clientY: number) => {
       const hit = view.posAtCoords({ left: clientX, top: clientY })
       if (!hit) return null
@@ -61,16 +55,75 @@ export const DragSort = Extension.create({
       return { pos: start, node: doc.child(idx) }
     }
 
-    const handle = (pos: number) =>
+    const startDrag = (view: EditorView, handle: HTMLElement, ev: PointerEvent) => {
+      const pos = Number(handle.dataset.pos)
+      const node = view.state.doc.nodeAt(pos)
+      if (!node || Number.isNaN(pos)) return
+
+      dragging = { pos, node }
+      dropAt = null
+      handle.classList.add('dragging')
+      document.body.classList.add('quill-dragging')
+      ev.preventDefault()
+
+      const onMove = (e: PointerEvent) => {
+        if (!dragging) return
+        const hit = nearestBlock(view, e.clientX, e.clientY)
+        if (!hit) return
+        const dom = view.nodeDOM(hit.pos) as HTMLElement | null
+        if (!dom) return
+        const rect = dom.getBoundingClientRect()
+        const after = e.clientY > rect.top + rect.height / 2
+        dropAt = after ? hit.pos + hit.node.nodeSize : hit.pos
+
+        const hostRect = hostOf(view).getBoundingClientRect()
+        const l = lineEl(view)
+        l.style.display = 'block'
+        l.style.left = `${rect.left - hostRect.left}px`
+        l.style.width = `${rect.width}px`
+        l.style.top = `${(after ? rect.bottom : rect.top) - hostRect.top - 1}px`
+      }
+
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+        window.removeEventListener('pointercancel', onUp)
+        document.body.classList.remove('quill-dragging')
+        handle.classList.remove('dragging')
+        hideLine()
+
+        const from = dragging
+        const to = dropAt
+        dragging = null
+        dropAt = null
+        if (!from || to == null) return
+        // 落在自己身上 = 什么都不做
+        if (to >= from.pos && to <= from.pos + from.node.nodeSize) return
+
+        const tr = view.state.tr
+        tr.delete(from.pos, from.pos + from.node.nodeSize)
+        const mapped = tr.mapping.map(to, -1)
+        tr.insert(mapped, from.node)
+        view.dispatch(tr.scrollIntoView())
+        editor.commands.focus()
+      }
+
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+      window.addEventListener('pointercancel', onUp)
+    }
+
+    /** 手柄做成 2×3 的点阵，用真实元素而不是背景图 */
+    const handleWidget = (pos: number) =>
       Decoration.widget(
         pos + 1,
         () => {
           const el = document.createElement('span')
           el.className = 'drag-handle'
           el.setAttribute('contenteditable', 'false')
-          el.setAttribute('draggable', 'true')
           el.dataset.pos = String(pos)
-          el.title = '拖动排序'
+          el.title = '按住拖动排序'
+          for (let i = 0; i < 6; i += 1) el.appendChild(document.createElement('i'))
           return el
         },
         { side: -1, key: `dh-${pos}` },
@@ -82,84 +135,22 @@ export const DragSort = Extension.create({
         props: {
           decorations(state) {
             const decos: Decoration[] = []
-            state.doc.forEach((node, offset) => {
-              decos.push(handle(offset))
+            state.doc.forEach((_, offset) => {
+              decos.push(handleWidget(offset))
             })
             state.doc.descendants((node, pos) => {
               if (node.type.name === 'listItem' || node.type.name === 'taskItem') {
-                decos.push(handle(pos))
+                decos.push(handleWidget(pos))
               }
             })
             return decos.length ? DecorationSet.create(state.doc, decos) : null
           },
-
           handleDOMEvents: {
-            dragstart: (view, event) => {
+            pointerdown: (view, event) => {
               const target = event.target as HTMLElement | null
               if (!target?.classList?.contains('drag-handle')) return false
-              const pos = Number(target.dataset.pos)
-              const node = view.state.doc.nodeAt(pos)
-              if (!node) return false
-              dragging = { pos, node }
-              dropAt = null
-              target.classList.add('dragging')
-              const dt = (event as DragEvent).dataTransfer
-              if (dt) {
-                dt.effectAllowed = 'move'
-                dt.setData('text/plain', '')
-                const dom = view.nodeDOM(pos) as HTMLElement | null
-                if (dom) dt.setDragImage(dom, 12, 12)
-              }
+              startDrag(view, target, event as PointerEvent)
               return true
-            },
-
-            dragover: (view, event) => {
-              if (!dragging) return false
-              event.preventDefault()
-              const hit = nearestBlock(view, event.clientX, event.clientY)
-              if (!hit) return true
-              const dom = view.nodeDOM(hit.pos) as HTMLElement | null
-              if (!dom) return true
-              const rect = dom.getBoundingClientRect()
-              const after = event.clientY > rect.top + rect.height / 2
-              dropAt = after ? hit.pos + hit.node.nodeSize : hit.pos
-
-              const host = hostOf(view)
-              const hostRect = host.getBoundingClientRect()
-              const l = lineEl(view)
-              l.style.display = 'block'
-              l.style.left = `${rect.left - hostRect.left}px`
-              l.style.width = `${rect.width}px`
-              l.style.top = `${(after ? rect.bottom : rect.top) - hostRect.top - 1}px`
-              return true
-            },
-
-            drop: (view, event) => {
-              if (!dragging || dropAt == null) {
-                reset()
-                return false
-              }
-              event.preventDefault()
-              const { pos, node } = dragging
-              const to = dropAt
-              reset()
-              // 落在自己身上 = 什么都不做
-              if (to >= pos && to <= pos + node.nodeSize) return true
-              const tr = view.state.tr
-              tr.delete(pos, pos + node.nodeSize)
-              const mapped = tr.mapping.map(to, -1)
-              tr.insert(mapped, node)
-              view.dispatch(tr.scrollIntoView())
-              editor.commands.focus()
-              return true
-            },
-
-            dragend: () => {
-              document
-                .querySelectorAll('.ProseMirror .drag-handle.dragging')
-                .forEach((el) => el.classList.remove('dragging'))
-              reset()
-              return false
             },
           },
         },

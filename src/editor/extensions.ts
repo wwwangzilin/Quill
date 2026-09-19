@@ -8,6 +8,9 @@ import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { DragSort } from './drag'
 import { SearchHighlight } from './search'
 import { WikiLink } from './wikilink'
+import { BlockGutter } from './gutter'
+import { Video } from './media'
+import Image from '@tiptap/extension-image'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { EditorView } from '@tiptap/pm/view'
 
@@ -160,5 +163,8 @@ export function buildExtensions(placeholder: string) {
     DragSort,
     SearchHighlight,
     WikiLink,
+    BlockGutter,
+    Image.configure({ inline: false, allowBase64: false }),
+    Video,
   ]
 }

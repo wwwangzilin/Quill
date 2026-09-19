@@ -165,4 +165,8 @@ export const vaultStorage: DocStorage = {
   async pushNow() {
     return await invoke<string>('git_push_now')
   },
+
+  async saveAsset(name, data) {
+    return await invoke<string>('save_asset', { name, data })
+  },
 }
