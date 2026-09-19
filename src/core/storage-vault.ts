@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { docToMarkdown } from './markdown'
 import { markdownToDoc, splitTitle } from './md-parse'
+import type { Comment } from './comments'
 import type { CommitInfo, DocStorage, RemoteInfo, TrashItem } from './storage'
 import { emptyContent, type Doc, type DocMeta } from './types'
 
@@ -168,5 +169,13 @@ export const vaultStorage: DocStorage = {
 
   async saveAsset(name, data) {
     return await invoke<string>('save_asset', { name, data })
+  },
+
+  async comments(id) {
+    return await invoke<Comment[]>('doc_comments', { file: id })
+  },
+
+  async setComments(id, list) {
+    await invoke('set_doc_comments', { file: id, comments: list })
   },
 }

@@ -15,6 +15,9 @@ import CommandPalette, { type PaletteCommand } from './ui/CommandPalette'
 import BacklinksPanel from './ui/BacklinksPanel'
 import AiChatPanel from './ui/AiChatPanel'
 import QuickCapture from './ui/QuickCapture'
+import CommentsPanel from './ui/CommentsPanel'
+import { locate, type Comment } from './core/comments'
+import { applyComments, onCommentPick } from './editor/commentMark'
 import { TEMPLATES } from './core/templates'
 import { openQuickNote, openSticky } from './core/windows'
 import {
@@ -168,6 +171,13 @@ export default function App() {
   const [desk, setDesk] = useState<DesktopPrefs>(DEFAULT_PREFS)
   /** 开机自启是系统里的事实，不是我们的设置，所以单独读一次 */
   const [autostart, setAutostartOn] = useState(false)
+  /** 当前文档的批注（存 .quill-meta.json，不进 .md） */
+  const [comments, setComments] = useState<Comment[]>([])
+  const [commentsOpen, setCommentsOpen] = useState(false)
+  /** 从正文选中带进面板的新建草稿（引文） */
+  const [commentDraft, setCommentDraft] = useState<string | null>(null)
+  /** 从正文点底纹进来时要高亮的那条 */
+  const [commentFocus, setCommentFocus] = useState<string | null>(null)
 
   const docRef = useRef<Doc | null>(null)
   const liveRef = useRef<{ title: string; content: JSONContent } | null>(null)
@@ -354,6 +364,44 @@ export default function App() {
     ed.setEditable(!reading)
     if (reading) ed.commands.blur()
   }, [reading, sessionKey])
+
+  /* ---------------- 批注 ---------------- */
+
+  // 换文档时读一次批注
+  useEffect(() => {
+    const id = doc?.id
+    if (!id || !storage.comments) {
+      setComments([])
+      return
+    }
+    let alive = true
+    void storage
+      .comments(id)
+      .then((list) => {
+        if (alive) setComments(list)
+      })
+      .catch(() => {
+        if (alive) setComments([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [doc?.id])
+
+  // 灌进编辑器的 decoration（编辑器重建后也要重来一次）
+  useEffect(() => {
+    const ed = editorRef.current
+    if (ed && !ed.isDestroyed) applyComments(ed, comments)
+  }, [comments, sessionKey])
+
+  // 点正文里的批注底纹 → 打开面板并定位
+  useEffect(() => {
+    onCommentPick((id) => {
+      setCommentFocus(id)
+      setCommentsOpen(true)
+    })
+    return () => onCommentPick(null)
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -562,6 +610,52 @@ export default function App() {
       setAllTags(await storage.allTags())
     } catch {
       /* 忽略 */
+    }
+  }, [])
+
+  /* ---------------- 批注操作 ---------------- */
+
+  const saveComment = useCallback((next: Comment) => {
+    const id = docRef.current?.id
+    if (!id) return
+    setComments((prev) => {
+      const exists = prev.some((c) => c.id === next.id)
+      const list = exists ? prev.map((c) => (c.id === next.id ? next : c)) : [...prev, next]
+      void storage
+        .setComments?.(id, list)
+        .catch((err) => toast.error('批注没存上', String(err).slice(0, 120)))
+      return list
+    })
+  }, [])
+
+  const removeComment = useCallback((cid: string) => {
+    const id = docRef.current?.id
+    if (!id) return
+    setComments((prev) => {
+      const list = prev.filter((c) => c.id !== cid)
+      void storage
+        .setComments?.(id, list)
+        .catch((err) => toast.error('批注没删掉', String(err).slice(0, 120)))
+      return list
+    })
+  }, [])
+
+  /** 跳回批注锚定的那段文字；正文改过就按引文重新找 */
+  const jumpToComment = useCallback((c: Comment) => {
+    const ed = editorRef.current
+    if (!ed || ed.isDestroyed) return
+    const at = locate(ed.state.doc, c.quote)
+    if (!at) {
+      toast.info('原文已经改动了', '这条批注暂时找不到落脚点')
+      return
+    }
+    ed.chain().focus().setTextSelection({ from: at.from, to: at.to }).run()
+    try {
+      const node = ed.view.domAtPos(at.from).node
+      const el = node instanceof HTMLElement ? node : node.parentElement
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    } catch {
+      /* 定位失败就算了，选区已经落过去了 */
     }
   }, [])
 
@@ -780,6 +874,15 @@ export default function App() {
       onSelect: () => void copyRichText(),
     },
     {
+      key: 'comments',
+      icon: '❝',
+      label: '批注',
+      hint: comments.length ? `${comments.length} 条` : '选中文字后加',
+      on: commentsOpen,
+      disabled: !doc,
+      onSelect: () => setCommentsOpen((v) => !v),
+    },
+    {
       key: 'history',
       icon: '⏱',
       label: '版本历史',
@@ -850,6 +953,13 @@ export default function App() {
     { id: 'import', title: '从文件夹导入 Markdown', icon: '⇧', run: () => void importFolder() },
     { id: 'daily', title: '今天的日记', hint: 'Ctrl+D', icon: '☀', run: () => void dailyNote() },
     { id: 'reading', title: '阅读模式（只读通读）', hint: 'F9', icon: '▤', run: toggleReading },
+    {
+      id: 'comments',
+      title: '批注',
+      hint: comments.length ? `${comments.length} 条` : '选中文字后加',
+      icon: '❝',
+      run: () => setCommentsOpen(true),
+    },
     { id: 'richcopy', title: '复制为富文本（含格式）', icon: '⧉', run: () => void copyRichText() },
     {
       id: 'theme',
@@ -1040,6 +1150,11 @@ export default function App() {
                 else toast.info('还没有这篇文档', title)
               }}
               onReady={handleEditorReady}
+              onComment={(text) => {
+                setCommentFocus(null)
+                setCommentDraft(text)
+                setCommentsOpen(true)
+              }}
               />
               <BacklinksPanel
                 doc={{ id: doc.id, title: doc.title }}
@@ -1066,6 +1181,20 @@ export default function App() {
             file={doc.id}
             onClose={() => setHistoryOpen(false)}
             onRestored={() => void openDoc(doc.id)}
+          />
+        )}
+
+        {commentsOpen && doc && (
+          <CommentsPanel
+            open={commentsOpen}
+            onClose={() => setCommentsOpen(false)}
+            comments={comments}
+            draft={commentDraft}
+            onDraftDone={() => setCommentDraft(null)}
+            onSave={saveComment}
+            onDelete={removeComment}
+            onJump={jumpToComment}
+            focusId={commentFocus}
           />
         )}
       </div>

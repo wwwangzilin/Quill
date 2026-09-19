@@ -19,12 +19,31 @@ const STATS_FILE: &str = ".quill-stats.json";
 /// 回收站
 const TRASH_DIR: &str = ".trash";
 
+/// 一条批注。
+///
+/// 批注是「人对某段文字的评价」，属于元数据而不是正文，所以**绝不写进 .md**——
+/// 它存在 .quill-meta.json 里，照样跟着 git 走、能推远程、换机器还在。
+/// quote 存选中的原文片段：正文改过之后靠它在文档里重新定位。
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Comment {
+    pub id: String,
+    pub quote: String,
+    pub note: String,
+    pub created: i64,
+    #[serde(default)]
+    pub resolved: bool,
+}
+
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct VaultMeta {
     #[serde(default)]
     pub starred: Vec<String>,
     #[serde(default)]
     pub tags: HashMap<String, Vec<String>>,
+    /// 文件名 → 该文档的批注
+    #[serde(default)]
+    pub comments: HashMap<String, Vec<Comment>>,
 }
 
 #[derive(Serialize)]
@@ -406,6 +425,33 @@ pub fn set_tags(dir: &Path, file: &str, tags: Vec<String>) -> Result<(), String>
     }
     write_meta(dir, &meta)?;
     commit(dir, &format!("标签《{}》", name.trim_end_matches(".md")));
+    Ok(())
+}
+
+/// 某篇文档的全部批注
+pub fn comments_of(dir: &Path, file: &str) -> Vec<Comment> {
+    let name = match safe_name(file) {
+        Ok(n) => n,
+        Err(_) => return Vec::new(),
+    };
+    read_meta(dir)
+        .comments
+        .get(&name)
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// 整体覆盖某篇文档的批注（批注量小，不值得做增量接口）
+pub fn set_comments(dir: &Path, file: &str, list: Vec<Comment>) -> Result<(), String> {
+    let name = safe_name(file)?;
+    let mut meta = read_meta(dir);
+    if list.is_empty() {
+        meta.comments.remove(&name);
+    } else {
+        meta.comments.insert(name.clone(), list);
+    }
+    write_meta(dir, &meta)?;
+    let _ = commit(dir, &format!("批注《{}》", name.trim_end_matches(".md")));
     Ok(())
 }
 

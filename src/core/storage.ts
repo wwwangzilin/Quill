@@ -1,6 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb'
 import { createDoc, type Doc, type DocMeta } from './types'
 import { vaultStorage } from './storage-vault'
+import type { Comment } from './comments'
 
 /** 一次提交（文件模式才有） */
 export interface CommitInfo {
@@ -63,6 +64,9 @@ export interface DocStorage {
   pushNow?(): Promise<string>
   /** 把媒体写进仓库的 assets/，返回相对路径 */
   saveAsset?(name: string, data: string): Promise<string>
+  /* ---- 批注（不写进 .md，存元数据） ---- */
+  comments?(id: string): Promise<Comment[]>
+  setComments?(id: string, list: Comment[]): Promise<void>
 }
 
 /* ------------------------- 浏览器：IndexedDB ------------------------- */
@@ -73,6 +77,7 @@ const VERSION = 1
 const TAGS_KEY = 'quill-set:tags'
 const TRASH_KEY = 'quill-set:trash'
 const STATS_KEY = 'quill-set:stats'
+const COMMENTS_KEY = 'quill-set:comments'
 
 let handle: Promise<IDBPDatabase> | null = null
 
@@ -211,6 +216,16 @@ export const browserStorage: DocStorage = {
   },
   async reveal() {
     /* no-op */
+  },
+  async comments(id) {
+    const all = readJson<Record<string, Comment[]>>(COMMENTS_KEY, {})
+    return all[id] ?? []
+  },
+  async setComments(id, list) {
+    const all = readJson<Record<string, Comment[]>>(COMMENTS_KEY, {})
+    if (list.length) all[id] = list
+    else delete all[id]
+    writeJson(COMMENTS_KEY, all)
   },
 }
 

@@ -90,6 +90,23 @@ fn all_tags(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     Ok(vault::all_tags(&dir))
 }
 
+/// 批注存在 .quill-meta.json 里（不进 .md 正文），但一样跟着 git 走
+#[tauri::command]
+fn doc_comments(app: tauri::AppHandle, file: String) -> Result<Vec<vault::Comment>, String> {
+    let dir = prepare(&app)?;
+    Ok(vault::comments_of(&dir, &file))
+}
+
+#[tauri::command]
+fn set_doc_comments(
+    app: tauri::AppHandle,
+    file: String,
+    comments: Vec<vault::Comment>,
+) -> Result<(), String> {
+    let dir = prepare(&app)?;
+    vault::set_comments(&dir, &file, comments)
+}
+
 #[tauri::command]
 fn list_trash(app: tauri::AppHandle) -> Result<Vec<TrashEntry>, String> {
     let dir = prepare(&app)?;
@@ -474,6 +491,8 @@ pub fn run() {
             star_doc,
             set_tags,
             all_tags,
+            doc_comments,
+            set_doc_comments,
             list_trash,
             restore_trash,
             purge_trash,

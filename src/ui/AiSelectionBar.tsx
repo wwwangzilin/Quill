@@ -7,6 +7,8 @@ interface Props {
   editor: Editor | null
   /** 用来把「视口坐标」换算成容器内坐标 */
   host: React.RefObject<HTMLDivElement | null>
+  /** 给选中的这段加一条批注（打开右侧批注面板） */
+  onComment?: (text: string, from: number, to: number) => void
 }
 
 interface Target {
@@ -38,7 +40,7 @@ const MAX_CHARS = 1500
  * 选中一段文字 → 浮出一条小工具栏 → 润色/精简/扩写……
  * 结果先流式显示在浮条里，点「采纳」才真正改文档（走正常事务，可撤销）。
  */
-export default function AiSelectionBar({ editor, host }: Props) {
+export default function AiSelectionBar({ editor, host, onComment }: Props) {
   const [target, setTarget] = useState<Target | null>(null)
   const [running, setRunning] = useState<string | null>(null)
   const [result, setResult] = useState('')
@@ -162,6 +164,21 @@ export default function AiSelectionBar({ editor, host }: Props) {
               {a.label}
             </button>
           ))}
+          {onComment && (
+            <>
+              <span className="ai-sel-sep" />
+              <button
+                className="ai-sel-btn"
+                title="给这段文字加一条批注"
+                onClick={() => {
+                  onComment(target.text, target.from, target.to)
+                  close()
+                }}
+              >
+                ＋ 批注
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <div className="ai-sel-panel">

@@ -11,6 +11,7 @@ import { WikiLink } from './wikilink'
 import { BlockGutter } from './gutter'
 import { Video } from './media'
 import { AiComplete } from './aiComplete'
+import { CommentMarks } from './commentMark'
 import { TableKit } from '@tiptap/extension-table'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { createLowlight, common } from 'lowlight'
@@ -311,5 +312,7 @@ export function buildExtensions(placeholder: string) {
     BlockGutter,
     AssetImage.configure({ inline: false, allowBase64: false }),
     Video,
+    // 批注底纹：纯 decoration，不进文档数据
+    CommentMarks,
   ]
 }

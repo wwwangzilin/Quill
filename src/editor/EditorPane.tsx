@@ -35,6 +35,8 @@ interface Props {
   aiDelay: number
   /** 把编辑器实例交给上层（复制富文本、问文档之类要用） */
   onReady?: (editor: Editor) => void
+  /** 给选中的这段加批注（打开右侧批注面板） */
+  onComment?: (text: string) => void
 }
 
 interface Stats {
@@ -127,6 +129,7 @@ export default function EditorPane({
   aiEnabled,
   aiDelay,
   onReady,
+  onComment,
 }: Props) {
   const [stats, setStats] = useState<Stats>(() => countStats(doc.content))
   const [slash, setSlash] = useState<SlashState | null>(null)
@@ -751,7 +754,7 @@ export default function EditorPane({
             onPick={runWiki}
           />
         )}
-        <AiSelectionBar editor={editor} host={hostRef} />
+        <AiSelectionBar editor={editor} host={hostRef} onComment={onComment ? (text) => onComment(text) : undefined} />
       </div>
       {dropping && (
         <div className="drop-veil">
