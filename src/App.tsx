@@ -93,6 +93,9 @@ export default function App() {
   const [quickOpen, setQuickOpen] = useState(false)
   /** 正文外观：字体 / 字号 / 行距，改了立刻写进 CSS 变量 */
   const [prose, setProse] = useState<ProseStyle>(() => readProse())
+  /** AI 续写：默认关。这东西每敲几个字就得花钱，不能默认替主人做决定 */
+  const [aiEnabled, setAiEnabled] = useSetting('ai-enabled', false)
+  const [aiDelay, setAiDelay] = useSetting('ai-delay', 800)
   /** 编辑器实例的重建键：只在新开文档时递增，改名导致的 id 变化不重建（否则光标会飞） */
   const [sessionKey, setSessionKey] = useState(0)
 
@@ -553,6 +556,10 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
         prose={prose}
         onProse={setProse}
+        aiEnabled={aiEnabled}
+        onAiEnabled={setAiEnabled}
+        aiDelay={aiDelay}
+        onAiDelay={setAiDelay}
       />
       <QuickCapture
         open={quickOpen}
@@ -648,6 +655,8 @@ export default function App() {
               onTags={(next) => void setTagsFor(doc.id, next)}
               onJumpDone={() => setJumpPath(null)}
               allDocs={docs.map((d) => d.title)}
+              aiEnabled={aiEnabled}
+              aiDelay={aiDelay}
               onOpenDoc={(title) => {
                 const target = docs.find((d) => d.title === title)
                 if (target) void openDoc(target.id)

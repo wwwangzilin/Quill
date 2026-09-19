@@ -2021,6 +2021,46 @@ body.quill-dragging * {
   background: rgba(138, 168, 155, 0.28);
 }
 
+/* AI 续写的幽灵文本：只是装饰，不进文档，所以「不要」就等于什么都没发生 */
+.quill-ai-ghost {
+  color: var(--text-3);
+  opacity: 0.75;
+  pointer-events: none;
+  user-select: none;
+  white-space: pre-wrap;
+  animation: ai-ghost-in 0.18s var(--ease-out) both;
+}
+.quill-ai-ghost.is-loading {
+  animation: ai-ghost-pulse 1.3s ease-in-out infinite;
+}
+.quill-ai-ghost.is-error {
+  color: var(--accent-3);
+  opacity: 0.9;
+}
+@keyframes ai-ghost-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.75;
+  }
+}
+@keyframes ai-ghost-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quill-ai-ghost,
+  .quill-ai-ghost.is-loading {
+    animation: none;
+  }
+}
+
 
 /* ==========================================================================
    独立小窗口：快捷便签 / 桌面磁贴

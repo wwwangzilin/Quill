@@ -22,6 +22,10 @@ log = "0.4"
 tauri = { version = "2.11.3", features = ["protocol-asset"] }
 tauri-plugin-log = "2"
 tauri-plugin-global-shortcut = "2"
+# AI 续写：走兼容 OpenAI 的 /chat/completions。
+# tauri 自己就依赖 reqwest，版本对齐到同一个大版本，省一份重复编译。
+reqwest = { version = "0.13", features = ["json", "stream"] }
+futures-util = "0.3"
 
 [profile.release]
 codegen-units = 1

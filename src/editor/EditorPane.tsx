@@ -10,6 +10,8 @@ import type { Doc } from '../core/types'
 import SlashMenu, { filterSlash, type SlashItem } from '../ui/SlashMenu'
 import FindBar from '../ui/FindBar'
 import WikiMenu from '../ui/WikiMenu'
+import { useAiComplete } from './useAiComplete'
+import { acceptAi, aiState, clearAi } from './aiComplete'
 
 interface Props {
   doc: Doc
@@ -25,6 +27,10 @@ interface Props {
   /** 所有文档标题（`[[` 补全用） */
   allDocs: string[]
   onOpenDoc: (title: string) => void
+  /** AI 续写开关（默认关，费钱的东西不能默认开） */
+  aiEnabled: boolean
+  /** 停手多少毫秒之后才请求 */
+  aiDelay: number
 }
 
 interface Stats {
@@ -86,6 +92,8 @@ export default function EditorPane({
   onJumpDone,
   allDocs,
   onOpenDoc,
+  aiEnabled,
+  aiDelay,
 }: Props) {
   const [stats, setStats] = useState<Stats>(() => countStats(doc.content))
   const [slash, setSlash] = useState<SlashState | null>(null)
@@ -101,6 +109,8 @@ export default function EditorPane({
   const scrollRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const slashRef = useRef<SlashState | null>(null)
+  /** onUpdate 是在 useEditor 里一次性闭包捕获的，用 ref 拿到最新的触发器 */
+  const aiScheduleRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     slashRef.current = slash
@@ -148,13 +158,68 @@ export default function EditorPane({
         if (idx >= 0) setSlash((s) => (s ? { ...s, query: before.slice(idx + 1) } : s))
         else setSlash(null)
       }
+
+      // AI 续写：停手一会儿再问模型（打字过程中反复调用只会保留最后一次）
+      aiScheduleRef.current()
     },
   })
+
+  const ai = useAiComplete({ editor, enabled: aiEnabled, delay: aiDelay, title: doc.title })
+  const aiCancelRef = useRef<() => void>(() => {})
+  useEffect(() => {
+    aiScheduleRef.current = ai.schedule
+    aiCancelRef.current = ai.cancel
+  }, [ai.schedule, ai.cancel])
+
+  /**
+   * Tab / Esc 用「捕获阶段」的 DOM 监听来处理。
+   *
+   * 为什么不放在 ProseMirror 插件的 handleKeyDown 里：实测它排在 Tiptap 那一长串
+   * keymap handler 的中后段（第 54 个），按 Tab 会被「缩进」先认领走；
+   * 就算把扩展 priority 拉到 1000 也没抢过它。捕获阶段一定先执行，稳。
+   */
+  useEffect(() => {
+    const dom = editor?.view.dom
+    if (!dom) return
+    const onKey = (e: KeyboardEvent) => {
+      const s = aiState(editor.view)
+      if (import.meta.env.DEV) {
+        const w = window as unknown as Record<string, unknown>
+        const log = (w.__aiTabLog as string[]) ?? []
+        log.push(`${e.key} state=${s ? JSON.stringify(s) : 'null'}`)
+        w.__aiTabLog = log
+      }
+      if (!s || (!s.text && !s.loading && !s.error)) return
+      // 关键：先 cancel（让还在飞的流式回调失效），否则清掉之后又被模型推回来
+      if (e.key === 'Tab' && s.text) {
+        e.preventDefault()
+        e.stopPropagation()
+        aiCancelRef.current()
+        acceptAi(editor.view)
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        aiCancelRef.current()
+        clearAi(editor.view)
+      }
+    }
+    dom.addEventListener('keydown', onKey, true)
+    return () => dom.removeEventListener('keydown', onKey, true)
+  }, [editor])
 
   // 挂载即聚焦（切文档时组件按 key 重建，所以每次都会重新聚焦）
   useEffect(() => {
     if (!editor) return
     editor.commands.focus('start')
+  }, [editor])
+
+  // 调试/验收用：dev 下把编辑器实例挂到 window，
+  // 这样 CDP 脚本能直接读写文档、模拟按键（生产构建里这段会被摇掉）
+  useEffect(() => {
+    if (!editor || !import.meta.env.DEV) return
+    ;(window as unknown as Record<string, unknown>).__quillEditor = editor
   }, [editor])
 
   // 专注模式：靠根节点上的 class 切换，装饰器会据此淡化非当前块

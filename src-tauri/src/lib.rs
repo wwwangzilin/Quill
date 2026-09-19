@@ -1,3 +1,4 @@
+mod ai;
 mod git;
 mod vault;
 
@@ -435,7 +436,10 @@ pub fn run() {
             open_sticky,
             close_self,
             is_sticky,
-            window_ready
+            window_ready,
+            ai::ai_status,
+            ai::ai_save,
+            ai::ai_stream
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

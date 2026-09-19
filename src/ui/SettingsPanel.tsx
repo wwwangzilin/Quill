@@ -7,6 +7,7 @@ import {
   fontOption,
   type ProseStyle,
 } from '../core/fonts'
+import { AI_DEFAULTS, aiAvailable, aiSave, aiStatus, aiStream, type AiStatus } from '../core/ai'
 import { toast } from './toast'
 
 interface Props {
@@ -14,15 +15,36 @@ interface Props {
   onClose: () => void
   prose: ProseStyle
   onProse: (next: ProseStyle) => void
+  aiEnabled: boolean
+  onAiEnabled: (next: boolean) => void
+  aiDelay: number
+  onAiDelay: (next: number) => void
 }
 
-export default function SettingsPanel({ open, onClose, prose, onProse }: Props) {
+export default function SettingsPanel({
+  open,
+  onClose,
+  prose,
+  onProse,
+  aiEnabled,
+  onAiEnabled,
+  aiDelay,
+  onAiDelay,
+}: Props) {
   const [url, setUrl] = useState('')
   const [ca, setCa] = useState('')
   const [token, setToken] = useState('')
   const [info, setInfo] = useState<RemoteInfo | null>(null)
   const [busy, setBusy] = useState(false)
   const [log, setLog] = useState('')
+
+  // AI 续写
+  const [ai, setAi] = useState<AiStatus | null>(null)
+  const [aiUrl, setAiUrl] = useState(AI_DEFAULTS.baseUrl)
+  const [aiModel, setAiModel] = useState(AI_DEFAULTS.model)
+  const [aiKey, setAiKey] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiLog, setAiLog] = useState('')
 
   const option = fontOption(prose.font)
   const installed = fontInstalled(option)
@@ -46,7 +68,63 @@ export default function SettingsPanel({ open, onClose, prose, onProse }: Props) 
     void reload()
   }, [open, reload])
 
+  // 打开面板时读一次 AI 设置（key 不会回显，只看有没有配过）
+  useEffect(() => {
+    if (!open) return
+    setAiLog('')
+    setAiKey('')
+    void (async () => {
+      const s = await aiStatus()
+      if (!s) return
+      setAi(s)
+      setAiUrl(s.baseUrl)
+      setAiModel(s.model)
+    })()
+  }, [open])
+
   if (!open) return null
+
+  /** 保存 AI 设置（key 留空表示不改动原来那个） */
+  const saveAi = async () => {
+    setAiBusy(true)
+    setAiLog('')
+    try {
+      const s = await aiSave(aiUrl.trim(), aiModel.trim(), aiKey.trim() || undefined)
+      setAi(s)
+      setAiKey('')
+      toast.success('AI 设置已保存', s.hasKey ? 'Key 已存到本机配置目录' : '还没填 API Key')
+      return true
+    } catch (err) {
+      setAiLog(String(err))
+      toast.error('AI 设置保存失败', String(err).slice(0, 120))
+      return false
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
+  /** 先存再测：免得测的是没保存的旧配置 */
+  const testAi = async () => {
+    setAiBusy(true)
+    setAiLog('正在请求模型…')
+    try {
+      await aiSave(aiUrl.trim(), aiModel.trim(), aiKey.trim() || undefined)
+      setAiKey('')
+      const out = await aiStream(
+        { system: '你是连通性测试助手。', prompt: '只回复两个字：可用', maxTokens: 16, temperature: 0 },
+        () => {},
+      )
+      setAiLog(`连接成功，模型回复：${out.trim() || '（空）'}`)
+      toast.success('AI 接口连通')
+      const s = await aiStatus()
+      if (s) setAi(s)
+    } catch (err) {
+      setAiLog(`连接失败：${String(err)}`)
+      toast.error('AI 接口不通', String(err).slice(0, 120))
+    } finally {
+      setAiBusy(false)
+    }
+  }
 
   const save = async () => {
     if (!storage.saveGitSettings) return
@@ -172,6 +250,91 @@ export default function SettingsPanel({ open, onClose, prose, onProse }: Props) 
                 正文、便签、磁贴三处同步生效
               </span>
             </div>
+          </div>
+
+          <div className="sc-group">
+            <div className="sc-title">AI 续写</div>
+            <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.8, marginBottom: 12 }}>
+              停手一会儿后，模型会顺着上文给一小段灰色提示：<b>Tab</b> 接受、<b>Esc</b> 忽略，
+              不要就等于什么都没发生。默认关闭 —— 这东西是按次花钱的，开不开主人自己定。
+            </p>
+
+            <label className="sc-row" style={{ cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={aiEnabled}
+                disabled={!aiAvailable()}
+                onChange={(e) => onAiEnabled(e.target.checked)}
+                style={{ width: 14, height: 14 }}
+              />
+              <span className="sc-text">
+                {aiAvailable() ? '启用行内续写（Alt+/ 随时手动要一次）' : '桌面版才有（网页版发不了请求）'}
+              </span>
+            </label>
+
+            <label className="field" style={{ marginTop: 10 }}>
+              <span>接口地址（兼容 OpenAI 的 /chat/completions）</span>
+              <input
+                value={aiUrl}
+                onChange={(e) => setAiUrl(e.target.value)}
+                placeholder={AI_DEFAULTS.baseUrl}
+                spellCheck={false}
+              />
+            </label>
+
+            <label className="field">
+              <span>API Key</span>
+              <input
+                value={aiKey}
+                type="password"
+                onChange={(e) => setAiKey(e.target.value)}
+                placeholder={
+                  ai?.hasKey ? '已保存在本机（留空则不改动）' : 'sk-…（只写进本机配置目录，不进文档仓库）'
+                }
+                spellCheck={false}
+              />
+            </label>
+
+            <label className="field">
+              <span>模型</span>
+              <input
+                value={aiModel}
+                onChange={(e) => setAiModel(e.target.value)}
+                placeholder={AI_DEFAULTS.model}
+                spellCheck={false}
+              />
+            </label>
+
+            <label className="field">
+              <span>停手多久才请求 · {aiDelay} ms</span>
+              <input
+                type="range"
+                min={300}
+                max={2500}
+                step={100}
+                value={aiDelay}
+                onChange={(e) => onAiDelay(Number(e.target.value))}
+              />
+            </label>
+
+            <div className="field-row">
+              <button className="btn primary" onClick={() => void saveAi()} disabled={aiBusy}>
+                保存 AI 设置
+              </button>
+              <button className="btn" onClick={() => void testAi()} disabled={aiBusy}>
+                {aiBusy ? '处理中…' : '测试连接'}
+              </button>
+              <span className="grow" />
+              <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+                {ai?.hasKey ? 'Key 已配置' : '还没配置 Key'}
+              </span>
+            </div>
+
+            {aiLog && (
+              <pre className="preview" style={{ maxHeight: 140, marginTop: 10 }}>
+                {aiLog}
+              </pre>
+            )}
           </div>
 
           <div className="sc-group">

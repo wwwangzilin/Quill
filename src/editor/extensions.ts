@@ -10,6 +10,7 @@ import { SearchHighlight } from './search'
 import { WikiLink } from './wikilink'
 import { BlockGutter } from './gutter'
 import { Video } from './media'
+import { AiComplete } from './aiComplete'
 import Image from '@tiptap/extension-image'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { EditorView } from '@tiptap/pm/view'
@@ -150,6 +151,8 @@ export const FocusDim = Extension.create({
 
 export function buildExtensions(placeholder: string) {
   return [
+    // 放最前面：Tab 要优先被「接受续写建议」截走，没建议时才轮到缩进
+    AiComplete,
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
     }),
