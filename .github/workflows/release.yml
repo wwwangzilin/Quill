@@ -44,8 +44,9 @@ jobs:
       - name: 收集产物
         shell: pwsh
         run: |
+          $ver = "${{ inputs.tag || github.ref_name }}"
           New-Item -ItemType Directory -Force -Path out | Out-Null
-          Copy-Item src-tauri/target/release/quill.exe out/Quill_绿色版.exe
+          Copy-Item src-tauri/target/release/quill.exe "out/Quill_${ver}_portable.exe"
           Copy-Item src-tauri/target/release/bundle/nsis/*.exe out/
           Get-ChildItem out | Select-Object Name, Length
 
@@ -67,6 +68,6 @@ jobs:
           body: |
             Quill 早期开发版（pre-release）。
 
-            下载后在 Windows 上直接运行；`Quill_0.1.0_x64-setup.exe` 是安装包，`Quill_绿色版.exe` 免安装。
+            下载后在 Windows 上直接运行：`*_x64-setup.exe` 是安装包，`*_portable.exe` 免安装。
 
             文档默认存放在 `%USERPROFILE%\Documents\Quill`，是纯 Markdown 文件加一个 git 仓库。
