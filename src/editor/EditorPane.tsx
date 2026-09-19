@@ -13,6 +13,7 @@ import WikiMenu from '../ui/WikiMenu'
 import { useAiComplete } from './useAiComplete'
 import { acceptAi, aiState, clearAi } from './aiComplete'
 import AiSelectionBar from '../ui/AiSelectionBar'
+import { importAssetFile } from '../core/desktop'
 
 interface Props {
   doc: Doc
@@ -82,6 +83,34 @@ function countStats(json: JSONContent): Stats {
   return { chars, blocks }
 }
 
+/* ------------------------- 媒体：粘贴 / 拖拽 ------------------------- */
+
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|avif|svg)$/i
+const VIDEO_EXT = /\.(mp4|webm|mov|m4v|ogv|mkv)$/i
+/** 只认图片直链 —— 别把随便一个网址当成图片插进去 */
+const IMAGE_URL = /^https?:\/\/\S+\.(png|jpe?g|gif|webp|avif|svg)(\?\S*)?$/i
+
+function mediaKind(name: string, mime = ''): 'image' | 'video' | null {
+  if (mime.startsWith('image/') || IMAGE_EXT.test(name)) return 'image'
+  if (mime.startsWith('video/') || VIDEO_EXT.test(name)) return 'video'
+  return null
+}
+
+/** 路径 → 文件名（拖进来的文件用它当 alt/title） */
+function baseName(path: string): string {
+  return path.split(/[\\/]/).pop() ?? path
+}
+
+async function toBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer())
+  let binary = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
+}
+
 export default function EditorPane({
   doc,
   saving,
@@ -126,6 +155,31 @@ export default function EditorPane({
     autofocus: false,
     editorProps: {
       attributes: { spellcheck: 'false' },
+      // 截图直接 Ctrl+V 贴进来。落盘是异步的，editorProps 只求值一次，
+      // 所以真正的实现挂在 ref 上（同 useAiComplete 那套处理）
+      handlePaste: (_view, event) => {
+        const files = Array.from(event.clipboardData?.items ?? [])
+          .filter((it) => it.kind === 'file')
+          .map((it) => it.getAsFile())
+          .filter((f): f is File => Boolean(f))
+        if (files.length) {
+          event.preventDefault()
+          pasteFilesRef.current(files)
+          return true
+        }
+        return false
+      },
+      // 从资源管理器拖文件进来。桌面版主要走 Tauri 的原生拖拽事件（能拿到真实路径），
+      // 这条是浏览器模式与原生事件失灵时的兜底
+      handleDrop: (_view, event) => {
+        const files = Array.from(event.dataTransfer?.files ?? [])
+        if (files.length) {
+          event.preventDefault()
+          pasteFilesRef.current(files)
+          return true
+        }
+        return false
+      },
     },
     onUpdate: ({ editor }) => {
       const json = editor.getJSON()
@@ -345,38 +399,135 @@ export default function EditorPane({
 
   const items = useMemo(() => (slash ? filterSlash(slash.query) : []), [slash])
 
+  /** 拖着文件悬在窗口上时的高亮 */
+  const [dropping, setDropping] = useState(false)
+  /** editorProps 里的 handler 只求值一次，异步落盘的实际实现得挂在 ref 上 */
+  const pasteFilesRef = useRef<(files: File[]) => void>(() => {})
+  const dropPathsRef = useRef<(paths: string[], x?: number, y?: number) => void>(() => {})
+
+  /** 文件 → 仓库 assets/ → 插入节点。给了 pos 就插那儿，否则插在光标处 */
+  const insertFiles = useCallback(
+    async (files: File[], pos?: number) => {
+      if (!editor) return
+      let at = pos
+      for (const file of files) {
+        const kind = mediaKind(file.name, file.type)
+        if (!kind) continue
+        try {
+          const b64 = await toBase64(file)
+          const src = storage.saveAsset
+            ? await storage.saveAsset(file.name, b64)
+            : `data:${file.type || 'application/octet-stream'};base64,${b64}`
+          const attrs =
+            kind === 'image' ? { src, alt: file.name, title: null } : { src, title: file.name }
+          const node = { type: kind, attrs }
+          if (typeof at === 'number') {
+            editor.chain().focus().insertContentAt(at, node).run()
+            // 后面几个插在光标处就行，免得位置越算越偏
+            at = undefined
+          } else {
+            editor.chain().focus().insertContent(node).run()
+          }
+          toast.success(kind === 'image' ? '已插入图片' : '已插入视频', file.name)
+        } catch (err) {
+          toast.error('插入失败', String(err).slice(0, 120))
+        }
+      }
+    },
+    [editor],
+  )
+
+  /** 拖进来的本地文件：只把路径交给 Rust 去复制，不走 base64 */
+  const insertPaths = useCallback(
+    async (paths: string[], x?: number, y?: number) => {
+      if (!editor) return
+      let at: number | undefined
+      if (typeof x === 'number' && typeof y === 'number') {
+        try {
+          at = editor.view.posAtCoords({ left: x, top: y })?.pos
+        } catch {
+          at = undefined
+        }
+      }
+      for (const p of paths) {
+        const name = baseName(p)
+        const kind = mediaKind(name)
+        if (!kind) continue
+        try {
+          const src = await importAssetFile(p)
+          const attrs = kind === 'image' ? { src, alt: name, title: null } : { src, title: name }
+          const node = { type: kind, attrs }
+          if (typeof at === 'number') {
+            editor.chain().focus().insertContentAt(at, node).run()
+            at = undefined
+          } else {
+            editor.chain().focus().insertContent(node).run()
+          }
+          toast.success(kind === 'image' ? '已插入图片' : '已插入视频', name)
+        } catch (err) {
+          toast.error('插入失败', String(err).slice(0, 120))
+        }
+      }
+    },
+    [editor],
+  )
+
+  useEffect(() => {
+    pasteFilesRef.current = (files) => void insertFiles(files)
+  }, [insertFiles])
+  useEffect(() => {
+    dropPathsRef.current = (paths, x, y) => void insertPaths(paths, x, y)
+  }, [insertPaths])
+
+  /**
+   * 桌面版：从资源管理器拖进来的文件走 Tauri 的原生拖拽事件。
+   * 它能给真实路径，所以大视频不用先编 base64 —— 直接让 Rust 复制进 assets/。
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return
+    let unlisten: (() => void) | undefined
+    let alive = true
+    void (async () => {
+      try {
+        const { getCurrentWebview } = await import('@tauri-apps/api/webview')
+        const un = await getCurrentWebview().onDragDropEvent((event) => {
+          const p = event.payload
+          if (p.type === 'enter' || p.type === 'over') {
+            setDropping(true)
+          } else if (p.type === 'leave') {
+            setDropping(false)
+          } else if (p.type === 'drop') {
+            setDropping(false)
+            // Tauri 给的是物理像素，换成 CSS 像素才对得上 posAtCoords
+            const ratio = window.devicePixelRatio || 1
+            dropPathsRef.current(p.paths, p.position.x / ratio, p.position.y / ratio)
+          }
+        })
+        if (alive) unlisten = un
+        else un()
+      } catch {
+        /* 浏览器模式没有这个 API */
+      }
+    })()
+    return () => {
+      alive = false
+      unlisten?.()
+    }
+  }, [])
+
   /** 选本地文件 → 存进仓库 assets/ → 插入节点 */
   const pickMedia = useCallback(
     (kind: 'image' | 'video') => {
       const input = document.createElement('input')
       input.type = 'file'
       input.accept = kind === 'image' ? 'image/*' : 'video/*'
-      input.onchange = async () => {
+      input.onchange = () => {
         const file = input.files?.[0]
-        if (!file || !editor) return
-        try {
-          const buf = await file.arrayBuffer()
-          const bytes = new Uint8Array(buf)
-          let binary = ''
-          const chunk = 0x8000
-          for (let i = 0; i < bytes.length; i += chunk) {
-            binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
-          }
-          const b64 = btoa(binary)
-          const src = storage.saveAsset
-            ? await storage.saveAsset(file.name, b64)
-            : `data:${file.type};base64,${b64}`
-          const attrs =
-            kind === 'image' ? { src, alt: file.name, title: null } : { src, title: file.name }
-          editor.chain().focus().insertContent({ type: kind, attrs }).run()
-          toast.success(kind === 'image' ? '已插入图片' : '已插入视频', file.name)
-        } catch (err) {
-          toast.error('插入失败', String(err))
-        }
+        if (file) void insertFiles([file])
       }
       input.click()
     },
-    [editor],
+    [insertFiles],
   )
 
   const runSlash = useCallback(
@@ -602,6 +753,11 @@ export default function EditorPane({
         )}
         <AiSelectionBar editor={editor} host={hostRef} />
       </div>
+      {dropping && (
+        <div className="drop-veil">
+          <div className="drop-card">松手就插进来 · 图片 / 视频</div>
+        </div>
+      )}
       <FindBar open={findOpen} editor={editor} onClose={() => setFindOpen(false)} />
     </div>
   )

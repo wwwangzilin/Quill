@@ -486,10 +486,46 @@ pub fn save_asset(dir: &Path, name: &str, data: &str) -> Result<String, String> 
             c => c,
         })
         .collect();
-    let file_name = format!("{}_{}", now_secs(), safe.trim());
+    // 同一秒里连插两张图也得各自落一份，不能互相覆盖
+    let mut file_name = format!("{}_{}", now_secs(), safe.trim());
+    let mut n = 2;
+    while assets.join(&file_name).exists() {
+        file_name = format!("{}_{}-{}", now_secs(), safe.trim(), n);
+        n += 1;
+    }
     let bytes = decode_base64(data)?;
     std::fs::write(assets.join(&file_name), bytes).map_err(|e| format!("写入媒体失败: {e}"))?;
 
+    commit(dir, &format!("插入媒体 {}", safe.trim()));
+    Ok(format!("assets/{file_name}"))
+}
+
+/// 把一个外部文件复制进 assets/。拖拽进来的图片/视频走这条路 ——
+/// 前端只给路径、不做 base64 编解码，几十上百 MB 的视频不会白白多占一份内存。
+pub fn import_asset(dir: &Path, src: &Path) -> Result<String, String> {
+    if !src.is_file() {
+        return Err(format!("不是文件：{}", src.to_string_lossy()));
+    }
+    let assets = dir.join("assets");
+    std::fs::create_dir_all(&assets).map_err(|e| format!("创建 assets 目录失败: {e}"))?;
+
+    // 只认文件名本身，外部路径的目录部分一概丢掉（顺带把 ../ 这类越界挡在门外）
+    let raw = src.file_name().and_then(|s| s.to_str()).unwrap_or("媒体");
+    let safe: String = raw
+        .chars()
+        .map(|c| match c {
+            '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            c if (c as u32) < 0x20 => '_',
+            c => c,
+        })
+        .collect();
+    let mut file_name = format!("{}_{}", now_secs(), safe.trim());
+    let mut n = 2;
+    while assets.join(&file_name).exists() {
+        file_name = format!("{}_{}-{}", now_secs(), safe.trim(), n);
+        n += 1;
+    }
+    std::fs::copy(src, assets.join(&file_name)).map_err(|e| format!("复制媒体失败: {e}"))?;
     commit(dir, &format!("插入媒体 {}", safe.trim()));
     Ok(format!("assets/{file_name}"))
 }

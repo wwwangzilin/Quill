@@ -2981,3 +2981,47 @@ body.quill-dragging * {
   }
 }
 
+/* ---------- 插入媒体：粘贴 / 拖拽 ---------- */
+
+/* 拖拽高亮要定位在编辑器上方，所以这里得有个定位上下文 */
+.editor-scroll {
+  position: relative;
+}
+.drop-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 88;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 74%, transparent);
+  backdrop-filter: blur(2px);
+  /* 关键：不能吃鼠标事件，否则文件根本落不到编辑器上 */
+  pointer-events: none;
+  animation: mask-in 0.15s var(--ease-out) both;
+}
+.drop-card {
+  padding: 15px 24px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--accent-1);
+  background: var(--surface-solid);
+  color: var(--text);
+  font-size: 13.5px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* 正文里的图片与视频 */
+.ProseMirror img,
+.ProseMirror .quill-video {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 6px 0;
+  border-radius: 10px;
+}
+.ProseMirror img.ProseMirror-selectednode,
+.ProseMirror video.ProseMirror-selectednode {
+  outline: 2px solid var(--accent-1);
+  outline-offset: 2px;
+}
+

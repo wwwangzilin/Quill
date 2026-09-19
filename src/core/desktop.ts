@@ -59,6 +59,15 @@ export async function importMarkdown(
   return await invoke<number>('import_docs', { items })
 }
 
+/**
+ * 把一个本地文件（拖进来的图片/视频）复制进仓库 assets/，返回相对路径。
+ * 传路径而不是 base64：视频动辄上百 MB，编成 base64 再走 IPC 会白吃一份内存。
+ */
+export async function importAssetFile(path: string): Promise<string> {
+  if (!isDesktop()) throw new Error('插入本地媒体只在桌面版可用')
+  return await invoke<string>('import_asset_file', { path })
+}
+
 export interface ImportedDoc {
   title: string
   content: string

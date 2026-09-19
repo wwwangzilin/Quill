@@ -12,6 +12,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['Ctrl + E', '行内代码'],
       ['Ctrl + Shift + X', '删除线'],
       ['Ctrl + Z / Ctrl + Shift + Z', '撤销 / 重做'],
+      ['Ctrl + V', '粘贴截图：直接存进 assets/ 并插成图片'],
     ],
   },
   {

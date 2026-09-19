@@ -206,6 +206,13 @@ fn save_asset(app: tauri::AppHandle, name: String, data: String) -> Result<Strin
     vault::save_asset(&dir, &name, &data)
 }
 
+/// 同一个目标，但走文件路径：拖拽进来的图片/视频用这条，省掉 base64 那一趟
+#[tauri::command]
+fn import_asset_file(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    let dir = prepare(&app)?;
+    vault::import_asset(&dir, std::path::Path::new(&path))
+}
+
 /* ============================ 导入 ============================ */
 
 #[derive(serde::Deserialize)]
@@ -481,6 +488,7 @@ pub fn run() {
             save_git_settings,
             git_push_now,
             save_asset,
+            import_asset_file,
             import_docs,
             desktop::desktop_prefs,
             desktop::save_desktop_prefs,
