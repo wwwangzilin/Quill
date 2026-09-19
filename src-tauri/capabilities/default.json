@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "enables the default permissions",
-  "windows": ["main"],
+  "description": "所有窗口（主窗口 / 快捷便签 / 桌面磁贴）共用这套权限",
+  "windows": ["*"],
   "permissions": ["core:default"]
 }

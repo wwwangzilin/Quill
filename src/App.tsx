@@ -10,9 +10,11 @@ import { useSetting } from './core/settings'
 import ShortcutsPanel from './ui/ShortcutsPanel'
 import TrashPanel from './ui/TrashPanel'
 import SettingsPanel from './ui/SettingsPanel'
+import MoreMenu, { type MenuItem } from './ui/MoreMenu'
 import QuickCapture from './ui/QuickCapture'
 import { TEMPLATES } from './core/templates'
 import { openQuickNote, openSticky } from './core/windows'
+import { applyProse, readProse, saveProse, type ProseStyle } from './core/fonts'
 import { initStorage, storage } from './core/storage'
 import { docToMarkdown, safeFileName } from './core/markdown'
 import type { Doc, DocMeta, ViewMode } from './core/types'
@@ -76,7 +78,6 @@ export default function App() {
   const [saving, setSaving] = useState<Saving>('idle')
   const [ready, setReady] = useState(false)
   const [mapSnap, setMapSnap] = useState<{ content: JSONContent; title: string } | null>(null)
-  const [exportOpen, setExportOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [vaultMode, setVaultMode] = useState(false)
   const [vaultLabel, setVaultLabel] = useState('')
@@ -90,6 +91,8 @@ export default function App() {
   const [jumpPath, setJumpPath] = useState<number[] | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [quickOpen, setQuickOpen] = useState(false)
+  /** 正文外观：字体 / 字号 / 行距，改了立刻写进 CSS 变量 */
+  const [prose, setProse] = useState<ProseStyle>(() => readProse())
   /** 编辑器实例的重建键：只在新开文档时递增，改名导致的 id 变化不重建（否则光标会飞） */
   const [sessionKey, setSessionKey] = useState(0)
 
@@ -210,6 +213,11 @@ export default function App() {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('quill-theme', theme)
   }, [theme])
+
+  useEffect(() => {
+    applyProse(prose)
+    saveProse(prose)
+  }, [prose])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -454,7 +462,6 @@ export default function App() {
       'text/markdown',
     )
     toast.success('已导出 Markdown', `${safeFileName(live.title)}.md`)
-    setExportOpen(false)
   }, [])
 
   const exportJson = useCallback(() => {
@@ -462,8 +469,73 @@ export default function App() {
     if (!live || !docRef.current) return
     const payload = { ...docRef.current, title: live.title, content: live.content }
     download(`${safeFileName(live.title)}.json`, JSON.stringify(payload, null, 2), 'application/json')
-    setExportOpen(false)
   }, [])
+
+  /* ---------------- 标题栏的「⋯ 更多」 ---------------- */
+
+  const toggleFocus = useCallback(() => {
+    const next = !focusMode
+    setFocusMode(next)
+    toast.info(next ? '专注模式已开：只亮当前段落' : '专注模式已关')
+  }, [focusMode, setFocusMode])
+
+  const toggleTypewriter = useCallback(() => {
+    const next = !typewriter
+    setTypewriter(next)
+    toast.info(next ? '打字机模式已开：光标锁定视口' : '打字机模式已关')
+  }, [typewriter, setTypewriter])
+
+  const moreItems: MenuItem[] = [
+    { key: 'md', icon: '⇩', label: '导出 Markdown', hint: '.md', disabled: !doc, onSelect: exportMd },
+    { key: 'json', icon: '⇩', label: '导出 JSON', hint: '.json', disabled: !doc, onSelect: exportJson },
+    {
+      key: 'history',
+      icon: '⏱',
+      label: '版本历史',
+      hint: vaultMode ? 'git' : '仅桌面版',
+      on: historyOpen,
+      disabled: !vaultMode || !doc,
+      onSelect: () => setHistoryOpen((v) => !v),
+    },
+    {
+      key: 'focus',
+      icon: '◉',
+      label: '专注模式',
+      on: focusMode,
+      disabled: view !== 'write',
+      onSelect: toggleFocus,
+    },
+    {
+      key: 'typewriter',
+      icon: '⇅',
+      label: '打字机模式',
+      on: typewriter,
+      disabled: view !== 'write',
+      onSelect: toggleTypewriter,
+    },
+    {
+      key: 'theme',
+      icon: theme === 'dark' ? '☾' : '☀',
+      label: '切换主题',
+      hint: theme === 'dark' ? '暗色' : '亮色',
+      divider: true,
+      onSelect: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
+    },
+    {
+      key: 'settings',
+      icon: '⚙',
+      label: '备份与设置',
+      hint: '字体 / 字号',
+      onSelect: () => setSettingsOpen(true),
+    },
+    {
+      key: 'shortcuts',
+      icon: '⌘',
+      label: '快捷键一览',
+      hint: 'Ctrl+/',
+      onSelect: () => setShortcutsOpen(true),
+    },
+  ]
 
   /* ---------------- 渲染 ---------------- */
 
@@ -476,7 +548,12 @@ export default function App() {
         onClose={() => setTrashOpen(false)}
         onChanged={() => void refreshDocs()}
       />
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        prose={prose}
+        onProse={setProse}
+      />
       <QuickCapture
         open={quickOpen}
         onClose={() => setQuickOpen(false)}
@@ -512,32 +589,6 @@ export default function App() {
             导图
           </button>
         </div>
-        {vaultMode && (
-          <button
-            className={'btn ghost icon' + (historyOpen ? ' on' : '')}
-            onClick={() => setHistoryOpen((v) => !v)}
-            title="版本历史（git）"
-            disabled={!doc}
-          >
-            ⏱
-          </button>
-        )}
-        <div style={{ position: 'relative' }}>
-          <button
-            className="btn ghost icon"
-            onClick={() => setExportOpen((v) => !v)}
-            title="导出"
-            disabled={!doc}
-          >
-            ⇩
-          </button>
-          {exportOpen && (
-            <div className="menu">
-              <button onClick={exportMd}>导出 Markdown（.md）</button>
-              <button onClick={exportJson}>导出 JSON（.json）</button>
-            </div>
-          )}
-        </div>
         <button
           className="btn ghost icon"
           onClick={() => void openQuickNote()}
@@ -553,51 +604,7 @@ export default function App() {
         >
           📌
         </button>
-        <button
-          className="btn ghost icon"
-          onClick={() => setSettingsOpen(true)}
-          title="备份与设置"
-        >
-          ⚙
-        </button>
-        <button
-          className="btn ghost icon"
-          onClick={() => setShortcutsOpen(true)}
-          title="快捷键（Ctrl+/）"
-        >
-          ?
-        </button>
-        <button
-          className={'btn ghost icon' + (focusMode ? ' on' : '')}
-          onClick={() => {
-            const next = !focusMode
-            setFocusMode(next)
-            toast.info(next ? '专注模式已开：只亮当前段落' : '专注模式已关')
-          }}
-          title="专注模式"
-          disabled={view !== 'write'}
-        >
-          ◉
-        </button>
-        <button
-          className={'btn ghost icon' + (typewriter ? ' on' : '')}
-          onClick={() => {
-            const next = !typewriter
-            setTypewriter(next)
-            toast.info(next ? '打字机模式已开：光标锁定视口' : '打字机模式已关')
-          }}
-          title="打字机模式"
-          disabled={view !== 'write'}
-        >
-          ⇅
-        </button>
-        <button
-          className="btn ghost icon"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          title="切换主题"
-        >
-          {theme === 'dark' ? '☾' : '☀'}
-        </button>
+        <MoreMenu items={moreItems} title="更多（导出 / 历史 / 外观 / 快捷键）" />
       </div>
 
       <div className="body">

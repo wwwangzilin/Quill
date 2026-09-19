@@ -1,8 +1,10 @@
 mod git;
 mod vault;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use std::sync::Mutex;
+use tauri::window::Color;
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use vault::{DocEntry, SaveResult, TrashEntry, VaultInfo};
@@ -204,35 +206,67 @@ fn save_asset(app: tauri::AppHandle, name: String, data: String) -> Result<Strin
 
 /* ============================ 多窗口：便签 / 磁贴 ============================ */
 
-/// 窗口 label 只允许 ASCII 安全字符，把文档名逐字节转十六进制
+/// 窗口底色（和前端 --bg 一致），这样窗口一出现就是暗的，
+/// 不会先闪一块刺眼的白板
+const WINDOW_BG: Color = Color(15, 14, 13, 255);
+
+/// 子窗口就绪登记表：前端挂载完成后调 `window_ready` 报到
+#[derive(Default)]
+struct ReadyWindows(Mutex<HashSet<String>>);
+
+/// 前端报到：这个窗口已经活过来了
+#[tauri::command]
+fn window_ready(window: tauri::WebviewWindow, state: tauri::State<'_, ReadyWindows>) {
+    if let Ok(mut set) = state.0.lock() {
+        set.insert(window.label().to_string());
+    }
+}
+
+/// 兜底看门狗：子窗口建出来 10 秒还没报到，说明前端没跑起来
+/// （以前就吃过亏——白窗 + 无边框 = 关不掉），直接自己关掉
+fn arm_watchdog(app: tauri::AppHandle, label: String) {
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(10));
+        let ready = app
+            .state::<ReadyWindows>()
+            .0
+            .lock()
+            .map(|set| set.contains(&label))
+            .unwrap_or(true);
+        if !ready {
+            log::warn!("子窗口 {label} 10 秒内没就绪，自动关闭以免留下白窗");
+            if let Some(w) = app.get_webview_window(&label) {
+                let _ = w.destroy();
+            }
+        }
+    });
+}
+
+/// 子窗口的 label 只允许 ASCII 安全字符：文档名逐字节转十六进制
 fn sticky_label(doc: &str) -> String {
     let mut s = String::from("sticky-");
-    for b in doc.bytes() {
-        if b.is_ascii_alphanumeric() {
-            s.push(b as char);
-        } else {
-            s.push_str(&format!("{b:02x}"));
-        }
+    for b in doc.as_bytes() {
+        s.push_str(&format!("{b:02x}"));
     }
     s
 }
 
-/// 放进 URL hash 的百分号编码（前端用 decodeURIComponent 解回来）
-fn encode_component(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
-            out.push(b as char);
-        } else {
-            out.push_str(&format!("%{b:02X}"));
-        }
-    }
-    out
+/// 子窗口和主窗口加载同一个入口，路由交给窗口 label 判断。
+///
+/// 以前这里是自己拼 dev/prod 两套 URL（`WebviewUrl::External`），
+/// 结果子窗口导航不到页面、停在 about:blank：白屏、没有按钮、关不掉。
+/// 现在不再碰 URL，Tauri 怎么解析主窗口就怎么解析子窗口。
+fn child_url() -> WebviewUrl {
+    WebviewUrl::App("index.html".into())
 }
 
 /// 唤起或收起便签窗口
+///
+/// 注意：**必须是 async**。Tauri 文档明写「Windows 上在同步 command 里用
+/// WebviewWindowBuilder 会死锁」——窗口建出来了但 webview 起不来，
+/// 表现就是一块白板/黑板，没有按钮也关不掉。
 #[tauri::command]
-fn toggle_quicknote(app: tauri::AppHandle) -> Result<(), String> {
+async fn toggle_quicknote(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("quicknote") {
         if w.is_visible().unwrap_or(false) {
             let _ = w.hide();
@@ -242,61 +276,60 @@ fn toggle_quicknote(app: tauri::AppHandle) -> Result<(), String> {
         }
         return Ok(());
     }
-    open_quicknote(app)
+    open_quicknote(app).await
 }
 
 /// 建一个无边框、置顶的小窗口专门用来记便签
 #[tauri::command]
-fn open_quicknote(app: tauri::AppHandle) -> Result<(), String> {
+async fn open_quicknote(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("quicknote") {
         let _ = w.show();
         let _ = w.set_focus();
         return Ok(());
     }
-    WebviewWindowBuilder::new(
-        &app,
-        "quicknote",
-        WebviewUrl::App("index.html#quicknote".into()),
-    )
-    .title("快捷便签")
-    .inner_size(400.0, 470.0)
-    .min_inner_size(300.0, 240.0)
-    .decorations(false)
-    .always_on_top(true)
-    .resizable(true)
-    .skip_taskbar(true)
-    .center()
-    .build()
-    .map_err(|e| format!("创建便签窗口失败: {e}"))?;
+    WebviewWindowBuilder::new(&app, "quicknote", child_url())
+        .title("快捷便签")
+        .inner_size(400.0, 470.0)
+        .min_inner_size(300.0, 240.0)
+        .decorations(false)
+        .always_on_top(true)
+        .resizable(true)
+        .background_color(WINDOW_BG)
+        .center()
+        .build()
+        .map_err(|e| format!("创建便签窗口失败: {e}"))?;
+    log::info!("便签窗口已创建");
+    arm_watchdog(app.clone(), "quicknote".into());
     Ok(())
 }
 
 /// 把某篇文档钉成桌面磁贴（置顶小窗，方便随时查阅与复制）
 #[tauri::command]
-fn open_sticky(app: tauri::AppHandle, doc: String, title: String) -> Result<(), String> {
+async fn open_sticky(app: tauri::AppHandle, doc: String, title: String) -> Result<(), String> {
     let label = sticky_label(&doc);
     if let Some(w) = app.get_webview_window(&label) {
         let _ = w.show();
         let _ = w.set_focus();
         return Ok(());
     }
-    let url = format!("index.html#sticky={}", encode_component(&doc));
-    WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
+    WebviewWindowBuilder::new(&app, &label, child_url())
         .title(&title)
         .inner_size(320.0, 400.0)
         .min_inner_size(200.0, 150.0)
         .decorations(false)
         .always_on_top(true)
         .resizable(true)
-        .skip_taskbar(true)
+        .background_color(WINDOW_BG)
         .build()
         .map_err(|e| format!("创建磁贴窗口失败: {e}"))?;
+    log::info!("磁贴窗口已创建 {label}（{doc}）");
+    arm_watchdog(app.clone(), label);
     Ok(())
 }
 
 /// 小窗口自己关自己
 #[tauri::command]
-fn close_self(window: tauri::WebviewWindow) -> Result<(), String> {
+async fn close_self(window: tauri::WebviewWindow) -> Result<(), String> {
     window.destroy().map_err(|e| format!("关闭窗口失败: {e}"))
 }
 
@@ -326,6 +359,7 @@ fn reveal_vault(app: tauri::AppHandle) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(ReadyWindows::default())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -335,7 +369,13 @@ pub fn run() {
                     // Ctrl+Space = 便签；Ctrl+Shift+Space = 主窗口
                     let quick = Shortcut::new(Some(Modifiers::CONTROL), Code::Space);
                     if shortcut == &quick {
-                        let _ = toggle_quicknote(app.clone());
+                        // 建窗口必须走 async，别在事件回调里同步调（Windows 会死锁）
+                        let handle = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            if let Err(err) = toggle_quicknote(handle).await {
+                                log::warn!("便签窗口唤起失败: {err}");
+                            }
+                        });
                     } else {
                         toggle_window(app);
                     }
@@ -394,7 +434,8 @@ pub fn run() {
             open_quicknote,
             open_sticky,
             close_self,
-            is_sticky
+            is_sticky,
+            window_ready
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

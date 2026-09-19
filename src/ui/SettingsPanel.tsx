@@ -1,19 +1,31 @@
 import { useCallback, useEffect, useState } from 'react'
 import { storage, type RemoteInfo } from '../core/storage'
+import {
+  FONTS,
+  PROSE_RANGE,
+  fontInstalled,
+  fontOption,
+  type ProseStyle,
+} from '../core/fonts'
 import { toast } from './toast'
 
 interface Props {
   open: boolean
   onClose: () => void
+  prose: ProseStyle
+  onProse: (next: ProseStyle) => void
 }
 
-export default function SettingsPanel({ open, onClose }: Props) {
+export default function SettingsPanel({ open, onClose, prose, onProse }: Props) {
   const [url, setUrl] = useState('')
   const [ca, setCa] = useState('')
   const [token, setToken] = useState('')
   const [info, setInfo] = useState<RemoteInfo | null>(null)
   const [busy, setBusy] = useState(false)
   const [log, setLog] = useState('')
+
+  const option = fontOption(prose.font)
+  const installed = fontInstalled(option)
 
   const reload = useCallback(async () => {
     if (!storage.remoteInfo) return
@@ -86,6 +98,82 @@ export default function SettingsPanel({ open, onClose }: Props) {
         </div>
 
         <div className="modal-body">
+          <div className="sc-group">
+            <div className="sc-title">外观</div>
+
+            <label className="field">
+              <span>正文字体</span>
+              <select
+                value={prose.font}
+                onChange={(e) => onProse({ ...prose, font: e.target.value })}
+              >
+                {FONTS.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="hint" style={{ marginBottom: 10 }}>
+              {option.hint}
+              {!option.probe
+                ? ''
+                : installed
+                  ? '（这台机器上已经有了）'
+                  : option.cdn
+                    ? '（本机没装，正从 CDN 按需取字形，只下用到的字）'
+                    : '（本机没装，会回退到系统字体）'}
+            </div>
+
+            <label className="field">
+              <span>正文字号 · {prose.size}px</span>
+              <input
+                type="range"
+                min={PROSE_RANGE.minSize}
+                max={PROSE_RANGE.maxSize}
+                step={0.5}
+                value={prose.size}
+                onChange={(e) => onProse({ ...prose, size: Number(e.target.value) })}
+              />
+            </label>
+
+            <label className="field">
+              <span>行距 · {prose.leading.toFixed(2)}</span>
+              <input
+                type="range"
+                min={PROSE_RANGE.minLeading}
+                max={PROSE_RANGE.maxLeading}
+                step={0.05}
+                value={prose.leading}
+                onChange={(e) => onProse({ ...prose, leading: Number(e.target.value) })}
+              />
+            </label>
+
+            <div
+              className="font-preview"
+              style={{
+                fontFamily: option.stack,
+                fontSize: `${prose.size}px`,
+                lineHeight: prose.leading,
+              }}
+            >
+              从前有座山，山里有座庙。The quick brown fox jumps over the lazy dog. 1234567890
+            </div>
+
+            <div className="field-row" style={{ marginTop: 10 }}>
+              <button
+                className="btn"
+                onClick={() => onProse({ font: 'system', size: 16.5, leading: 1.85 })}
+              >
+                恢复默认
+              </button>
+              <span className="grow" />
+              <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+                正文、便签、磁贴三处同步生效
+              </span>
+            </div>
+          </div>
+
           <div className="sc-group">
             <div className="sc-title">远程备份</div>
             <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.8, marginBottom: 12 }}>

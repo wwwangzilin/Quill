@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { initStorage, storage } from '../core/storage'
-import { closeSelf } from '../core/windows'
+import { closeSelf, markWindowReady } from '../core/windows'
 import { toast } from '../ui/toast'
 import ToastHost from '../ui/ToastHost'
 
@@ -48,6 +48,7 @@ export default function QuickNote() {
 
   useEffect(() => {
     void load()
+    void markWindowReady()
     const timer = window.setTimeout(() => ref.current?.focus(), 80)
     return () => window.clearTimeout(timer)
   }, [load])

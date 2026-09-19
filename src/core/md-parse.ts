@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
-import { assetUrl } from './asset'
+import { assetUrl } from './asset.ts'
 
 /**
  * Markdown → Tiptap JSON。

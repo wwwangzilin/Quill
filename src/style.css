@@ -29,6 +29,10 @@
     system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Smiley Sans", "得意黑", var(--font-ui);
   --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  /* 正文外观：由 core/fonts.ts 写进 <html>，设置里可改 */
+  --font-prose: var(--font-ui);
+  --prose-size: 16.5px;
+  --prose-leading: 1.85;
   --write-width: 720px;
   --titlebar-h: 46px;
   --sidebar-w: 264px;
@@ -449,6 +453,47 @@ body::before {
   background: var(--surface-active);
 }
 
+/* 「⋯ 更多」：图标 + 文字 + 快捷键小注 */
+.menu.more {
+  min-width: 226px;
+}
+.menu .mi {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+}
+.menu .mi .mi-icon {
+  width: 16px;
+  flex: 0 0 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.menu .mi .mi-label {
+  flex: 1;
+  text-align: left;
+}
+.menu .mi .mi-hint {
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+}
+.menu .mi.on .mi-icon,
+.menu .mi.on .mi-label {
+  color: var(--accent-1);
+}
+.menu .mi:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.menu .mi-sep {
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--border);
+}
+
 /* ============================ 编辑器 ============================ */
 
 .editor-scroll {
@@ -507,8 +552,9 @@ body::before {
 
 .ProseMirror {
   outline: none;
-  font-size: 16.5px;
-  line-height: 1.85;
+  font-family: var(--font-prose);
+  font-size: var(--prose-size);
+  line-height: var(--prose-leading);
   color: var(--text);
   caret-color: var(--accent-2);
   min-height: 40vh;
@@ -1915,6 +1961,44 @@ body.quill-dragging * {
 .field-row .grow {
   flex: 1;
 }
+.field select {
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 0 8px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.field select:focus {
+  border-color: var(--accent-1);
+}
+.field input[type="range"] {
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  accent-color: var(--accent-1);
+  cursor: pointer;
+}
+.field .hint {
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--text-3);
+}
+.font-preview {
+  margin-top: 2px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text);
+  word-break: break-word;
+}
 
 /* 双向链接 [[标题]] */
 .ProseMirror .wikilink {
@@ -1998,7 +2082,7 @@ body.quill-dragging * {
   outline: none;
   background: transparent;
   color: var(--text);
-  font-family: inherit;
+  font-family: var(--font-prose);
   font-size: 14.5px;
   line-height: 1.85;
   padding: 14px 16px;
@@ -2059,9 +2143,9 @@ body.quill-dragging * {
 }
 .sticky-text {
   margin: 0;
-  font-family: inherit;
+  font-family: var(--font-prose);
   font-size: 12.5px;
-  line-height: 1.85;
+  line-height: 1.8;
   color: var(--text-2);
   white-space: pre-wrap;
   word-break: break-word;

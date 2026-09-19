@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { initStorage, storage } from '../core/storage'
-import { closeSelf } from '../core/windows'
+import { closeSelf, markWindowReady } from '../core/windows'
 import { toast } from '../ui/toast'
 import ToastHost from '../ui/ToastHost'
 
@@ -73,6 +73,20 @@ export default function Sticky({ doc }: Props) {
   useEffect(() => {
     void load()
   }, [load])
+
+  // 报到：真的渲染出来了，看门狗别再盯着这个窗口
+  useEffect(() => {
+    void markWindowReady()
+  }, [])
+
+  // 无边框窗口：留一手 Esc 关闭，免得又出现关不掉的窗口
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') void closeSelf()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   return (
     <div className="sticky-root">
