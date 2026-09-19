@@ -1,23 +1,53 @@
 name: Release
 
+# 推一个 v* 的 tag 就自动出安装包并发布 Release：
+#   git tag v0.2.0 && git push origin v0.2.0
+# 版本号以 tag 为唯一真相源，构建前会同步进 package.json / tauri.conf.json / Cargo.toml。
+# 也可以在 Actions 页面手动触发（填个 tag 名，用于补发或重发）。
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: '要发布的 tag（如 v0.1.0）'
+        description: '要发布的 tag（如 v0.2.0）。tag 不存在时会基于当前分支创建'
         required: true
 
 permissions:
   contents: write
 
+# 同一个 tag 连着触发时排队，别抢着写同一个 Release
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   windows:
-    name: 构建 Windows 安装包
+    name: 构建并发布 Windows 安装包
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 生成「本次更新」要用 git log 比较上一个 tag，浅克隆拿不到历史
+          fetch-depth: 0
+
+      - name: 解析版本号
+        id: ver
+        shell: pwsh
+        run: |
+          $raw = "${{ inputs.tag }}"
+          if (-not $raw) { $raw = "${{ github.ref_name }}" }
+          $ver = $raw.TrimStart('v', 'V')
+          if ($ver -notmatch '^\d+\.\d+\.\d+') {
+            Write-Error "从 '$raw' 里解析不出合法版本号"
+            exit 1
+          }
+          # 带 -beta.1 / -rc.2 这种后缀的算预发布
+          $pre = if ($ver.Contains('-')) { 'true' } else { 'false' }
+          "tag=$raw"      >> $env:GITHUB_OUTPUT
+          "version=$ver"  >> $env:GITHUB_OUTPUT
+          "prerelease=$pre" >> $env:GITHUB_OUTPUT
+          Write-Host "版本 $ver ｜ 预发布 $pre"
 
       - uses: pnpm/action-setup@v4
 
@@ -35,8 +65,15 @@ jobs:
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
 
+      - name: 同步版本号（tag -> 三个清单文件）
+        run: node scripts/set-version.mjs ${{ steps.ver.outputs.version }}
+
+      # 发布前的门禁：类型不过、核心断言不过，就不许出包
       - name: 类型检查
         run: pnpm typecheck
+
+      - name: 核心逻辑断言
+        run: node test-core.mjs
 
       - name: 构建桌面应用（含 NSIS 安装包）
         run: pnpm tauri build
@@ -44,30 +81,61 @@ jobs:
       - name: 收集产物
         shell: pwsh
         run: |
-          $ver = "${{ inputs.tag || github.ref_name }}"
+          $ver = "${{ steps.ver.outputs.version }}"
           New-Item -ItemType Directory -Force -Path out | Out-Null
+          # 产物统一改成英文名：GitHub 会静默吞掉附件名里的非 ASCII 字符
           Copy-Item src-tauri/target/release/quill.exe "out/Quill_${ver}_portable.exe"
-          Copy-Item src-tauri/target/release/bundle/nsis/*.exe out/
+          $setup = Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          if (-not $setup) { Write-Error 'NSIS 安装包没生成'; exit 1 }
+          Copy-Item $setup.FullName "out/Quill_${ver}_x64-setup.exe"
           Get-ChildItem out | Select-Object Name, Length
 
-      - name: 上传构建产物
+      - name: 生成更新说明
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.ver.outputs.tag }}"
+          $ver = "${{ steps.ver.outputs.version }}"
+          $prev = ''
+          # 上一个 tag（没有就是首次发布）
+          git fetch --tags --force 2>$null
+          try { $prev = (git describe --tags --abbrev=0 "$tag^" 2>$null) } catch { $prev = '' }
+          if ($prev) {
+            Write-Host "比较区间：$prev..$tag"
+            $log = git log --no-merges --pretty=format:"- %s" "$prev..HEAD"
+          } else {
+            Write-Host '没有上一个 tag，取最近 20 条提交'
+            $log = git log --no-merges --pretty=format:"- %s" -20
+          }
+          if (-not $log) { $log = '- 细节见提交记录' }
+
+          $notes = @(
+            "Quill $tag —— 本地优先的写作工具：沉浸写作 + 大纲 + 思维导图，文档就是纯 Markdown。",
+            "",
+            "### 下载哪个",
+            "- ``Quill_${ver}_x64-setup.exe``：安装包（推荐），装完有开始菜单项",
+            "- ``Quill_${ver}_portable.exe``：免安装，双击直接跑",
+            "",
+            "### 文档存在哪",
+            "默认在 ``%USERPROFILE%\Documents\Quill``，每篇是一个 `.md` 文件，每次保存自动产生一次 git 提交 —— 换机器、硬盘坏了都能拿回来，任何 git 客户端都能读。",
+            "",
+            "### 本次更新",
+            $log
+          )
+          Set-Content -Path release-notes.md -Value $notes -Encoding utf8
+          Get-Content release-notes.md | Select-Object -First 6
+
+      - name: 上传构建产物（Actions 页可直接下载）
         uses: actions/upload-artifact@v4
         with:
-          name: quill-windows
+          name: quill-windows-${{ steps.ver.outputs.version }}
           path: out/*.exe
           if-no-files-found: error
 
-      - name: 发布 Release（预发布）
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+      - name: 发布 Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
-          prerelease: true
-          generate_release_notes: true
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: Quill ${{ steps.ver.outputs.tag }}
+          prerelease: ${{ steps.ver.outputs.prerelease }}
+          body_path: release-notes.md
           files: out/*.exe
-          body: |
-            Quill 早期开发版（pre-release）。
-
-            下载后在 Windows 上直接运行：`*_x64-setup.exe` 是安装包，`*_portable.exe` 免安装。
-
-            文档默认存放在 `%USERPROFILE%\Documents\Quill`，是纯 Markdown 文件加一个 git 仓库。

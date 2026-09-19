@@ -2,7 +2,7 @@
 
 一个类 Effie 的写作工具：**沉浸式写作 + 大纲层级 + 一键思维导图**，本地优先，文档用 git 做版本管理。
 
-> **开发版 v0.1.0（pre-release）** — 功能已成形、日常写作可用，但接口与数据格式仍可能调整，暂不建议存放不可替代的重要资料。
+> **开发版** — 功能已成形、日常写作可用，但接口与数据格式仍可能调整，暂不建议存放不可替代的重要资料。安装包见 [Releases](../../releases)。
 
 ![写作界面](docs/screenshots/dark-write.png)
 
@@ -59,6 +59,8 @@
 
 - Tauri 2 桌面壳（不是 Electron，体积小、内存低）
 - **全局唤起快捷键 `Ctrl + Shift + Space`**：任意位置显示/隐藏窗口
+- **快捷便签 `Ctrl + Space`**：随时唤出一个置顶小窗，回车就存进「收件箱」
+- **桌面磁贴**：把某篇笔记钉在屏幕上（置顶、无边框），随时查阅、一键复制全文
 - 深色窗口背景，避免启动白闪
 - 提示系统：Toast 通知（保存失败 / 已回滚 / 已导出 / 模式切换）
 
@@ -91,6 +93,29 @@ pnpm typecheck      # 类型检查
 pnpm tauri dev      # 桌面应用（需 Rust + MSVC，见 ../setup-tauri-env.ps1）
 pnpm tauri build    # 出 exe + NSIS 安装包
 ```
+
+## 发版
+
+**打 tag 就自动发 Release**，不需要手动打包上传：
+
+```powershell
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+`.github/workflows/release.yml` 会在 windows-latest 上：
+
+1. 从 tag 解析版本号，同步进 `package.json` / `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml`
+   （版本号以 tag 为唯一真相源，避免装出来的包还是旧版本号）
+2. 跑门禁：`pnpm typecheck` + `node test-core.mjs`
+3. `pnpm tauri build` 出 NSIS 安装包与免安装 exe，统一重命名成英文
+4. 自动生成「本次更新」（对比上一个 tag 的提交），发布 Release
+
+规则：
+
+- tag 带后缀（`v0.2.0-beta.1`）→ 自动标为 **pre-release**
+- 不带后缀（`v0.2.0`）→ 正式版
+- 补发 / 重发：在 Actions 页手动触发 Release，填 tag 名即可（tag 不存在会基于当前分支创建）
 
 ## 验收
 
