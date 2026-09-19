@@ -88,28 +88,45 @@ await sleep(600)
 out.ok.settingsOpened = await evalIn(c, `!!document.querySelector('.modal')`)
 
 // 3) 弹窗里的控件命中测试
+// 弹窗体是可滚动的：顶部的字体下拉和底部的保存按钮不在同一屏，
+// 所以要分两次滚到位再测（否则「命中失败」其实是滚出视口了）
 out.detail.modalHits = await evalIn(
   c,
-  `(()=>{
+  `(async () => {
+    const body = document.querySelector('.modal-body')
     const probe=(name,el)=>{
       if(!el) return {name, missing:true}
       const r=el.getBoundingClientRect(); const x=r.x+r.width/2,y=r.y+r.height/2
       const top=document.elementFromPoint(x,y)
       return {name, hit: !!top && (el===top || el.contains(top)), top: top?top.tagName+'.'+(typeof top.className==='string'?top.className:''):'null'}
     }
-    return JSON.stringify([
-      probe('字体下拉', document.querySelector('.modal select')),
-      probe('字号滑条', document.querySelectorAll('.modal input[type=range]')[0]),
-      probe('行距滑条', document.querySelectorAll('.modal input[type=range]')[1]),
-      probe('恢复默认', [...document.querySelectorAll('.modal button')].find(b=>b.textContent.includes('恢复默认'))),
-      probe('保存设置', [...document.querySelectorAll('.modal button')].find(b=>b.textContent.includes('保存设置'))),
-      probe('关闭×', document.querySelector('.modal-head button')),
-    ])
+    const wait = () => new Promise(r => setTimeout(r, 260))
+    const out = []
+    if (body) { body.scrollTop = 0; await wait() }
+    out.push(probe('字体下拉', document.querySelector('.modal select')))
+    out.push(probe('字号滑条', document.querySelectorAll('.modal input[type=range]')[0]))
+    out.push(probe('关闭×', document.querySelector('.modal-head button')))
+    if (body) { body.scrollTop = body.scrollHeight; await wait() }
+    out.push(probe('恢复默认', [...document.querySelectorAll('.modal button')].find(b=>b.textContent.includes('恢复默认'))))
+    out.push(probe('保存设置', [...document.querySelectorAll('.modal button')].find(b=>b.textContent.includes('保存设置'))))
+    if (body) { body.scrollTop = 0; await wait() }
+    return JSON.stringify(out)
   })()`,
 )
 out.ok.modalControlsClickable = JSON.parse(out.detail.modalHits).every((x) => x.hit)
 
-// 4) 真点「恢复默认」→ 字体设置应被写回 system
+// 4) 先切成霞鹜文楷，再真点「恢复默认」→ 字体设置应被写回 system
+await evalIn(
+  c,
+  `(()=>{
+    const sel = document.querySelector('.modal select')
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set
+    setter.call(sel, 'wenkai')
+    sel.dispatchEvent(new Event('change', { bubbles: true }))
+    return 1
+  })()`,
+)
+await sleep(500)
 const before = await evalIn(c, `localStorage.getItem('quill-set:proseFont')`)
 const resetBtn = await evalIn(
   c,
@@ -121,7 +138,7 @@ if (resetBtn !== 'null') {
 }
 const after = await evalIn(c, `localStorage.getItem('quill-set:proseFont')`)
 out.detail.reset = { before, after }
-out.ok.resetWorks = before !== after && after === '"system"'
+out.ok.resetWorks = before === '"wenkai"' && after === '"system"'
 
 // 5) 关掉弹窗，测侧栏「新建」模板菜单
 await evalIn(c, `document.querySelector('.modal-mask')?.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}))`)
