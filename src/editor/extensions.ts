@@ -1,4 +1,4 @@
-import { Extension } from '@tiptap/core'
+import { Extension, mergeAttributes } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TaskList from '@tiptap/extension-task-list'
@@ -18,6 +18,7 @@ import { createLowlight, common } from 'lowlight'
 /** 代码块语法高亮的语言包：常用语言全都有，纯前端、不加其它依赖 */
 const lowlight = createLowlight(common)
 import Image from '@tiptap/extension-image'
+import { assetUrl } from '../core/asset'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { EditorView } from '@tiptap/pm/view'
 
@@ -155,6 +156,27 @@ export const FocusDim = Extension.create({
   },
 })
 
+/**
+ * 图片。
+ *
+ * 文档里存的永远是仓库相对路径（`assets/xxx.png`），但 WebView 直接渲染它
+ * 会当成 `http://localhost/assets/xxx.png` 去取 —— 404，最后只剩一行 alt 文字。
+ * 所以渲染这一层必须换成 Tauri 的 asset:// URL。
+ *
+ * 只在 renderHTML 里转、不动数据：编辑器 JSON 与 Markdown 导出拿到的
+ * 依旧是干净的相对路径，换机器 / 别的编辑器 / 远程备份都不受影响。
+ */
+const AssetImage = Image.extend({
+  renderHTML({ HTMLAttributes }) {
+    return [
+      'img',
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+        src: assetUrl(String(HTMLAttributes.src ?? '')),
+      }),
+    ]
+  },
+})
+
 export function buildExtensions(placeholder: string) {
   return [
     // 放最前面：Tab 要优先被「接受续写建议」截走，没建议时才轮到缩进
@@ -178,7 +200,7 @@ export function buildExtensions(placeholder: string) {
     SearchHighlight,
     WikiLink,
     BlockGutter,
-    Image.configure({ inline: false, allowBase64: false }),
+    AssetImage.configure({ inline: false, allowBase64: false }),
     Video,
   ]
 }
