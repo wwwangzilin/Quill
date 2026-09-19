@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
-import { assetUrl } from './asset.ts'
+import { relOf } from './asset.ts'
 
 /**
  * Markdown → Tiptap JSON。
@@ -28,6 +28,19 @@ const LIST = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/
 const RULE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/
 /** GFM 表格行：以 | 开头或结尾 */
 const TABLE_ROW = /^\s*\|.*\|\s*$/
+/** 调过尺寸的图片会写成 HTML 形式：<img src="..." alt="..." width="400"> */
+const IMG_HTML = /^<img\s+([^>]*?)\/?>\s*$/i
+
+/** 把 `src="a" alt='b' width=400` 这样的属性串拆成对象 */
+function htmlAttrs(s: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  const re = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(s))) {
+    out[m[1].toLowerCase()] = m[2] ?? m[3] ?? m[4] ?? ''
+  }
+  return out
+}
 /** 分隔行：| --- | :--: | */
 const TABLE_SEP = /^\s*\|?[\s:|-]*-[\s:|-]*\|[\s:|-]*$/
 
@@ -241,20 +254,44 @@ function parseBlocks(lines: string[]): JSONContent[] {
     }
 
     // 图片：整行 ![alt](src)
+    //
+    // 这里必须用 relOf 而不是 assetUrl：读进来的 src 得是仓库相对路径，
+    // 因为编辑器里改了什么最终会原样写回 .md —— 换成 asset:// 等于把本机绝对路径
+    // 腌进用户的文档，换台机器全废。relOf 顺带兜底：万一 .md 已经被写脏过也能还原。
     const img = line.match(/^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/)
     if (img) {
       out.push({
         type: 'image',
-        attrs: { src: assetUrl(img[2]), alt: img[1] || null, title: null },
+        attrs: { src: relOf(img[2]), alt: img[1] || null, title: null, width: null },
       })
       i += 1
       continue
     }
 
+    // 调过尺寸的图片是 HTML 形式：整行 <img src="..." alt="..." width="400">
+    const imgHtml = line.match(IMG_HTML)
+    if (imgHtml) {
+      const a = htmlAttrs(imgHtml[1])
+      if (a.src) {
+        const w = Number(a.width)
+        out.push({
+          type: 'image',
+          attrs: {
+            src: relOf(a.src),
+            alt: a.alt || null,
+            title: null,
+            width: Number.isFinite(w) && w > 0 ? Math.round(w) : null,
+          },
+        })
+        i += 1
+        continue
+      }
+    }
+
     // 视频：整行 <video src="..."></video>
     const vid = line.match(/^<video\s+[^>]*src="([^"]+)"[^>]*>\s*<\/video>\s*$/i)
     if (vid) {
-      out.push({ type: 'video', attrs: { src: assetUrl(vid[1]), title: null } })
+      out.push({ type: 'video', attrs: { src: relOf(vid[1]), title: null } })
       i += 1
       continue
     }

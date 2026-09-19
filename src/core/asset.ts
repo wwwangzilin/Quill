@@ -31,7 +31,17 @@ export function assetUrl(rel: string): string {
 /** 可显示的 URL → 相对路径（写进 .md 用） */
 export function relOf(src: string): string {
   if (!src) return src
-  const m = src.match(/assets[/\\]([^/\\?#"']+)/i)
-  if (m) return `assets/${m[1]}`
-  return src
+  const direct = src.match(/^assets[/\\](.+)$/i)
+  if (direct) return `assets/${direct[1].replace(/\\/g, '/')}`
+  // Tauri 的 asset:// URL 整条是 encodeURIComponent 过的（%5C 而不是 \），
+  // 得先解码才找得到 assets/ 这一段
+  let probe = src
+  try {
+    probe = decodeURIComponent(src)
+  } catch {
+    probe = src
+  }
+  const m = probe.match(/assets[/\\]([^/\\?#"']+)/i)
+  // 匹配不上就原样返回 —— 别把普通网址解码后写进文档
+  return m ? `assets/${m[1]}` : src
 }

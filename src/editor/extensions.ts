@@ -165,8 +165,117 @@ export const FocusDim = Extension.create({
  *
  * 只在 renderHTML 里转、不动数据：编辑器 JSON 与 Markdown 导出拿到的
  * 依旧是干净的相对路径，换机器 / 别的编辑器 / 远程备份都不受影响。
+ *
+ * 另外挂了 width 属性和一个右下角拖拽手柄：调过尺寸的图在 .md 里会写成
+ * `<img ... width="400">`（Markdown 语法本身表达不了宽度）。
  */
 const AssetImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (el) => {
+          const w = Number(el.getAttribute('width'))
+          return Number.isFinite(w) && w > 0 ? Math.round(w) : null
+        },
+        renderHTML: (attrs) => (attrs.width ? { width: String(attrs.width) } : {}),
+      },
+    }
+  },
+
+  addNodeView() {
+    return ({ node: initial, editor, getPos }) => {
+      let node = initial
+
+      const wrap = document.createElement('div')
+      wrap.className = 'img-wrap'
+      const img = document.createElement('img')
+      img.alt = String(node.attrs.alt ?? '')
+      img.src = assetUrl(String(node.attrs.src ?? ''))
+      if (node.attrs.width) img.style.width = `${node.attrs.width}px`
+
+      const handle = document.createElement('span')
+      handle.className = 'img-resize'
+      handle.setAttribute('contenteditable', 'false')
+      handle.title = '拖动改宽度 · 双击恢复自适应'
+      const badge = document.createElement('span')
+      badge.className = 'img-size'
+      badge.setAttribute('contenteditable', 'false')
+
+      wrap.append(img, badge, handle)
+
+      const commit = (w: number | null) => {
+        const pos = typeof getPos === 'function' ? getPos() : undefined
+        if (typeof pos !== 'number') return
+        const tr = editor.view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, width: w })
+        editor.view.dispatch(tr)
+      }
+
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const startX = e.clientX
+        const startW = img.getBoundingClientRect().width
+        // 最宽不超过正文栏，最窄留个 60px 免得拖成一条线
+        const maxW = wrap.parentElement?.clientWidth ?? 720
+        const clamp = (x: number) => Math.round(Math.min(maxW, Math.max(60, x)))
+        wrap.classList.add('dragging')
+        badge.textContent = `${Math.round(startW)}px`
+
+        const onMove = (ev: MouseEvent) => {
+          const next = clamp(startW + (ev.clientX - startX))
+          img.style.width = `${next}px`
+          badge.textContent = `${next}px`
+        }
+        const onUp = (ev: MouseEvent) => {
+          document.removeEventListener('mousemove', onMove, true)
+          document.removeEventListener('mouseup', onUp, true)
+          wrap.classList.remove('dragging')
+          handle.classList.remove('on')
+          const next = clamp(startW + (ev.clientX - startX))
+          img.style.width = `${next}px`
+          commit(next)
+        }
+        handle.classList.add('on')
+        document.addEventListener('mousemove', onMove, true)
+        document.addEventListener('mouseup', onUp, true)
+      })
+
+      // 双击手柄 = 恢复自适应宽度（回到标准 ![](src) 写法）
+      handle.addEventListener('dblclick', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        img.style.width = ''
+        commit(null)
+      })
+
+      return {
+        dom: wrap,
+        update(updated) {
+          if (updated.type.name !== 'image') return false
+          node = updated
+          const next = assetUrl(String(updated.attrs.src ?? ''))
+          if (img.getAttribute('src') !== next) img.setAttribute('src', next)
+          img.alt = String(updated.attrs.alt ?? '')
+          if (updated.attrs.width) img.style.width = `${updated.attrs.width}px`
+          else img.style.width = ''
+          return true
+        },
+        selectNode() {
+          wrap.classList.add('selected')
+        },
+        deselectNode() {
+          wrap.classList.remove('selected')
+        },
+        // 手柄上的鼠标事件别交给 ProseMirror，否则会变成拖拽选文字
+        stopEvent: (event: Event) => event.target === handle,
+        // 我们自己改的 style / class 不算文档变更，别让 ProseMirror 重新解析
+        ignoreMutation: () => true,
+      }
+    }
+  },
+
   renderHTML({ HTMLAttributes }) {
     return [
       'img',

@@ -3025,3 +3025,68 @@ body.quill-dragging * {
   outline-offset: 2px;
 }
 
+/* ---------- 图片尺寸：选中后可拖右下角手柄 ---------- */
+
+/* 宽度贴合图片本身（fit-content），这样手柄才不会飘到整个正文栏的右下角 */
+.img-wrap {
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 6px 0;
+}
+.img-wrap img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0;
+  border-radius: 10px;
+}
+.img-wrap.selected img {
+  outline: 2px solid var(--accent-1);
+  outline-offset: 2px;
+}
+.img-resize {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-1);
+  box-shadow: 0 0 0 2px var(--surface-solid);
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 0.14s var(--ease);
+}
+.img-wrap.selected .img-resize,
+.img-wrap:hover .img-resize,
+.img-resize.on {
+  opacity: 1;
+}
+/* 拖动时显示当前宽度 */
+.img-size {
+  position: absolute;
+  left: 50%;
+  top: -26px;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  color: var(--text-2);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s var(--ease);
+}
+.img-wrap.dragging .img-size {
+  opacity: 1;
+}
+.img-wrap.dragging img {
+  opacity: 0.85;
+}
+

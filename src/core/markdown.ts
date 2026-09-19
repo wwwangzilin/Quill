@@ -8,6 +8,24 @@ import { relOf } from './asset.ts'
 
 const INDENT = '  '
 
+/**
+ * 图片 → Markdown。
+ *
+ * 没调过尺寸的走标准 `![](src)`，.md 保持干净；
+ * 调过尺寸的降级成 `<img ... width="400">` —— Markdown 语法本身表达不了宽度，
+ * 而 GFM 允许内联 HTML，别的编辑器也都认这种写法。
+ */
+function imageMarkdown(node: JSONContent): string {
+  const src = relOf(String(node.attrs?.src ?? ''))
+  const alt = String(node.attrs?.alt ?? '')
+  if (!src) return ''
+  const w = Number(node.attrs?.width)
+  if (Number.isFinite(w) && w > 0) {
+    return `<img src="${src}" alt="${alt}" width="${Math.round(w)}">`
+  }
+  return `![${alt}](${src})`
+}
+
 /** 行内节点 → markdown 片段 */
 function inline(node: JSONContent): string {
   if (node.type === 'text') {
@@ -23,9 +41,7 @@ function inline(node: JSONContent): string {
     return t
   }
   if (node.type === 'hardBreak') return '\\\n'
-  if (node.type === 'image') {
-    return `![${String(node.attrs?.alt ?? '')}](${String(node.attrs?.src ?? '')})`
-  }
+  if (node.type === 'image') return imageMarkdown(node)
   return (node.content ?? []).map(inline).join('')
 }
 
@@ -77,11 +93,8 @@ function block(node: JSONContent, depth: number): string {
       ]
       return lines.join('\n')
     }
-    case 'image': {
-      const src = relOf(String(node.attrs?.src ?? ''))
-      const alt = String(node.attrs?.alt ?? '')
-      return src ? `![${alt}](${src})` : ''
-    }
+    case 'image':
+      return imageMarkdown(node)
     case 'video': {
       const src = relOf(String(node.attrs?.src ?? ''))
       return src ? `<video src="${src}" controls></video>` : ''
