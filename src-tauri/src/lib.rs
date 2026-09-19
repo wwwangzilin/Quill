@@ -3,7 +3,7 @@ mod vault;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use vault::{DocEntry, SaveResult, TrashEntry, VaultInfo};
 
@@ -202,6 +202,110 @@ fn save_asset(app: tauri::AppHandle, name: String, data: String) -> Result<Strin
     vault::save_asset(&dir, &name, &data)
 }
 
+/* ============================ 多窗口：便签 / 磁贴 ============================ */
+
+/// 窗口 label 只允许 ASCII 安全字符，把文档名逐字节转十六进制
+fn sticky_label(doc: &str) -> String {
+    let mut s = String::from("sticky-");
+    for b in doc.bytes() {
+        if b.is_ascii_alphanumeric() {
+            s.push(b as char);
+        } else {
+            s.push_str(&format!("{b:02x}"));
+        }
+    }
+    s
+}
+
+/// 放进 URL hash 的百分号编码（前端用 decodeURIComponent 解回来）
+fn encode_component(s: &str) -> String {
+    let mut out = String::new();
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// 唤起或收起便签窗口
+#[tauri::command]
+fn toggle_quicknote(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window("quicknote") {
+        if w.is_visible().unwrap_or(false) {
+            let _ = w.hide();
+        } else {
+            let _ = w.show();
+            let _ = w.set_focus();
+        }
+        return Ok(());
+    }
+    open_quicknote(app)
+}
+
+/// 建一个无边框、置顶的小窗口专门用来记便签
+#[tauri::command]
+fn open_quicknote(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window("quicknote") {
+        let _ = w.show();
+        let _ = w.set_focus();
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(
+        &app,
+        "quicknote",
+        WebviewUrl::App("index.html#quicknote".into()),
+    )
+    .title("快捷便签")
+    .inner_size(400.0, 470.0)
+    .min_inner_size(300.0, 240.0)
+    .decorations(false)
+    .always_on_top(true)
+    .resizable(true)
+    .skip_taskbar(true)
+    .center()
+    .build()
+    .map_err(|e| format!("创建便签窗口失败: {e}"))?;
+    Ok(())
+}
+
+/// 把某篇文档钉成桌面磁贴（置顶小窗，方便随时查阅与复制）
+#[tauri::command]
+fn open_sticky(app: tauri::AppHandle, doc: String, title: String) -> Result<(), String> {
+    let label = sticky_label(&doc);
+    if let Some(w) = app.get_webview_window(&label) {
+        let _ = w.show();
+        let _ = w.set_focus();
+        return Ok(());
+    }
+    let url = format!("index.html#sticky={}", encode_component(&doc));
+    WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
+        .title(&title)
+        .inner_size(320.0, 400.0)
+        .min_inner_size(200.0, 150.0)
+        .decorations(false)
+        .always_on_top(true)
+        .resizable(true)
+        .skip_taskbar(true)
+        .build()
+        .map_err(|e| format!("创建磁贴窗口失败: {e}"))?;
+    Ok(())
+}
+
+/// 小窗口自己关自己
+#[tauri::command]
+fn close_self(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.destroy().map_err(|e| format!("关闭窗口失败: {e}"))
+}
+
+/// 这篇文档是不是已经钉在桌面上了
+#[tauri::command]
+fn is_sticky(app: tauri::AppHandle, doc: String) -> bool {
+    app.get_webview_window(&sticky_label(&doc)).is_some()
+}
+
 /// 在资源管理器里打开仓库目录 —— 「文档都是纯 md 文件」这件事要能被亲眼验证
 #[tauri::command]
 fn reveal_vault(app: tauri::AppHandle) -> Result<(), String> {
@@ -224,8 +328,15 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
-                    if event.state() == ShortcutState::Pressed {
+                .with_handler(|app, shortcut, event| {
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    // Ctrl+Space = 便签；Ctrl+Shift+Space = 主窗口
+                    let quick = Shortcut::new(Some(Modifiers::CONTROL), Code::Space);
+                    if shortcut == &quick {
+                        let _ = toggle_quicknote(app.clone());
+                    } else {
                         toggle_window(app);
                     }
                 })
@@ -243,10 +354,15 @@ pub fn run() {
             if let Err(err) = prepare(app.handle()) {
                 log::warn!("vault 初始化失败: {err}");
             }
-            // 全局唤起：Ctrl + Shift + Space
+            // 主窗口：Ctrl + Shift + Space
             let toggle = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Space);
             if let Err(err) = app.global_shortcut().register(toggle) {
-                log::warn!("全局快捷键注册失败（可能被别的程序占了）: {err}");
+                log::warn!("主窗口快捷键注册失败（可能被别的程序占了）: {err}");
+            }
+            // 快捷便签：Ctrl + Space
+            let quick = Shortcut::new(Some(Modifiers::CONTROL), Code::Space);
+            if let Err(err) = app.global_shortcut().register(quick) {
+                log::warn!("便签快捷键 Ctrl+Space 注册失败（可能被输入法占了）: {err}");
             }
             Ok(())
         })
@@ -273,7 +389,12 @@ pub fn run() {
             git_remote_info,
             save_git_settings,
             git_push_now,
-            save_asset
+            save_asset,
+            toggle_quicknote,
+            open_quicknote,
+            open_sticky,
+            close_self,
+            is_sticky
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

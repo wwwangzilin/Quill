@@ -12,6 +12,7 @@ import TrashPanel from './ui/TrashPanel'
 import SettingsPanel from './ui/SettingsPanel'
 import QuickCapture from './ui/QuickCapture'
 import { TEMPLATES } from './core/templates'
+import { openQuickNote, openSticky } from './core/windows'
 import { initStorage, storage } from './core/storage'
 import { docToMarkdown, safeFileName } from './core/markdown'
 import type { Doc, DocMeta, ViewMode } from './core/types'
@@ -331,6 +332,18 @@ export default function App() {
     }
   }, [])
 
+  /** 把当前文档钉成桌面磁贴 */
+  const pinToDesktop = useCallback(async () => {
+    const d = docRef.current
+    if (!d) return
+    try {
+      await openSticky(d.id, d.title)
+      toast.success('已钉到桌面', d.title)
+    } catch (err) {
+      toast.error('钉住失败', String(err))
+    }
+  }, [])
+
   const refreshDocs = useCallback(async () => {
     try {
       setDocs(await storage.list())
@@ -525,6 +538,21 @@ export default function App() {
             </div>
           )}
         </div>
+        <button
+          className="btn ghost icon"
+          onClick={() => void openQuickNote()}
+          title="快捷便签（Ctrl+Space）"
+        >
+          ✎
+        </button>
+        <button
+          className="btn ghost icon"
+          onClick={() => void pinToDesktop()}
+          title="钉到桌面（磁贴）"
+          disabled={!doc}
+        >
+          📌
+        </button>
         <button
           className="btn ghost icon"
           onClick={() => setSettingsOpen(true)}
