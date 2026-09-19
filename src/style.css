@@ -157,7 +157,7 @@ body::before {
   height: 18px;
   border-radius: 6px;
   background: var(--grad);
-  box-shadow: 0 0 14px rgba(160, 107, 255, 0.55);
+  box-shadow: 0 0 14px rgba(203, 165, 107, 0.45);
 }
 
 .body {
@@ -220,7 +220,7 @@ body::before {
   background: var(--grad);
   color: #fff;
   font-weight: 600;
-  box-shadow: 0 4px 18px rgba(120, 110, 255, 0.32);
+  box-shadow: 0 4px 18px rgba(168, 132, 63, 0.36);
 }
 .btn.primary:hover {
   filter: brightness(1.08);
@@ -409,7 +409,7 @@ body::before {
 .seg button.on {
   color: #fff;
   background: var(--grad);
-  box-shadow: 0 2px 12px rgba(120, 110, 255, 0.35);
+  box-shadow: 0 2px 12px rgba(168, 132, 63, 0.38);
 }
 
 .pane {
@@ -624,7 +624,7 @@ body::before {
 
 .ProseMirror a {
   color: var(--accent-2);
-  text-decoration-color: rgba(77, 157, 255, 0.4);
+  text-decoration-color: rgba(138, 168, 155, 0.45);
   text-underline-offset: 3px;
 }
 
@@ -678,7 +678,7 @@ body::before {
 
 /* 选中文字 */
 .ProseMirror ::selection {
-  background: rgba(160, 107, 255, 0.3);
+  background: rgba(203, 165, 107, 0.3);
 }
 
 /* ============================ 导图 ============================ */
@@ -1088,10 +1088,10 @@ body,
   animation: toast-in 0.34s var(--ease-out) both;
 }
 .toast.success {
-  border-color: rgba(77, 200, 130, 0.35);
+  border-color: rgba(125, 155, 138, 0.4);
 }
 .toast.error {
-  border-color: rgba(255, 107, 203, 0.45);
+  border-color: rgba(192, 122, 99, 0.5);
 }
 @keyframes toast-in {
   from {
@@ -1605,7 +1605,7 @@ body.quill-dragging * {
   height: 2px;
   border-radius: 2px;
   background: var(--grad);
-  box-shadow: 0 0 14px rgba(160, 107, 255, 0.75);
+  box-shadow: 0 0 14px rgba(203, 165, 107, 0.7);
   pointer-events: none;
   display: none;
   z-index: 8;

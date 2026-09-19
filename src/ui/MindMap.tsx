@@ -193,10 +193,10 @@ export default function MindMap({ content, title, onJump }: Props) {
     const dark = document.documentElement.dataset.theme !== 'light'
     const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
     style.textContent = `
-      .mm-node text { font-family: "HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",sans-serif; font-size: 12.5px; fill: ${dark ? '#eaeaf2' : '#1c1c22'}; }
-      .mm-node .box { fill: ${dark ? '#15151c' : '#ffffff'}; stroke: ${dark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.18)'}; stroke-width: 1; }
-      .mm-node.root .box { stroke: #a06bff; stroke-width: 1.6; }
-      .mm-link { fill: none; stroke: ${dark ? 'rgba(140,140,180,0.45)' : 'rgba(90,90,120,0.5)'}; stroke-width: 1.4; stroke-dasharray: none !important; stroke-dashoffset: 0 !important; }
+      .mm-node text { font-family: "HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",sans-serif; font-size: 12.5px; fill: ${dark ? '#e8e4dc' : '#221f1b'}; }
+      .mm-node .box { fill: ${dark ? '#171614' : '#fffdf9'}; stroke: ${dark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.18)'}; stroke-width: 1; }
+      .mm-node.root .box { stroke: #cba56b; stroke-width: 1.6; }
+      .mm-link { fill: none; stroke: ${dark ? 'rgba(180,170,155,0.4)' : 'rgba(120,112,100,0.5)'}; stroke-width: 1.4; stroke-dasharray: none !important; stroke-dashoffset: 0 !important; }
       .mm-node rect, .mm-node text { opacity: 1 !important; animation: none !important; }
     `
     const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
@@ -204,7 +204,7 @@ export default function MindMap({ content, title, onJump }: Props) {
     bg.setAttribute('y', '0')
     bg.setAttribute('width', '100%')
     bg.setAttribute('height', '100%')
-    bg.setAttribute('fill', dark ? '#0b0b0f' : '#fbfbfa')
+    bg.setAttribute('fill', dark ? '#0f0e0d' : '#faf7f2')
 
     clone.insertBefore(style, clone.firstChild)
     clone.insertBefore(bg, clone.firstChild)
@@ -260,9 +260,9 @@ export default function MindMap({ content, title, onJump }: Props) {
       >
         <defs>
           <linearGradient id="mm-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#a06bff" />
-            <stop offset="55%" stopColor="#4d9dff" />
-            <stop offset="100%" stopColor="#ff6bcb" />
+            <stop offset="0%" stopColor="#d3ae74" />
+            <stop offset="100%" stopColor="#a8843f" />
+            
           </linearGradient>
         </defs>
         <g transform={`translate(${view.x}, ${view.y}) scale(${view.k})`}>
