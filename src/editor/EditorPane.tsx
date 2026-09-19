@@ -243,22 +243,69 @@ export default function EditorPane({
   // 打字机模式：光标始终停在视口偏上的固定位置
   useEffect(() => {
     if (!editor || !typewriter) return
+
+    /**
+     * 拖拽选择期间绝对不能滚动视口：滚动会让鼠标底下的文档位置一直在变，
+     * 选区越拉越大 → 又触发滚动，正反馈把整篇都选上。
+     *
+     * 但注意别把「单击定位光标」也误判成拖拽 —— 单击时 selectionUpdate 正好
+     * 发生在 mousedown 与 mouseup 之间，一刀切会让自动跟踪整个失效。
+     * 所以判据是「按住了**并且移动过**」，外加超时兜底（mouseup 有可能丢）。
+     */
+    let isDown = false
+    let moved = false
+    let downAt = 0
+    let downX = 0
+    let downY = 0
+
+    const onDown = (e: MouseEvent) => {
+      isDown = true
+      moved = false
+      downAt = Date.now()
+      downX = e.clientX
+      downY = e.clientY
+    }
+    const onMove = (e: MouseEvent) => {
+      if (!isDown || moved) return
+      if (Math.abs(e.clientX - downX) > 4 || Math.abs(e.clientY - downY) > 4) moved = true
+    }
+    const onUp = () => {
+      isDown = false
+      moved = false
+    }
+
     const center = () => {
-      const scroller = scrollRef.current
-      if (!scroller) return
+      // 真在拖拽就不动视口
+      if (isDown && moved) return
+      // 兜底：按住超过 1.2 秒还"没松手"，说明 mouseup 丢了，当作已松开
+      if (isDown && Date.now() - downAt > 1200) {
+        isDown = false
+        moved = false
+      }
+      const el = scrollRef.current
+      if (!el) return
       let top = 0
       try {
         top = editor.view.coordsAtPos(editor.state.selection.from).top
       } catch {
         return
       }
-      const rect = scroller.getBoundingClientRect()
+      const rect = el.getBoundingClientRect()
       const delta = top - rect.top - rect.height * 0.4
-      if (Math.abs(delta) > 6) scroller.scrollBy({ top: delta, behavior: 'smooth' })
+      if (Math.abs(delta) > 6) el.scrollBy({ top: delta, behavior: 'smooth' })
     }
+
     editor.on('selectionUpdate', center)
+    window.addEventListener('mousedown', onDown, true)
+    window.addEventListener('mousemove', onMove, true)
+    window.addEventListener('mouseup', onUp, true)
+    window.addEventListener('blur', onUp)
     return () => {
       editor.off('selectionUpdate', center)
+      window.removeEventListener('mousedown', onDown, true)
+      window.removeEventListener('mousemove', onMove, true)
+      window.removeEventListener('mouseup', onUp, true)
+      window.removeEventListener('blur', onUp)
     }
   }, [editor, typewriter])
 

@@ -336,17 +336,32 @@ export default function App() {
   const removeDoc = useCallback(
     async (id: string) => {
       const target = docs.find((d) => d.id === id)
+      const removingCurrent = docRef.current?.id === id
+
+      // 关键：先掐掉待保存的定时器、清空「当前文档」指针。
+      // 否则接下来 openDoc() 里的 flush()（以及 650ms 防抖保存）会把刚删掉的
+      // 文件原样写回去 —— 表现就是「删了又自己冒出来」。
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+      if (removingCurrent) {
+        docRef.current = null
+        liveRef.current = null
+      }
+
       await storage.remove(id)
       toast.success('已删除', target?.title ?? id)
+
       const rest = docs.filter((d) => d.id !== id)
       setDocs(rest)
-      if (docRef.current?.id === id) {
+      if (removingCurrent) {
+        setSaving('idle')
         if (rest.length) {
           await openDoc(rest[0].id)
         } else {
-          docRef.current = null
-          liveRef.current = null
           setDoc(null)
+          setSessionKey((k) => k + 1)
         }
       }
     },

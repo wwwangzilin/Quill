@@ -771,6 +771,36 @@ body::before {
   font-size: 14px;
   font-weight: 700;
 }
+/* 标题节点：导图里的「节」，让大纲层次一眼看得出来 */
+.mm-node.heading .box {
+  fill: var(--surface-active);
+  stroke: var(--accent-1);
+  stroke-width: 1.4;
+}
+.mm-node.heading text {
+  fill: var(--text);
+  font-weight: 700;
+}
+.mm-node.heading.lv2 .box {
+  stroke-width: 1.1;
+}
+.mm-node.heading.lv2 text {
+  font-weight: 600;
+}
+.mm-node.heading.lv3 {
+  opacity: 0.94;
+}
+.mm-node.heading.lv3 text {
+  font-weight: 500;
+}
+/* 正文段落节点：淡一点，别跟大纲项抢注意力 */
+.mm-node.para .box {
+  fill: transparent;
+  stroke-dasharray: 3 3;
+}
+.mm-node.para text {
+  fill: var(--text-3);
+}
 .mm-link {
   fill: none;
   stroke: rgba(180, 170, 155, 0.35);

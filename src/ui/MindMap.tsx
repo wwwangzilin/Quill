@@ -9,6 +9,10 @@ interface OutlineNode {
   children: OutlineNode[]
   /** 从 doc 根算起的 child index 链，用于点回正文定位 */
   path: number[]
+  /** 节点来源：标题 / 列表项 / 正文段落 */
+  kind?: 'heading' | 'item' | 'para'
+  /** 标题级别 1~3 */
+  level?: number
 }
 
 const PAD_X = 76
@@ -30,6 +34,7 @@ function liToNode(li: JSONContent, id: string, path: number[]): OutlineNode {
     text: textOf(head).trim() || '(空)',
     children: [],
     path,
+    kind: 'item',
   }
   const marker = li.attrs?.checked === true ? '☑ ' : li.attrs?.checked === false ? '☐ ' : ''
   kids.forEach((k, i) => {
@@ -43,28 +48,84 @@ function liToNode(li: JSONContent, id: string, path: number[]): OutlineNode {
   return node
 }
 
+const LIST_TYPES = ['bulletList', 'orderedList', 'taskList']
+
+/**
+ * 把文档摊成一棵树。
+ *
+ * 以前的逻辑是「只找第一个列表」，文档里第二节之后的内容整片从导图上消失；
+ * 也没有用上标题层级。现在按文档顺序走一遍：
+ *   · 标题 → 按 1/2/3 级嵌套成分支
+ *   · 列表 → 挂到当前标题下（列表项之间保持缩进层级）
+ *   · 整篇既没标题也没列表时，才退回「段落平铺」的老办法
+ * 每个节点都记着自己的物理 path，所以点节点照样能跳回正文。
+ */
 function extractOutline(content: JSONContent | undefined, title: string): OutlineNode {
   const root: OutlineNode = { id: 'root', text: title || '未命名', children: [], path: [] }
   const nodes = content?.content ?? []
-  const listIdx = nodes.findIndex(
-    (n) => n.type === 'bulletList' || n.type === 'orderedList' || n.type === 'taskList',
-  )
-  if (listIdx >= 0) {
-    root.children = (nodes[listIdx].content ?? []).map((li, i) =>
-      liToNode(li, `n${i}`, [listIdx, i]),
-    )
-  } else {
+  const hasHeading = nodes.some((n) => n.type === 'heading')
+  const hasList = nodes.some((n) => LIST_TYPES.includes(n.type ?? ''))
+
+  // 纯段落文章：保持原来的平铺（最多 24 条），至少还能看一眼结构
+  if (!hasHeading && !hasList) {
     root.children = nodes
       .map((n, i) => ({ n, i }))
-      .filter(({ n }) => n.type === 'paragraph' || n.type === 'heading')
+      .filter(({ n }) => n.type === 'paragraph')
       .slice(0, 24)
       .map(({ n, i }) => ({
         id: `p${i}`,
         text: textOf(n).trim() || '(空)',
         children: [],
         path: [i],
+        kind: 'para' as const,
       }))
+    return root
   }
+
+  /** 当前的挂载栈：标题级别越小越靠上 */
+  const stack: { level: number; node: OutlineNode }[] = []
+  const mount = () => (stack.length ? stack[stack.length - 1].node : root)
+
+  nodes.forEach((n, i) => {
+    if (n.type === 'heading') {
+      const level = Math.min(3, Math.max(1, Number(n.attrs?.level ?? 1)))
+      const node: OutlineNode = {
+        id: `h${i}`,
+        text: textOf(n).trim() || '(空标题)',
+        children: [],
+        path: [i],
+        kind: 'heading',
+        level,
+      }
+      while (stack.length && stack[stack.length - 1].level >= level) stack.pop()
+      mount().children.push(node)
+      stack.push({ level, node })
+      return
+    }
+
+    if (LIST_TYPES.includes(n.type ?? '')) {
+      const items = (n.content ?? []).map((li, k) => liToNode(li, `n${i}-${k}`, [i, k]))
+      mount().children.push(...items)
+      return
+    }
+
+    // 段落：只在「这一节还没有任何列表」时，作为该节的说明挂上去，免得导图被正文淹没
+    if (n.type === 'paragraph') {
+      const text = textOf(n).trim()
+      if (!text) return
+      const parent = mount()
+      const alreadyHasItems = parent.children.some((c) => c.kind === 'item')
+      if (alreadyHasItems || text.length > 60) return
+      parent.children.push({
+        id: `t${i}`,
+        text,
+        children: [],
+        path: [i],
+        kind: 'para',
+      })
+    }
+  })
+
   return root
 }
 
@@ -284,10 +345,16 @@ export default function MindMap({ content, title, onJump }: Props) {
 
           {layout.nodes.map((n) => {
             const w = boxWidth(n.data.text)
+            const kind = n.data.kind ?? (n.depth === 0 ? 'root' : 'item')
             return (
               <g
                 key={n.data.id}
-                className={'mm-node' + (n.depth === 0 ? ' root' : '')}
+                className={
+                  'mm-node' +
+                  (n.depth === 0 ? ' root' : '') +
+                  (kind === 'heading' ? ` heading lv${n.data.level ?? 1}` : '') +
+                  (kind === 'para' ? ' para' : '')
+                }
                 transform={`translate(${n.y}, ${n.x})`}
                 onClick={() => {
                   if (n.data.path.length && onJump) onJump(n.data.path)
