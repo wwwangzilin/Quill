@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: 类型检查 / 构建 / 核心断言
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 类型检查
+        run: pnpm typecheck
+
+      - name: 构建前端
+        run: pnpm build
+
+      - name: 核心逻辑断言（Markdown 序列化 / 文件名安全化）
+        run: node test-core.mjs

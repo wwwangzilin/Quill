@@ -1,0 +1,259 @@
+import { useEffect, useMemo, useState } from 'react'
+import type { JSONContent } from '@tiptap/core'
+import { formatWhen, groupOf } from '../core/time'
+import { storage } from '../core/storage'
+import { TEMPLATES } from '../core/templates'
+import Heatmap from './Heatmap'
+import type { DocMeta } from '../core/types'
+
+interface Props {
+  docs: DocMeta[]
+  activeId: string | null
+  hidden: boolean
+  tags: string[]
+  activeTag: string | null
+  stats: Record<string, number>
+  onSelect: (id: string) => void
+  onCreate: (templateId: string) => void
+  onDelete: (id: string) => void
+  onStar: (id: string) => void
+  onTagFilter: (tag: string | null) => void
+  onOpenTrash: () => void
+}
+
+const ORDER = ['今天', '昨天', '七天内', '更早']
+
+function plainOf(node: JSONContent | undefined): string {
+  if (!node) return ''
+  if (node.type === 'text') return node.text ?? ''
+  return (node.content ?? []).map(plainOf).join('')
+}
+
+function snippetOf(text: string, kw: string): string {
+  const idx = text.toLowerCase().indexOf(kw.toLowerCase())
+  if (idx < 0) return ''
+  const start = Math.max(0, idx - 14)
+  const end = Math.min(text.length, idx + kw.length + 22)
+  return `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`
+}
+
+export default function Sidebar({
+  docs,
+  activeId,
+  hidden,
+  tags,
+  activeTag,
+  stats,
+  onSelect,
+  onCreate,
+  onDelete,
+  onStar,
+  onTagFilter,
+  onOpenTrash,
+}: Props) {
+  const [q, setQ] = useState('')
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [tplOpen, setTplOpen] = useState(false)
+  const [hits, setHits] = useState<Record<string, string>>({})
+  const [searching, setSearching] = useState(false)
+
+  // 标题之外的正文搜索：防抖 260ms，逐篇扫内容
+  useEffect(() => {
+    const kw = q.trim()
+    if (kw.length < 2) {
+      setHits({})
+      setSearching(false)
+      return
+    }
+    let cancelled = false
+    setSearching(true)
+    const timer = window.setTimeout(async () => {
+      const found: Record<string, string> = {}
+      for (const d of docs) {
+        if (d.title.toLowerCase().includes(kw.toLowerCase())) continue
+        try {
+          const doc = await storage.get(d.id)
+          const text = plainOf(doc?.content)
+          if (text.toLowerCase().includes(kw.toLowerCase())) {
+            found[d.id] = snippetOf(text, kw)
+          }
+        } catch {
+          /* 读不出来的跳过 */
+        }
+      }
+      if (!cancelled) {
+        setHits(found)
+        setSearching(false)
+      }
+    }, 260)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [q, docs])
+
+  const groups = useMemo(() => {
+    const kw = q.trim().toLowerCase()
+    let list = kw ? docs.filter((d) => d.title.toLowerCase().includes(kw) || hits[d.id]) : docs
+    if (activeTag) list = list.filter((d) => (d.tags ?? []).includes(activeTag))
+    const map = new Map<string, DocMeta[]>()
+    for (const d of list) {
+      const key = groupOf(d.updatedAt)
+      const bucket = map.get(key)
+      if (bucket) bucket.push(d)
+      else map.set(key, [d])
+    }
+    return ORDER.filter((k) => map.has(k)).map((k) => ({ key: k, items: map.get(k)! }))
+  }, [docs, q, hits, activeTag])
+
+  const total = groups.reduce((n, g) => n + g.items.length, 0)
+  const kw = q.trim()
+  let stagger = 0
+
+  return (
+    <aside className={'sidebar' + (hidden ? ' hidden' : '')}>
+      <div className="sidebar-head">
+        <div className="new-wrap">
+          <button className="btn primary" onClick={() => setTplOpen((v) => !v)}>
+            ＋ 新建文档
+          </button>
+          {tplOpen && (
+            <div className="menu tpl-menu">
+              {TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  className="tpl"
+                  onClick={() => {
+                    setTplOpen(false)
+                    onCreate(t.id)
+                  }}
+                >
+                  <span className="glyph">{t.glyph}</span>
+                  <span>{t.name}</span>
+                  <span className="tips">{t.hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="search">
+          {searching ? (
+            <span className="spinner" style={{ width: 11, height: 11 }} />
+          ) : (
+            <span style={{ color: 'var(--text-3)', fontSize: 12 }}>⌕</span>
+          )}
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="搜标题或正文…"
+            spellCheck={false}
+          />
+          {q && (
+            <button className="btn ghost icon" onClick={() => setQ('')} title="清空">
+              ×
+            </button>
+          )}
+        </div>
+        {tags.length > 0 && (
+          <div className="tag-row">
+            {activeTag && (
+              <span className="tag on" onClick={() => onTagFilter(null)} title="清除筛选">
+                {activeTag} ×
+              </span>
+            )}
+            {tags
+              .filter((t) => t !== activeTag)
+              .map((t) => (
+                <span key={t} className="tag" onClick={() => onTagFilter(t)}>
+                  {t}
+                </span>
+              ))}
+          </div>
+        )}
+      </div>
+
+      <div className="doc-list">
+        {total === 0 && (
+          <div className="empty-hint">
+            {kw ? '没搜到东西，杂鱼～' : '还没有文档，点上面新建一篇吧'}
+          </div>
+        )}
+
+        {groups.map((g) => (
+          <div key={g.key}>
+            <div className="group-label">{g.key}</div>
+            {g.items.map((d) => {
+              const delay = `${Math.min(stagger++ * 22, 260)}ms`
+              return (
+                <div
+                  key={d.id}
+                  className={'doc-item' + (d.id === activeId ? ' active' : '')}
+                  style={{ animationDelay: delay }}
+                  onClick={() => {
+                    setConfirmId(null)
+                    onSelect(d.id)
+                  }}
+                >
+                  <div className="row">
+                    {d.starred && <span className="star">★</span>}
+                    <span className="t">{d.title || '无标题'}</span>
+                  </div>
+                  <div className="sub">{hits[d.id] ? hits[d.id] : formatWhen(d.updatedAt)}</div>
+                  {(d.tags?.length ?? 0) > 0 && (
+                    <div className="tag-row">
+                      {d.tags!.map((t) => (
+                        <span
+                          key={t}
+                          className={'tag' + (activeTag === t ? ' on' : '')}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onTagFilter(activeTag === t ? null : t)
+                          }}
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="tools" onClick={(e) => e.stopPropagation()}>
+                    <button title={d.starred ? '取消收藏' : '收藏'} onClick={() => onStar(d.id)}>
+                      {d.starred ? '★' : '☆'}
+                    </button>
+                    {confirmId === d.id ? (
+                      <button
+                        title="再点一次确认删除"
+                        style={{ color: 'var(--accent-3)' }}
+                        onClick={() => {
+                          setConfirmId(null)
+                          onDelete(d.id)
+                        }}
+                      >
+                        确认?
+                      </button>
+                    ) : (
+                      <button title="删除" onClick={() => setConfirmId(d.id)}>
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+
+      <div className="side-foot">
+        <div className="row">
+          <span>写作热力图</span>
+          <span className="grow" />
+          <button className="btn ghost icon" title="回收站" onClick={onOpenTrash}>
+            ♻
+          </button>
+        </div>
+        <Heatmap stats={stats} weeks={12} />
+      </div>
+    </aside>
+  )
+}
