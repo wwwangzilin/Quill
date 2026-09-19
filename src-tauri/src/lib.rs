@@ -1,4 +1,5 @@
 mod ai;
+mod desktop;
 mod git;
 mod vault;
 
@@ -11,7 +12,7 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 use vault::{DocEntry, SaveResult, TrashEntry, VaultInfo};
 
 /// 每次调用都确保仓库就绪：目录存在 + git init + 本地身份兜底
-fn prepare(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn prepare(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = vault::dir_of(app)?;
     git::ensure(&dir)?;
     Ok(dir)
@@ -205,6 +206,26 @@ fn save_asset(app: tauri::AppHandle, name: String, data: String) -> Result<Strin
     vault::save_asset(&dir, &name, &data)
 }
 
+/* ============================ 导入 ============================ */
+
+#[derive(serde::Deserialize)]
+struct ImportItem {
+    title: String,
+    content: String,
+}
+
+/// 批量导入一批 Markdown。前端用 input[webkitdirectory] 把整个文件夹读出来，
+/// 这里一次性落盘 + 只提交一次，避免几十篇文档触发几十次 commit。
+#[tauri::command]
+fn import_docs(app: tauri::AppHandle, items: Vec<ImportItem>) -> Result<usize, String> {
+    let dir = prepare(&app)?;
+    let pairs = items
+        .into_iter()
+        .map(|i| (i.title, i.content))
+        .collect::<Vec<_>>();
+    vault::import_many(&dir, pairs)
+}
+
 /* ============================ 多窗口：便签 / 磁贴 ============================ */
 
 /// 窗口底色（和前端 --bg 一致），这样窗口一出现就是暗的，
@@ -261,13 +282,15 @@ fn child_url() -> WebviewUrl {
     WebviewUrl::App("index.html".into())
 }
 
-/// 唤起或收起便签窗口
+/// 唤起或收起便签窗口（快捷键与托盘菜单共用）。
+///
+/// 为什么拆成两个函数：`#[tauri::command]` 会给 pub 的命令再导出一个同名宏，
+/// 和 `pub(crate)` 撞车（error[E0255]），所以内部实现和命令入口分开。
 ///
 /// 注意：**必须是 async**。Tauri 文档明写「Windows 上在同步 command 里用
 /// WebviewWindowBuilder 会死锁」——窗口建出来了但 webview 起不来，
 /// 表现就是一块白板/黑板，没有按钮也关不掉。
-#[tauri::command]
-async fn toggle_quicknote(app: tauri::AppHandle) -> Result<(), String> {
+pub(crate) async fn toggle_quicknote_at(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("quicknote") {
         if w.is_visible().unwrap_or(false) {
             let _ = w.hide();
@@ -278,6 +301,11 @@ async fn toggle_quicknote(app: tauri::AppHandle) -> Result<(), String> {
         return Ok(());
     }
     open_quicknote(app).await
+}
+
+#[tauri::command]
+async fn toggle_quicknote(app: tauri::AppHandle) -> Result<(), String> {
+    toggle_quicknote_at(app).await
 }
 
 /// 建一个无边框、置顶的小窗口专门用来记便签
@@ -359,7 +387,7 @@ fn reveal_vault(app: tauri::AppHandle) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(ReadyWindows::default())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -383,6 +411,11 @@ pub fn run() {
                 })
                 .build(),
         )
+        // 开机自启：交给插件写注册表，自己碰注册表容易写出半残的启动项
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -395,6 +428,13 @@ pub fn run() {
             if let Err(err) = prepare(app.handle()) {
                 log::warn!("vault 初始化失败: {err}");
             }
+            // 桌面行为偏好：托盘与「关闭到托盘」发生在前端之外，Rust 侧得自己存一份
+            let prefs = desktop::load(app.handle());
+            app.manage(desktop::DesktopState(Mutex::new(prefs)));
+            if let Err(err) = desktop::build_tray(app.handle()) {
+                log::warn!("托盘创建失败: {err}");
+            }
+            desktop::spawn_auto_sync(app.handle().clone());
             // 主窗口：Ctrl + Shift + Space
             let toggle = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Space);
             if let Err(err) = app.global_shortcut().register(toggle) {
@@ -406,6 +446,16 @@ pub fn run() {
                 log::warn!("便签快捷键 Ctrl+Space 注册失败（可能被输入法占了）: {err}");
             }
             Ok(())
+        })
+        // 点 × 默认收进托盘：主进程活着，Ctrl+Space 的快速便签才一直可用
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" && desktop::current(window.app_handle()).close_to_tray {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    log::info!("主窗口已收进托盘（便签快捷键仍然可用）");
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             vault_info,
@@ -431,6 +481,11 @@ pub fn run() {
             save_git_settings,
             git_push_now,
             save_asset,
+            import_docs,
+            desktop::desktop_prefs,
+            desktop::save_desktop_prefs,
+            desktop::autostart_enabled,
+            desktop::set_autostart,
             toggle_quicknote,
             open_quicknote,
             open_sticky,
@@ -441,6 +496,13 @@ pub fn run() {
             ai::ai_save,
             ai::ai_stream
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app_handle, event| {
+        // 退出前补一次同步（内部有 6 秒超时，绝不会把退出卡住）
+        if let tauri::RunEvent::ExitRequested { .. } = event {
+            desktop::sync_on_exit(app_handle);
+        }
+    });
 }

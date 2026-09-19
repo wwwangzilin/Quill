@@ -17,6 +17,17 @@ import AiChatPanel from './ui/AiChatPanel'
 import QuickCapture from './ui/QuickCapture'
 import { TEMPLATES } from './core/templates'
 import { openQuickNote, openSticky } from './core/windows'
+import {
+  DEFAULT_PREFS,
+  autostartEnabled,
+  importMarkdown,
+  isDesktop,
+  loadDesktopPrefs,
+  readMarkdownFolder,
+  saveDesktopPrefs,
+  setAutostart,
+  type DesktopPrefs,
+} from './core/desktop'
 import { applyProse, readProse, saveProse, type ProseStyle } from './core/fonts'
 import { initStorage, storage } from './core/storage'
 import { docToMarkdown, safeFileName } from './core/markdown'
@@ -46,6 +57,52 @@ function download(name: string, text: string, mime: string) {
   a.click()
   a.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 2000)
+}
+
+/** 把正文 HTML 包成一个自带排版样式的独立文件，发出去就能直接看 */
+function buildStandaloneHtml(title: string, body: string): string {
+  const safe = title.replace(
+    /[<>&]/g,
+    (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c] ?? c,
+  )
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${safe}</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0 auto; max-width: 720px; padding: 56px 24px 96px;
+         font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+         font-size: 16.5px; line-height: 1.85; color: #23201d; background: #faf8f5; }
+  h1 { font-size: 1.9em; margin: 1.6em 0 .6em; }
+  h2 { font-size: 1.4em; }
+  h3 { font-size: 1.15em; }
+  h1, h2, h3 { line-height: 1.35; }
+  code { background: #efece7; padding: .15em .4em; border-radius: 4px; font-size: .9em; }
+  pre { background: #f2efe9; padding: 14px 16px; border-radius: 10px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  blockquote { margin: 1em 0; padding: .2em 1em; border-left: 3px solid #d8d2c8; color: #6b645c; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #e2ddd4; padding: 8px 12px; text-align: left; }
+  img, video { max-width: 100%; border-radius: 8px; }
+  hr { border: none; border-top: 1px solid #e2ddd4; margin: 2em 0; }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e8e3dc; background: #16150f; }
+    code { background: #26241c; }
+    pre { background: #1e1c16; }
+    blockquote { border-color: #3a362c; color: #a49c90; }
+    th, td { border-color: #322f26; }
+    hr { border-color: #322f26; }
+  }
+</style>
+</head>
+<body>
+${body}
+</body>
+</html>
+`
 }
 
 function sortDocs(list: DocMeta[]): DocMeta[] {
@@ -105,6 +162,12 @@ export default function App() {
   const [dailyGoal, setDailyGoal] = useSetting('daily-goal', 500)
   /** 编辑器实例的重建键：只在新开文档时递增，改名导致的 id 变化不重建（否则光标会飞） */
   const [sessionKey, setSessionKey] = useState(0)
+  /** 阅读模式：只读、收起干扰，用来回头通读 */
+  const [reading, setReading] = useState(false)
+  /** 桌面行为偏好（托盘 / 自启 / 自动同步）—— 存在 Rust 侧，因为托盘事件发生在前端之外 */
+  const [desk, setDesk] = useState<DesktopPrefs>(DEFAULT_PREFS)
+  /** 开机自启是系统里的事实，不是我们的设置，所以单独读一次 */
+  const [autostart, setAutostartOn] = useState(false)
 
   const docRef = useRef<Doc | null>(null)
   const liveRef = useRef<{ title: string; content: JSONContent } | null>(null)
@@ -256,6 +319,42 @@ export default function App() {
     saveProse(prose)
   }, [prose])
 
+  /* 桌面版：托盘行为偏好与开机自启（浏览器模式整段跳过） */
+  useEffect(() => {
+    if (!isDesktop()) return
+    void (async () => {
+      setDesk(await loadDesktopPrefs())
+      setAutostartOn(await autostartEnabled())
+    })()
+  }, [])
+
+  const applyDesk = useCallback((next: DesktopPrefs) => {
+    setDesk(next)
+    void saveDesktopPrefs(next).catch((err) => toast.error('设置保存失败', String(err)))
+  }, [])
+
+  const applyAutostart = useCallback((next: boolean) => {
+    setAutostartOn(next)
+    void setAutostart(next)
+      .then(() => toast.info(next ? '已开启开机自启' : '已关闭开机自启'))
+      .catch((err) => {
+        setAutostartOn(!next)
+        toast.error('开机自启设置失败', String(err).slice(0, 120))
+      })
+  }, [])
+
+  /**
+   * 阅读模式 = 编辑器转只读。
+   * 直接操作编辑器实例，不惊动 EditorPane；sessionKey 变化时编辑器会重建并重新报到，
+   * 所以依赖里带上它，切文档后重新套用一次。
+   */
+  useEffect(() => {
+    const ed = editorRef.current
+    if (!ed || ed.isDestroyed) return
+    ed.setEditable(!reading)
+    if (reading) ed.commands.blur()
+  }, [reading, sessionKey])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -309,6 +408,36 @@ export default function App() {
     [flush],
   )
 
+  /** Ctrl+D：跳到今天的日记，没有就按「日记」模板建一篇 */
+  const dailyNote = useCallback(async () => {
+    const key = todayKey()
+    try {
+      const list = await storage.list()
+      const hit = list.find((d) => d.title === key)
+      if (hit) {
+        await openDoc(hit.id)
+        toast.info('今天的日记', key)
+        return
+      }
+      await flush()
+      const tpl = TEMPLATES.find((t) => t.id === 'daily') ?? TEMPLATES[0]
+      const fresh = await storage.create(key)
+      const withBody = { ...fresh, content: tpl.build() }
+      await storage.put(withBody)
+      docRef.current = withBody
+      liveRef.current = { title: withBody.title, content: withBody.content }
+      lastCharsRef.current = countChars(withBody.content)
+      setDoc(withBody)
+      setDocs((prev) => sortDocs([toMeta(withBody), ...prev]))
+      setSessionKey((k) => k + 1)
+      setView('write')
+      setSaving('idle')
+      toast.success('已新建今天的日记', key)
+    } catch (err) {
+      toast.error('日记打开失败', String(err).slice(0, 120))
+    }
+  }, [flush, openDoc])
+
   // 全局快捷键（放在 createNew 之后，避免 TDZ）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -324,6 +453,11 @@ export default function App() {
         void createNew('blank')
         return
       }
+      if (key === 'd') {
+        e.preventDefault()
+        void dailyNote()
+        return
+      }
       if (key === '\\') {
         e.preventDefault()
         setSidebarOpen((v) => !v)
@@ -331,7 +465,20 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [createNew])
+  }, [createNew, dailyNote])
+
+  /** 阅读模式：只读通读，写完回头看的时候用（F9 切换） */
+  const toggleReading = useCallback(() => setReading((v) => !v), [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'F9') return
+      e.preventDefault()
+      toggleReading()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [toggleReading])
 
   const removeDoc = useCallback(
     async (id: string) => {
@@ -528,6 +675,59 @@ export default function App() {
     download(`${safeFileName(live.title)}.json`, JSON.stringify(payload, null, 2), 'application/json')
   }, [])
 
+  /** 导出单文件 HTML：样式全内联，直接发出去别人也能看 */
+  const exportHtml = useCallback(() => {
+    const ed = editorRef.current
+    const live = liveRef.current
+    if (!ed || ed.isDestroyed || !live) return
+    const name = `${safeFileName(live.title)}.html`
+    download(name, buildStandaloneHtml(live.title, ed.getHTML()), 'text/html')
+    toast.success('已导出 HTML', name)
+  }, [])
+
+  /**
+   * 导出 PDF：走系统打印，在打印机列表里选「Microsoft Print to PDF」。
+   * 不引 jsPDF 那一类库 —— 它们是截图拼的，中文和排版都会糊；
+   * 系统打印出的是矢量文本，还能选中复制。
+   */
+  const exportPdf = useCallback(() => {
+    if (!docRef.current) return
+    toast.info('在打印窗口的打印机里选「Microsoft Print to PDF」', '另存为 PDF')
+    window.setTimeout(() => window.print(), 120)
+  }, [])
+
+  /** 选一个文件夹，把里面的 Markdown 全搬进来（Obsidian / Notion 导出的就是这种） */
+  const importFolder = useCallback(async () => {
+    if (!isDesktop()) {
+      toast.info('批量导入只在桌面版可用')
+      return
+    }
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.setAttribute('webkitdirectory', '')
+    input.setAttribute('directory', '')
+    input.multiple = true
+    input.onchange = () => {
+      const files = input.files
+      if (!files || !files.length) return
+      void (async () => {
+        try {
+          const items = await readMarkdownFolder(files)
+          if (!items.length) {
+            toast.info('这个文件夹里没有 Markdown 文件')
+            return
+          }
+          const n = await importMarkdown(items)
+          await refreshDocs()
+          toast.success(`已导入 ${n} 篇文档`, '同名文件会自动加序号，不会覆盖')
+        } catch (err) {
+          toast.error('导入失败', String(err).slice(0, 120))
+        }
+      })()
+    }
+    input.click()
+  }, [refreshDocs])
+
   /* ---------------- 标题栏的「⋯ 更多」 ---------------- */
 
   const toggleFocus = useCallback(() => {
@@ -544,7 +744,33 @@ export default function App() {
 
   const moreItems: MenuItem[] = [
     { key: 'md', icon: '⇩', label: '导出 Markdown', hint: '.md', disabled: !doc, onSelect: exportMd },
+    { key: 'html', icon: '⇩', label: '导出 HTML', hint: '单文件', disabled: !doc, onSelect: exportHtml },
+    {
+      key: 'pdf',
+      icon: '⎙',
+      label: '导出 PDF',
+      hint: '走系统打印',
+      disabled: !doc,
+      onSelect: exportPdf,
+    },
     { key: 'json', icon: '⇩', label: '导出 JSON', hint: '.json', disabled: !doc, onSelect: exportJson },
+    {
+      key: 'import',
+      icon: '⇧',
+      label: '导入文件夹',
+      hint: 'Markdown',
+      disabled: !vaultMode,
+      onSelect: () => void importFolder(),
+    },
+    {
+      key: 'reading',
+      icon: '▤',
+      label: '阅读模式',
+      hint: 'F9',
+      on: reading,
+      disabled: view !== 'write',
+      onSelect: toggleReading,
+    },
     {
       key: 'richcopy',
       icon: '⧉',
@@ -618,7 +844,12 @@ export default function App() {
     { id: 'write', title: '切到写作视图', icon: '✎', run: () => switchView('write') },
     { id: 'map', title: '切到思维导图', icon: '◈', run: () => switchView('mindmap') },
     { id: 'export-md', title: '导出 Markdown', hint: '.md', icon: '⇩', run: exportMd },
+    { id: 'export-html', title: '导出 HTML（单文件）', hint: '.html', icon: '⇩', run: exportHtml },
+    { id: 'export-pdf', title: '导出 PDF', hint: '系统打印', icon: '⎙', run: exportPdf },
     { id: 'export-json', title: '导出 JSON', hint: '.json', icon: '⇩', run: exportJson },
+    { id: 'import', title: '从文件夹导入 Markdown', icon: '⇧', run: () => void importFolder() },
+    { id: 'daily', title: '今天的日记', hint: 'Ctrl+D', icon: '☀', run: () => void dailyNote() },
+    { id: 'reading', title: '阅读模式（只读通读）', hint: 'F9', icon: '▤', run: toggleReading },
     { id: 'richcopy', title: '复制为富文本（含格式）', icon: '⧉', run: () => void copyRichText() },
     {
       id: 'theme',
@@ -668,8 +899,13 @@ export default function App() {
   /* ---------------- 渲染 ---------------- */
 
   return (
-    <div className="app">
+    <div className={'app' + (reading ? ' reading' : '')}>
       <ToastHost />
+      {reading && (
+        <button className="reading-badge" onClick={toggleReading} title="退出阅读模式（F9）">
+          阅读模式 · 点这里退出
+        </button>
+      )}
       <ShortcutsPanel open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <TrashPanel
         open={trashOpen}
@@ -687,6 +923,10 @@ export default function App() {
         onAiDelay={setAiDelay}
         goal={dailyGoal}
         onGoal={setDailyGoal}
+        desk={desk}
+        onDesk={applyDesk}
+        autostart={autostart}
+        onAutostart={applyAutostart}
       />
       <QuickCapture
         open={quickOpen}

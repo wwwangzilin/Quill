@@ -2825,3 +2825,159 @@ body.quill-dragging * {
   gap: 6px;
 }
 
+/* ---------- 阅读模式（F9） ---------- */
+/* 写完回头看一遍用的：收起侧栏、工具栏淡出、正文放宽。
+   编辑器本身转只读是 JS 那边做的（editor.setEditable(false)）。 */
+.app.reading .sidebar,
+.app.reading .backlinks {
+  display: none;
+}
+.app.reading .titlebar {
+  opacity: 0.22;
+  transition: opacity 0.25s var(--ease);
+}
+.app.reading .titlebar:hover,
+.app.reading .titlebar:focus-within {
+  opacity: 1;
+}
+.app.reading .editor-inner {
+  max-width: 880px;
+}
+.app.reading .ProseMirror {
+  caret-color: transparent;
+}
+.reading-badge {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 80;
+  appearance: none;
+  padding: 7px 15px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  animation: mask-in 0.2s var(--ease-out) both;
+}
+.reading-badge:hover {
+  color: var(--text);
+  border-color: var(--accent-1);
+}
+
+/* ---------- 打印 / 导出 PDF ---------- */
+/*
+ * 导出 PDF 走系统打印（打印机里选 Microsoft Print to PDF）。
+ * 不引 jsPDF 那类库：它们是截图拼的，中文会糊；
+ * 系统打印出来的是矢量文本，还能选中复制。
+ * 屏幕上什么配色无所谓，纸上必须白底黑字、没有工具栏。
+ */
+@media print {
+  @page {
+    margin: 18mm 16mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  /* 界面外壳全部收掉，只留正文 */
+  .titlebar,
+  .sidebar,
+  .backlinks,
+  .reading-badge,
+  .modal-mask,
+  .palette-mask,
+  .find-bar,
+  .slash-menu,
+  .wiki-menu,
+  .aichat,
+  .ai-sel,
+  .gutter,
+  .fold-toggle,
+  .block-handle,
+  .tag-editor {
+    display: none !important;
+  }
+
+  /* 滚动容器在纸上要整条展开，否则只打得出第一屏 */
+  .app,
+  .body,
+  .main,
+  .main-stack,
+  .editor-scroll,
+  .editor-inner {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  .editor-inner {
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  .ProseMirror {
+    color: #111 !important;
+    background: #fff !important;
+    font-size: 11.5pt !important;
+    line-height: 1.75 !important;
+    padding: 0 !important;
+  }
+  .ProseMirror * {
+    color: #111 !important;
+  }
+  .doc-title {
+    border: none !important;
+    background: transparent !important;
+    color: #111 !important;
+    font-size: 19pt !important;
+    padding: 0 0 6pt !important;
+  }
+  .doc-meta {
+    display: none !important;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  pre,
+  blockquote,
+  table,
+  figure,
+  img,
+  video {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  pre {
+    border: 1px solid #ddd !important;
+    background: #f7f7f7 !important;
+  }
+  blockquote {
+    border-left: 3px solid #ccc !important;
+  }
+  th,
+  td {
+    border-color: #bbb !important;
+  }
+  a {
+    text-decoration: underline;
+  }
+}
+

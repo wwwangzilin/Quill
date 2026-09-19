@@ -8,6 +8,7 @@ import {
   type ProseStyle,
 } from '../core/fonts'
 import { AI_DEFAULTS, aiAvailable, aiSave, aiStatus, aiStream, type AiStatus } from '../core/ai'
+import { isDesktop, type DesktopPrefs } from '../core/desktop'
 import { toast } from './toast'
 
 interface Props {
@@ -21,6 +22,12 @@ interface Props {
   onAiDelay: (next: number) => void
   goal: number
   onGoal: (next: number) => void
+  /** 桌面版行为偏好（浏览器模式给默认值即可） */
+  desk: DesktopPrefs
+  onDesk: (next: DesktopPrefs) => void
+  /** 开机自启：系统里的事实 */
+  autostart: boolean
+  onAutostart: (next: boolean) => void
 }
 
 export default function SettingsPanel({
@@ -34,6 +41,10 @@ export default function SettingsPanel({
   onAiDelay,
   goal,
   onGoal,
+  desk,
+  onDesk,
+  autostart,
+  onAutostart,
 }: Props) {
   const [url, setUrl] = useState('')
   const [ca, setCa] = useState('')
@@ -180,6 +191,64 @@ export default function SettingsPanel({
         </div>
 
         <div className="modal-body">
+          {isDesktop() && (
+            <div className="sc-group">
+              <div className="sc-title">桌面</div>
+
+              <label className="sc-row" style={{ cursor: 'pointer' }}>
+                <span>
+                  关闭窗口时收进托盘
+                  <div className="hint">
+                    保持后台运行 —— Ctrl+Space 快速便签才不会随主窗口一起失效
+                  </div>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={desk.closeToTray}
+                  onChange={(e) => onDesk({ ...desk, closeToTray: e.target.checked })}
+                />
+              </label>
+
+              <label className="sc-row" style={{ cursor: 'pointer' }}>
+                <span>
+                  开机自动启动
+                  <div className="hint">登录后就在托盘待命，随手就能记一笔</div>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={autostart}
+                  onChange={(e) => onAutostart(e.target.checked)}
+                />
+              </label>
+
+              <label className="sc-row" style={{ cursor: 'pointer' }}>
+                <span>
+                  定时同步到远程仓库
+                  <div className="hint">自动提交并推送；失败会弹提示，不会悄悄咽掉</div>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={desk.autoSync}
+                  onChange={(e) => onDesk({ ...desk, autoSync: e.target.checked })}
+                />
+              </label>
+
+              {desk.autoSync && (
+                <label className="field" style={{ marginTop: 10 }}>
+                  <span>同步间隔 · 每 {desk.syncMinutes} 分钟</span>
+                  <input
+                    type="range"
+                    min={5}
+                    max={180}
+                    step={5}
+                    value={desk.syncMinutes}
+                    onChange={(e) => onDesk({ ...desk, syncMinutes: Number(e.target.value) })}
+                  />
+                </label>
+              )}
+            </div>
+          )}
+
           <div className="sc-group">
             <div className="sc-title">外观</div>
 

@@ -252,6 +252,23 @@ pub fn save(dir: &Path, file: &str, title: &str, content: &str) -> Result<SaveRe
     })
 }
 
+/// 批量导入：把一批 Markdown 原文写进仓库，全部写完只提交一次。
+/// 标题取自文件名（去掉 .md），重名自动加序号 —— 和新建文档共用同一套命名规则。
+/// Obsidian / Notion 导出的就是一堆 .md，所以「选个文件夹」就能整体搬进来。
+pub fn import_many(dir: &Path, items: Vec<(String, String)>) -> Result<usize, String> {
+    let mut written = 0usize;
+    for (title, content) in items {
+        let name = unique_file(dir, &title_to_file(&title));
+        if std::fs::write(dir.join(&name), content).is_ok() {
+            written += 1;
+        }
+    }
+    if written > 0 {
+        let _ = commit(dir, &format!("导入 {written} 篇文档"));
+    }
+    Ok(written)
+}
+
 /// 删除 = 移入 .trash（回收站），而不是真删
 pub fn delete(dir: &Path, file: &str) -> Result<Option<String>, String> {
     let name = safe_name(file)?;

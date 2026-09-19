@@ -214,7 +214,10 @@ pub fn push(dir: &Path) -> Result<String, String> {
         return Err("还没配置远程仓库".into());
     }
     let mut cmd = Command::new("git");
-    cmd.arg("-C")
+    // 无人值守：凭据缺失/需要交互时直接失败返回，绝不挂在提示上等输入 ——
+    // 后台定时同步和「退出前补一次」都在这条路径上，卡住就等于卡住退出。
+    cmd.env("GIT_TERMINAL_PROMPT", "0")
+        .arg("-C")
         .arg(dir)
         .arg("-c")
         .arg("core.quotepath=false")
