@@ -13,6 +13,7 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
+/// 跑一条 git 命令，返回 stdout（失败时返回带 stderr 的错误）
 fn run(dir: &Path, args: &[&str]) -> Result<String, String> {
     let mut cmd = Command::new("git");
     cmd.arg("-C")
@@ -143,4 +144,93 @@ pub fn restore(dir: &Path, hash: &str, file: &str) -> Result<Option<String>, Str
     }
     let short = &hash[..hash.len().min(7)];
     commit_all(dir, &format!("回滚 {file} 到 {short}"))
+}
+
+/* ============================ 远程备份 ============================ */
+
+pub fn remote_url(dir: &Path) -> Option<String> {
+    run(dir, &["remote", "get-url", "origin"])
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+pub fn set_remote(dir: &Path, url: &str) -> Result<(), String> {
+    let url = url.trim();
+    if url.is_empty() {
+        let _ = run(dir, &["remote", "remove", "origin"]);
+        return Ok(());
+    }
+    if remote_url(dir).is_some() {
+        run(dir, &["remote", "set-url", "origin", url])?;
+    } else {
+        run(dir, &["remote", "add", "origin", url])?;
+    }
+    Ok(())
+}
+
+/// 写仓库级 git 配置（TLS / 凭据），只落在 .git/config 里，不进版本库
+pub fn set_config(dir: &Path, key: &str, value: &str) -> Result<(), String> {
+    run(dir, &["config", "--local", key, value])?;
+    Ok(())
+}
+
+pub fn get_config(dir: &Path, key: &str) -> Option<String> {
+    run(dir, &["config", "--local", "--get", key])
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+pub fn unset_config(dir: &Path, key: &str) {
+    let _ = run(dir, &["config", "--local", "--unset", key]);
+}
+
+/// 有多少提交还没推上去（没有上游时返回 None）
+pub fn ahead_count(dir: &Path) -> Option<usize> {
+    let out = run(dir, &["rev-list", "--count", "@{u}..HEAD"]).ok()?;
+    out.trim().parse::<usize>().ok()
+}
+
+/// 把凭据写进仓库内的 .git 目录（不会被提交），并让 git 用它
+pub fn save_token(dir: &Path, token: &str) -> Result<(), String> {
+    let token = token.trim();
+    let file = dir.join(".git").join("quill-credentials");
+    if token.is_empty() {
+        let _ = std::fs::remove_file(&file);
+        unset_config(dir, "credential.helper");
+        return Ok(());
+    }
+    // git credential-store 的格式：一行一个 URL
+    let content = format!("https://x-access-token:{token}@github.com\n");
+    std::fs::write(&file, content).map_err(|e| format!("写凭据失败: {e}"))?;
+    let path = file.to_string_lossy().replace('\\', "/");
+    set_config(dir, "credential.helper", &format!("store --file={path}"))
+}
+
+/// 推送到 origin。成功时返回 git 的输出（进度信息在 stderr 里）。
+pub fn push(dir: &Path) -> Result<String, String> {
+    if remote_url(dir).is_none() {
+        return Err("还没配置远程仓库".into());
+    }
+    let mut cmd = Command::new("git");
+    cmd.arg("-C")
+        .arg(dir)
+        .arg("-c")
+        .arg("core.quotepath=false")
+        .args(["push", "-u", "origin", "HEAD"]);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let out = cmd
+        .output()
+        .map_err(|e| format!("无法启动 git（装了吗？）: {e}"))?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    if !out.status.success() {
+        // 把 git 的原话完整带回去，方便用户自己排查（网络/证书/认证）
+        return Err(format!("{}{}", stderr.trim(), stdout.trim()));
+    }
+    let merged = format!("{}{}", stderr, stdout);
+    Ok(merged.trim().to_string())
 }

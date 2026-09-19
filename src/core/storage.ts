@@ -19,6 +19,15 @@ export interface TrashItem {
   size: number
 }
 
+/** 远程备份状态（只有文件模式有） */
+export interface RemoteInfo {
+  url: string | null
+  /** 还没推上去的提交数；没有上游时为 null */
+  ahead: number | null
+  hasToken: boolean
+  sslCa: string | null
+}
+
 /**
  * 存储抽象。
  * - 浏览器调试：IndexedDB（标签/回收站/统计落到 localStorage）
@@ -48,6 +57,10 @@ export interface DocStorage {
   fileAt(hash: string, id: string): Promise<string>
   restore(hash: string, id: string): Promise<void>
   reveal(): Promise<void>
+  /* ---- 远程备份（浏览器模式不提供） ---- */
+  remoteInfo?(): Promise<RemoteInfo>
+  saveGitSettings?(url: string, ca?: string, token?: string): Promise<void>
+  pushNow?(): Promise<string>
 }
 
 /* ------------------------- 浏览器：IndexedDB ------------------------- */

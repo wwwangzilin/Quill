@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { docToMarkdown } from './markdown'
 import { markdownToDoc, splitTitle } from './md-parse'
-import type { CommitInfo, DocStorage, TrashItem } from './storage'
+import type { CommitInfo, DocStorage, RemoteInfo, TrashItem } from './storage'
 import { emptyContent, type Doc, type DocMeta } from './types'
 
 /** Rust 侧 list_docs 的返回结构 */
@@ -148,5 +148,21 @@ export const vaultStorage: DocStorage = {
 
   async reveal() {
     await invoke('reveal_vault')
+  },
+
+  async remoteInfo() {
+    return await invoke<RemoteInfo>('git_remote_info')
+  },
+
+  async saveGitSettings(url, ca, token) {
+    await invoke('save_git_settings', {
+      url,
+      ca: ca ?? null,
+      token: token ?? null,
+    })
+  },
+
+  async pushNow() {
+    return await invoke<string>('git_push_now')
   },
 }

@@ -3,7 +3,7 @@ mod vault;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use vault::{DocEntry, SaveResult, TrashEntry, VaultInfo};
 
@@ -14,7 +14,7 @@ fn prepare(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-/// 全局唤起：再按一次就藏起来
+/// 全局唤起：再按一次就藏起来；从隐藏状态唤起时顺便让前端开「快速捕获」
 fn toggle_window(app: &tauri::AppHandle) {
     if let Some(win) = app.get_webview_window("main") {
         if win.is_visible().unwrap_or(false) {
@@ -22,6 +22,7 @@ fn toggle_window(app: &tauri::AppHandle) {
         } else {
             let _ = win.show();
             let _ = win.set_focus();
+            let _ = app.emit("quill:quick-capture", ());
         }
     }
 }
@@ -139,6 +140,61 @@ fn git_restore(app: tauri::AppHandle, hash: String, file: String) -> Result<Opti
     git::restore(&dir, &hash, &file)
 }
 
+#[derive(serde::Serialize)]
+struct RemoteInfo {
+    url: Option<String>,
+    ahead: Option<usize>,
+    has_token: bool,
+    ssl_ca: Option<String>,
+}
+
+#[tauri::command]
+fn git_remote_info(app: tauri::AppHandle) -> Result<RemoteInfo, String> {
+    let dir = prepare(&app)?;
+    Ok(RemoteInfo {
+        url: git::remote_url(&dir),
+        ahead: git::ahead_count(&dir),
+        has_token: git::get_config(&dir, "credential.helper").is_some(),
+        ssl_ca: git::get_config(&dir, "http.sslCAInfo"),
+    })
+}
+
+/// 保存远程备份设置：地址、可选的自签 CA（代理环境）、可选的 token
+#[tauri::command]
+fn save_git_settings(
+    app: tauri::AppHandle,
+    url: String,
+    ca: Option<String>,
+    token: Option<String>,
+) -> Result<(), String> {
+    let dir = prepare(&app)?;
+    git::set_remote(&dir, &url)?;
+
+    match ca.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(path) => {
+            git::set_config(&dir, "http.sslBackend", "openssl")?;
+            git::set_config(&dir, "http.sslCAInfo", &path.replace('\\', "/"))?;
+        }
+        None => {
+            git::unset_config(&dir, "http.sslBackend");
+            git::unset_config(&dir, "http.sslCAInfo");
+        }
+    }
+
+    if let Some(t) = token {
+        git::save_token(&dir, &t)?;
+    }
+    Ok(())
+}
+
+/// 手动备份：先提交当前改动，再推上去
+#[tauri::command]
+fn git_push_now(app: tauri::AppHandle) -> Result<String, String> {
+    let dir = prepare(&app)?;
+    let _ = git::commit_all(&dir, "备份快照");
+    git::push(&dir)
+}
+
 /// 在资源管理器里打开仓库目录 —— 「文档都是纯 md 文件」这件事要能被亲眼验证
 #[tauri::command]
 fn reveal_vault(app: tauri::AppHandle) -> Result<(), String> {
@@ -206,7 +262,10 @@ pub fn run() {
             git_history,
             git_file_at,
             git_restore,
-            reveal_vault
+            reveal_vault,
+            git_remote_info,
+            save_git_settings,
+            git_push_now
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

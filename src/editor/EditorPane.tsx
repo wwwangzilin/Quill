@@ -6,6 +6,8 @@ import { buildExtensions } from './extensions'
 import { formatWhen } from '../core/time'
 import type { Doc } from '../core/types'
 import SlashMenu, { filterSlash, type SlashItem } from '../ui/SlashMenu'
+import FindBar from '../ui/FindBar'
+import WikiMenu from '../ui/WikiMenu'
 
 interface Props {
   doc: Doc
@@ -18,6 +20,9 @@ interface Props {
   onChange: (content: JSONContent) => void
   onTags: (tags: string[]) => void
   onJumpDone: () => void
+  /** 所有文档标题（`[[` 补全用） */
+  allDocs: string[]
+  onOpenDoc: (title: string) => void
 }
 
 interface Stats {
@@ -77,9 +82,20 @@ export default function EditorPane({
   onChange,
   onTags,
   onJumpDone,
+  allDocs,
+  onOpenDoc,
 }: Props) {
   const [stats, setStats] = useState<Stats>(() => countStats(doc.content))
   const [slash, setSlash] = useState<SlashState | null>(null)
+  const [findOpen, setFindOpen] = useState(false)
+  const [wiki, setWiki] = useState<{ x: number; y: number; query: string; index: number } | null>(
+    null,
+  )
+  const wikiRef = useRef<{ x: number; y: number; query: string; index: number } | null>(null)
+
+  useEffect(() => {
+    wikiRef.current = wiki
+  }, [wiki])
   const scrollRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const slashRef = useRef<SlashState | null>(null)
@@ -99,6 +115,29 @@ export default function EditorPane({
       const json = editor.getJSON()
       setStats(countStats(json))
       onChange(json)
+
+      // `[[` 唤起文档补全
+      const { $from } = editor.state.selection
+      const before = $from.parent.textBetween(0, $from.parentOffset, undefined, '\ufffc')
+      const openAt = before.lastIndexOf('[[')
+      const closeAt = before.lastIndexOf(']]')
+      if (openAt >= 0 && openAt > closeAt) {
+        const q = before.slice(openAt + 2)
+        const host = hostRef.current
+        if (host) {
+          try {
+            const coords = editor.view.coordsAtPos(editor.state.selection.from)
+            const rect = host.getBoundingClientRect()
+            const pos = { x: coords.left - rect.left, y: coords.bottom - rect.top + 8 }
+            setWiki((w) => (w ? { ...w, query: q } : { ...pos, query: q, index: 0 }))
+          } catch {
+            /* 坐标算不出来就不弹 */
+          }
+        }
+      } else if (wikiRef.current) {
+        setWiki(null)
+      }
+
       // 斜杠菜单跟随输入实时过滤
       if (slashRef.current) {
         const { $from } = editor.state.selection
@@ -197,9 +236,68 @@ export default function EditorPane({
     [editor],
   )
 
+  const wikiItems = useMemo(() => {
+    if (!wiki) return []
+    const q = wiki.query.trim().toLowerCase()
+    const list = q ? allDocs.filter((t) => t.toLowerCase().includes(q)) : allDocs
+    return list.slice(0, 8)
+  }, [wiki, allDocs])
+
+  const runWiki = useCallback(
+    (title: string) => {
+      if (!editor) return
+      const { from, $from } = editor.state.selection
+      const before = $from.parent.textBetween(0, $from.parentOffset, undefined, '\ufffc')
+      const openAt = before.lastIndexOf('[[')
+      const start = openAt >= 0 ? from - (before.length - openAt) : from
+      editor
+        .chain()
+        .focus()
+        .deleteRange({ from: start, to: from })
+        .insertContent(`[[${title}]] `)
+        .run()
+      setWiki(null)
+    },
+    [editor],
+  )
+
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (!editor) return
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        setFindOpen(true)
+        return
+      }
+
+      if (wiki) {
+        const list = wikiItems
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          setWiki({ ...wiki, index: (wiki.index + 1) % Math.max(list.length, 1) })
+          return
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          setWiki({
+            ...wiki,
+            index: (wiki.index - 1 + Math.max(list.length, 1)) % Math.max(list.length, 1),
+          })
+          return
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          const picked = list[wiki.index] ?? list[0]
+          if (picked) runWiki(picked)
+          return
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          setWiki(null)
+          return
+        }
+      }
 
       if (slash) {
         const list = filterSlash(slash.query)
@@ -257,7 +355,7 @@ export default function EditorPane({
         }, 0)
       }
     },
-    [editor, slash, runSlash],
+    [editor, slash, runSlash, wiki, wikiItems, runWiki],
   )
 
   const minutes = Math.max(1, Math.round(stats.chars / 350))
@@ -269,6 +367,11 @@ export default function EditorPane({
       onKeyDown={onKeyDown}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) editor?.commands.focus('end')
+      }}
+      onClick={(e) => {
+        const el = (e.target as HTMLElement).closest?.('.wikilink')
+        const target = el?.getAttribute('data-target')
+        if (target) onOpenDoc(target)
       }}
     >
       <div className="editor-inner" ref={hostRef}>
@@ -327,7 +430,17 @@ export default function EditorPane({
             onPick={runSlash}
           />
         )}
+        {wiki && (
+          <WikiMenu
+            items={wikiItems}
+            index={wiki.index}
+            x={wiki.x}
+            y={wiki.y}
+            onPick={runWiki}
+          />
+        )}
       </div>
+      <FindBar open={findOpen} editor={editor} onClose={() => setFindOpen(false)} />
     </div>
   )
 }

@@ -9,6 +9,8 @@ import { toast } from './ui/toast'
 import { useSetting } from './core/settings'
 import ShortcutsPanel from './ui/ShortcutsPanel'
 import TrashPanel from './ui/TrashPanel'
+import SettingsPanel from './ui/SettingsPanel'
+import QuickCapture from './ui/QuickCapture'
 import { TEMPLATES } from './core/templates'
 import { initStorage, storage } from './core/storage'
 import { docToMarkdown, safeFileName } from './core/markdown'
@@ -84,6 +86,8 @@ export default function App() {
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [stats, setStats] = useState<Record<string, number>>({})
   const [jumpPath, setJumpPath] = useState<number[] | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [quickOpen, setQuickOpen] = useState(false)
   /** 编辑器实例的重建键：只在新开文档时递增，改名导致的 id 变化不重建（否则光标会飞） */
   const [sessionKey, setSessionKey] = useState(0)
 
@@ -324,6 +328,66 @@ export default function App() {
     }
   }, [])
 
+  /** 快速捕获：把一句话追加进「收件箱」文档 */
+  const quickCapture = useCallback(
+    async (text: string) => {
+      try {
+        const list = await storage.list()
+        let target = list.find((d) => d.title === '收件箱')
+        if (!target) {
+          const fresh = await storage.create('收件箱')
+          const saved = await storage.put(fresh)
+          target = { ...toMeta(fresh), id: saved.id }
+        }
+        const doc = await storage.get(target.id)
+        if (!doc) throw new Error('收件箱读取失败')
+        const stamp = new Date().toLocaleTimeString('zh-CN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+        const item: JSONContent = {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: `${stamp}  ${text}` }],
+                },
+              ],
+            },
+          ],
+        }
+        const content: JSONContent = {
+          type: 'doc',
+          content: [...(doc.content.content ?? []), item],
+        }
+        await storage.put({ ...doc, content, updatedAt: Date.now() })
+        toast.success('已记一笔', '收件箱')
+        await refreshDocs()
+      } catch (err) {
+        toast.error('保存失败', String(err))
+      }
+    },
+    [refreshDocs],
+  )
+
+  // 桌面版：全局快捷键唤起时，Rust 侧会发这个事件
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return
+    let unlisten: (() => void) | undefined
+    void (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event')
+        unlisten = await listen('quill:quick-capture', () => setQuickOpen(true))
+      } catch {
+        /* 浏览器模式没有 Tauri API */
+      }
+    })()
+    return () => unlisten?.()
+  }, [])
+
   /* ---------------- 编辑回调 ---------------- */
 
   const onTitle = useCallback(
@@ -387,6 +451,12 @@ export default function App() {
         onClose={() => setTrashOpen(false)}
         onChanged={() => void refreshDocs()}
       />
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <QuickCapture
+        open={quickOpen}
+        onClose={() => setQuickOpen(false)}
+        onSubmit={(text) => void quickCapture(text)}
+      />
       <div className="titlebar">
         <button
           className="btn ghost icon"
@@ -443,6 +513,13 @@ export default function App() {
             </div>
           )}
         </div>
+        <button
+          className="btn ghost icon"
+          onClick={() => setSettingsOpen(true)}
+          title="备份与设置"
+        >
+          ⚙
+        </button>
         <button
           className="btn ghost icon"
           onClick={() => setShortcutsOpen(true)}
@@ -523,6 +600,12 @@ export default function App() {
               onChange={onChange}
               onTags={(next) => void setTagsFor(doc.id, next)}
               onJumpDone={() => setJumpPath(null)}
+              allDocs={docs.map((d) => d.title)}
+              onOpenDoc={(title) => {
+                const target = docs.find((d) => d.title === title)
+                if (target) void openDoc(target.id)
+                else toast.info('还没有这篇文档', title)
+              }}
             />
           ) : (
             <div className="pane">

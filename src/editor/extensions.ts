@@ -6,6 +6,8 @@ import TaskItem from '@tiptap/extension-task-item'
 import Highlight from '@tiptap/extension-highlight'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { DragSort } from './drag'
+import { SearchHighlight } from './search'
+import { WikiLink } from './wikilink'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { EditorView } from '@tiptap/pm/view'
 
@@ -156,5 +158,7 @@ export function buildExtensions(placeholder: string) {
     Foldable,
     FocusDim,
     DragSort,
+    SearchHighlight,
+    WikiLink,
   ]
 }
