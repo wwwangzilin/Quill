@@ -2204,3 +2204,418 @@ body.quill-dragging * {
   font-size: 12px;
   color: var(--text-3);
 }
+
+/* ==========================================================================
+   命令面板 / 反向链接 / AI 问答 / 选中改写
+   ========================================================================== */
+
+/* ---------- 命令面板（Ctrl+P） ---------- */
+@keyframes mask-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.palette-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(3px);
+  display: flex;
+  justify-content: center;
+  padding-top: 12vh;
+  animation: mask-in 0.16s var(--ease-out) both;
+}
+.palette {
+  width: min(620px, 92vw);
+  max-height: 66vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: palette-in 0.2s var(--ease-out) both;
+}
+@keyframes palette-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.palette-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.palette-icon {
+  font-size: 15px;
+  color: var(--text-3);
+}
+.palette-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+}
+.palette-input::placeholder {
+  color: var(--text-3);
+}
+.palette-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+}
+.palette-empty {
+  padding: 26px 12px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.palette-row {
+  appearance: none;
+  border: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.palette-row.on {
+  background: var(--accent-soft);
+}
+.palette-kind {
+  flex: 0 0 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--surface-hover);
+  color: var(--text-2);
+  font-size: 11px;
+}
+.palette-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-hint {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.palette-foot {
+  display: flex;
+  gap: 14px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ---------- 反向链接 ---------- */
+.main-stack {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.main-stack > .editor-scroll {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+.backlinks {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.backlinks-head {
+  appearance: none;
+  border: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 18px;
+  background: transparent;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+.backlinks-head:hover {
+  color: var(--text);
+}
+.backlinks-caret {
+  font-size: 10px;
+  color: var(--text-3);
+}
+.backlinks-count {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.backlinks-body {
+  max-height: 208px;
+  overflow-y: auto;
+  padding: 4px 12px 12px;
+  animation: mask-in 0.18s var(--ease-out) both;
+}
+.backlinks-empty {
+  padding: 8px 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.backlinks-empty code {
+  background: var(--surface-hover);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.backlink {
+  appearance: none;
+  border: none;
+  width: 100%;
+  display: block;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.backlink:hover {
+  background: var(--surface-hover);
+}
+.backlink-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.backlink-title {
+  font-size: 12.5px;
+  color: var(--accent-1);
+}
+.backlink-when {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.backlink-snippet {
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--text-2);
+}
+
+/* ---------- AI 问答面板 ---------- */
+.aichat {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: min(430px, 92vw);
+  max-height: 62vh;
+  display: flex;
+  flex-direction: column;
+  z-index: 85;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: palette-in 0.22s var(--ease-out) both;
+}
+.aichat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.aichat-title {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.aichat-body {
+  flex: 1;
+  min-height: 96px;
+  overflow-y: auto;
+  padding: 14px 16px;
+}
+.aichat-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.aichat-chip {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.aichat-chip:hover {
+  color: var(--text);
+  border-color: var(--accent-1);
+}
+.aichat-wait {
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.aichat-answer {
+  font-size: 13px;
+  line-height: 1.95;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.aichat-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+}
+.aichat-foot {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+}
+.aichat-input {
+  flex: 1;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 0 10px;
+  outline: none;
+}
+.aichat-input:focus {
+  border-color: var(--accent-1);
+}
+
+/* ---------- 选中文字后的 AI 改写条 ---------- */
+.ai-sel {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 8px));
+  z-index: 70;
+  animation: mask-in 0.14s var(--ease-out) both;
+}
+.ai-sel-row,
+.ai-sel-panel {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-sm);
+}
+.ai-sel-panel {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: min(460px, 78vw);
+  padding: 10px 12px 12px;
+}
+.ai-sel.expanded {
+  transform: translate(-50%, calc(-100% - 10px));
+}
+/* 选区贴着顶部时翻到下面，不然会被滚动区裁掉 */
+.ai-sel.flip {
+  transform: translate(-50%, 8px);
+}
+.ai-sel.flip.expanded {
+  transform: translate(-50%, 10px);
+}
+.ai-sel-tag {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--accent-1);
+  padding: 0 6px 0 2px;
+}
+.ai-sel-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.ai-sel-btn:hover {
+  background: var(--surface-active);
+  color: var(--text);
+}
+.ai-sel-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ai-sel-status {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.ai-sel-mini {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px;
+  padding: 0 4px;
+  cursor: pointer;
+}
+.ai-sel-body {
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 12.5px;
+  line-height: 1.9;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 2px 1px;
+}
+.ai-sel-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+

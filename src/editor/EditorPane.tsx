@@ -12,6 +12,7 @@ import FindBar from '../ui/FindBar'
 import WikiMenu from '../ui/WikiMenu'
 import { useAiComplete } from './useAiComplete'
 import { acceptAi, aiState, clearAi } from './aiComplete'
+import AiSelectionBar from '../ui/AiSelectionBar'
 
 interface Props {
   doc: Doc
@@ -544,6 +545,7 @@ export default function EditorPane({
             onPick={runWiki}
           />
         )}
+        <AiSelectionBar editor={editor} host={hostRef} />
       </div>
       <FindBar open={findOpen} editor={editor} onClose={() => setFindOpen(false)} />
     </div>

@@ -11,6 +11,9 @@ import ShortcutsPanel from './ui/ShortcutsPanel'
 import TrashPanel from './ui/TrashPanel'
 import SettingsPanel from './ui/SettingsPanel'
 import MoreMenu, { type MenuItem } from './ui/MoreMenu'
+import CommandPalette, { type PaletteCommand } from './ui/CommandPalette'
+import BacklinksPanel from './ui/BacklinksPanel'
+import AiChatPanel from './ui/AiChatPanel'
 import QuickCapture from './ui/QuickCapture'
 import { TEMPLATES } from './core/templates'
 import { openQuickNote, openSticky } from './core/windows'
@@ -96,6 +99,8 @@ export default function App() {
   /** AI 续写：默认关。这东西每敲几个字就得花钱，不能默认替主人做决定 */
   const [aiEnabled, setAiEnabled] = useSetting('ai-enabled', false)
   const [aiDelay, setAiDelay] = useSetting('ai-delay', 800)
+  /** 「问这篇文档」面板 */
+  const [chatOpen, setChatOpen] = useState(false)
   /** 编辑器实例的重建键：只在新开文档时递增，改名导致的 id 变化不重建（否则光标会飞） */
   const [sessionKey, setSessionKey] = useState(0)
 
@@ -227,6 +232,11 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault()
         void flush()
+      }
+      // Ctrl+Shift+A：问这篇文档
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault()
+        setChatOpen((v) => !v)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -532,6 +542,14 @@ export default function App() {
       onSelect: () => setSettingsOpen(true),
     },
     {
+      key: 'chat',
+      icon: '✦',
+      label: '问这篇文档',
+      hint: 'Ctrl+Shift+A',
+      disabled: !doc,
+      onSelect: () => setChatOpen(true),
+    },
+    {
       key: 'shortcuts',
       icon: '⌘',
       label: '快捷键一览',
@@ -539,6 +557,60 @@ export default function App() {
       onSelect: () => setShortcutsOpen(true),
     },
   ]
+
+  /* ---------------- 命令面板（Ctrl+P） ---------------- */
+
+  const paletteCommands: PaletteCommand[] = [
+    { id: 'new', title: '新建文档', hint: 'Ctrl+N', icon: '＋', run: () => void createNew() },
+    { id: 'ask', title: '问这篇文档（AI）', hint: 'Ctrl+Shift+A', icon: '✦', run: () => setChatOpen(true) },
+    { id: 'write', title: '切到写作视图', icon: '✎', run: () => switchView('write') },
+    { id: 'map', title: '切到思维导图', icon: '◈', run: () => switchView('mindmap') },
+    { id: 'export-md', title: '导出 Markdown', hint: '.md', icon: '⇩', run: exportMd },
+    { id: 'export-json', title: '导出 JSON', hint: '.json', icon: '⇩', run: exportJson },
+    {
+      id: 'theme',
+      title: '切换亮色 / 暗色主题',
+      icon: '☾',
+      run: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
+    },
+    { id: 'sidebar', title: '收起 / 展开侧栏', hint: 'Ctrl+\\', icon: '▤', run: () => setSidebarOpen((v) => !v) },
+    { id: 'focus', title: '专注模式', icon: '◉', run: toggleFocus },
+    { id: 'typewriter', title: '打字机模式', icon: '⇅', run: toggleTypewriter },
+    { id: 'quick', title: '快捷便签', hint: 'Ctrl+Space', icon: '✎', run: () => void openQuickNote() },
+    {
+      id: 'sticky',
+      title: '把这篇钉到桌面（磁贴）',
+      icon: '📌',
+      run: () => void pinToDesktop(),
+    },
+    { id: 'trash', title: '打开回收站', icon: '🗑', run: () => setTrashOpen(true) },
+    { id: 'settings', title: '备份与设置', icon: '⚙', run: () => setSettingsOpen(true) },
+    { id: 'shortcuts', title: '快捷键一览', hint: 'Ctrl+/', icon: '⌘', run: () => setShortcutsOpen(true) },
+    { id: 'reveal', title: '在资源管理器里打开文档仓库', icon: '🗀', run: () => void storage.reveal() },
+  ]
+
+  /** 把 AI 的回答插到正文末尾（走正常内容流，所以会一起保存与提交） */
+  const insertToEnd = useCallback(
+    (text: string) => {
+      const live = liveRef.current
+      if (!live) return
+      const nodes: JSONContent[] = text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => ({ type: 'paragraph', content: [{ type: 'text', text: line }] }))
+      if (!nodes.length) return
+      const next: JSONContent = {
+        type: 'doc',
+        content: [...(live.content.content ?? []), ...nodes],
+      }
+      onChange(next)
+      // 编辑器实例不会自己捡起外部塞进去的内容，换 key 让它重建一次
+      setSessionKey((k) => k + 1)
+      toast.success('已插到文末')
+    },
+    [onChange],
+  )
 
   /* ---------------- 渲染 ---------------- */
 
@@ -565,6 +637,14 @@ export default function App() {
         open={quickOpen}
         onClose={() => setQuickOpen(false)}
         onSubmit={(text) => void quickCapture(text)}
+      />
+      <CommandPalette docs={docs} commands={paletteCommands} onPickDoc={(id) => void openDoc(id)} />
+      <AiChatPanel
+        open={chatOpen && Boolean(doc)}
+        title={doc?.title ?? ''}
+        content={doc?.content ?? null}
+        onClose={() => setChatOpen(false)}
+        onInsert={insertToEnd}
       />
       <div className="titlebar">
         <button
@@ -642,7 +722,8 @@ export default function App() {
               </button>
             </div>
           ) : view === 'write' ? (
-            <EditorPane
+            <div className="main-stack">
+              <EditorPane
               key={sessionKey}
               doc={doc}
               saving={saving}
@@ -662,7 +743,13 @@ export default function App() {
                 if (target) void openDoc(target.id)
                 else toast.info('还没有这篇文档', title)
               }}
-            />
+              />
+              <BacklinksPanel
+                doc={{ id: doc.id, title: doc.title }}
+                docs={docs}
+                onOpen={(id) => void openDoc(id)}
+              />
+            </div>
           ) : (
             <div className="pane">
               <MindMap
