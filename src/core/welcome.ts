@@ -1,106 +1,50 @@
 import type { JSONContent } from '@tiptap/core'
+import { markdownToDoc } from './md-parse.ts'
 
-/** 首次启动时生成的示例文档 —— 顺便当说明书 */
-export const WELCOME: JSONContent = {
-  type: 'doc',
-  content: [
-    {
-      type: 'paragraph',
-      content: [
-        { type: 'text', text: '这是 Quill —— 一个把「想到哪写到哪」和「一眼看清结构」合在一起的写作工具。' },
-      ],
-    },
-    {
-      type: 'heading',
-      attrs: { level: 2 },
-      content: [{ type: 'text', text: '先试试这几下' }],
-    },
-    {
-      type: 'bulletList',
-      content: [
-        {
-          type: 'listItem',
-          content: [
-            { type: 'paragraph', content: [{ type: 'text', text: '行首输入 - 加空格，直接变大纲；输入 1. 变编号' }] },
-          ],
-        },
-        {
-          type: 'listItem',
-          content: [
-            { type: 'paragraph', content: [{ type: 'text', text: '按 Tab 缩进一级，Shift+Tab 退回来——大纲就是这么长出来的' }] },
-            {
-              type: 'bulletList',
-              content: [
-                {
-                  type: 'listItem',
-                  content: [
-                    { type: 'paragraph', content: [{ type: 'text', text: '缩进出来的层级，就是导图里的分支' }] },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-        {
-          type: 'listItem',
-          content: [
-            { type: 'paragraph', content: [{ type: 'text', text: '输入 [] 加空格变待办，敲回车自动接着下一条' }] },
-          ],
-        },
-        {
-          type: 'listItem',
-          content: [
-            { type: 'paragraph', content: [{ type: 'text', text: '选中文字按 Ctrl+B 加粗、Ctrl+I 斜体、Ctrl+E 行内代码' }] },
-          ],
-        },
-        {
-          type: 'listItem',
-          content: [
-            { type: 'paragraph', content: [{ type: 'text', text: '点右上角「导图」，看看上面这棵树长什么样' }] },
-          ],
-        },
-      ],
-    },
-    {
-      type: 'heading',
-      attrs: { level: 2 },
-      content: [{ type: 'text', text: '还没做完的部分' }],
-    },
-    {
-      type: 'taskList',
-      content: [
-        {
-          type: 'taskItem',
-          attrs: { checked: true },
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: '沉浸写作 + 大纲缩进 + 待办' }] }],
-        },
-        {
-          type: 'taskItem',
-          attrs: { checked: true },
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: '大纲一键转思维导图' }] }],
-        },
-        {
-          type: 'taskItem',
-          attrs: { checked: true },
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: '本地存储 + Markdown / JSON 导出' }] }],
-        },
-        {
-          type: 'taskItem',
-          attrs: { checked: false },
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Tauri 桌面壳：文档直存 .md 文件 + git 自动提交' }] }],
-        },
-        {
-          type: 'taskItem',
-          attrs: { checked: false },
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: '大纲折叠 / 拖拽排序 / 专注模式' }] }],
-        },
-      ],
-    },
-    {
-      type: 'blockquote',
-      content: [
-        { type: 'paragraph', content: [{ type: 'text', text: '写不动的时候，先把想到的词丢成大纲，结构会自己浮出来。' }] },
-      ],
-    },
-  ],
-}
+/**
+ * 首次启动时生成的示例文档，顺便当说明书。
+ *
+ * 用 Markdown 写、再交给解析器转成编辑器 JSON —— 比手搓一堆嵌套对象好读得多，
+ * 也和「文档就是 Markdown」这件事保持一致。
+ *
+ * 注意这里**不写 H1**：标题由文件名承载（读写 .md 时 splitTitle 会把首个 H1
+ * 剥出来当标题），正文里再来一个就成了两个大标题。
+ */
+const WELCOME_MD = `Quill 是一款本地优先的写作工具：把随手记录和梳理结构放在同一个界面里。
+每篇文档都是一个纯 Markdown 文件，存在你自己的硬盘上。
+
+## 从这里开始
+
+- 行首输入 \`- \` 变成大纲，输入 \`1. \` 变成编号
+- 按 Tab 缩进一级，Shift + Tab 退回一级
+- 任意位置输入 \`/\` 唤出块菜单，可以插入标题、表格、代码块、图片
+- 输入 \`[[\` 链接到另一篇文档
+- 点右上角「导图」，把大纲看成一棵树
+
+## 写作时可以用
+
+- **专注模式**：只亮当前段落，其余淡出
+- **打字机模式**：光标锁定在视口的固定位置
+- **阅读模式** \`F9\`：转为只读，适合回头通读
+- **禅模式** \`F11\`：窗口全屏，隐藏整个界面
+- 选中一段文字，可以交给 AI 改写，也可以加一条批注
+- \`Ctrl + P\` 打开命令面板，\`Ctrl + /\` 查看全部快捷键
+
+## 文档存在哪
+
+默认存放在 \`%USERPROFILE%\\Documents\\Quill\`，每篇对应一个 \`.md\` 文件。
+每次保存都会自动产生一次 git 提交，任何一次修改都能找回来。
+
+- 点标题栏的文件夹图标，可以直接打开这个目录
+- 在「设置 → 远程备份」里填一个私有仓库地址，就能把文档推到远端
+- \`Ctrl + Space\` 随时唤出快捷便签，写进去的内容进入「收件箱」
+- 任意一篇文档都可以钉在桌面上，当作随时查看的磁贴
+
+## 关于数据
+
+正文只有 Markdown，换成任何编辑器都能打开。
+星标、标签与批注属于元数据，存放在 \`.quill-meta.json\`，不会混进正文。
+
+> 写不动的时候，先把想到的词丢成大纲，结构会自己浮出来。`
+
+export const WELCOME: JSONContent = markdownToDoc(WELCOME_MD)
