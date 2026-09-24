@@ -1,9 +1,60 @@
 // 核心逻辑自检：Markdown 序列化 + 文件名安全化（node 原生跑 TS，无需构建）
 import { docToMarkdown, safeFileName } from './src/core/markdown.ts'
-import { markdownToDoc } from './src/core/md-parse.ts'
-import { WELCOME } from './src/core/welcome.ts'
+import { markdownToDoc, splitTitle } from './src/core/md-parse.ts'
 
-const md = docToMarkdown(WELCOME, '欢迎使用 Quill')
+/**
+ * 序列化用的测试夹具。
+ *
+ * 刻意自己写一份，**不拿欢迎文档当样本** —— 否则哪天改个欢迎文档那样的纯内容改动，
+ * 就会莫名其妙弄挂一堆格式断言，让人以为序列化器坏了。
+ * 欢迎文档本身另有 .verify/verify-welcome.mjs 专门验。
+ */
+const FIXTURE = {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: '二级标题' }] },
+    {
+      type: 'bulletList',
+      content: [
+        {
+          type: 'listItem',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: '顶层项' }] },
+            {
+              type: 'bulletList',
+              content: [
+                {
+                  type: 'listItem',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: '嵌套项' }] }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      type: 'taskList',
+      content: [
+        {
+          type: 'taskItem',
+          attrs: { checked: false },
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: '未完成的事' }] }],
+        },
+        {
+          type: 'taskItem',
+          attrs: { checked: true },
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: '已完成的事' }] }],
+        },
+      ],
+    },
+    { type: 'blockquote', content: [{ type: 'paragraph', content: [{ type: 'text', text: '引用一句话' }] }] },
+    { type: 'paragraph', content: [{ type: 'text', text: '第一段' }] },
+    { type: 'paragraph', content: [{ type: 'text', text: '第二段' }] },
+  ],
+}
+
+const md = docToMarkdown(FIXTURE, '测试文档')
 console.log('================ Markdown 输出 ================')
 console.log(md)
 console.log('================ 断言 ================')
@@ -24,14 +75,22 @@ const cellText = (row, i) => row?.content?.[i]?.content?.[0]?.content?.[0]?.text
 const pipeMd = ['| a | b |', '| --- | --- |', '| x\\|y | z |'].join('\n')
 const pipeBack = docToMarkdown(markdownToDoc(pipeMd))
 
+/*
+ * 夹具往返：按真实链路走一遍。
+ * 注意要先 splitTitle 把标题剥出来 —— 标题由文件名承载、不在正文里，
+ * 直接拿整段 .md 去解析会把 H1 也当成正文内容，再序列化就多出一个 H1。
+ */
+const { title: backTitle, body: backBody } = splitTitle(md)
+const backMd = docToMarkdown(markdownToDoc(backBody), backTitle)
+
 const cases = [
-  ['文档标题写成 H1', md.startsWith('# 欢迎使用 Quill')],
-  ['二级标题', md.includes('## 先试试这几下')],
-  ['无序列表项', md.includes('- 行首输入 - 加空格，直接变大纲')],
-  ['嵌套列表缩进 2 空格', /\n {2}- 缩进出来的层级，就是导图里的分支/.test(md)],
-  ['待办未完成', md.includes('- [ ] Tauri 桌面壳')],
-  ['待办已完成', md.includes('- [x] 沉浸写作')],
-  ['引用块', md.includes('> 写不动的时候')],
+  ['文档标题写成 H1', md.startsWith('# 测试文档')],
+  ['二级标题', md.includes('## 二级标题')],
+  ['无序列表项', /\n- 顶层项/.test(md)],
+  ['嵌套列表缩进 2 空格', /\n {2}- 嵌套项/.test(md)],
+  ['待办未完成', md.includes('- [ ] 未完成的事')],
+  ['待办已完成', md.includes('- [x] 已完成的事')],
+  ['引用块', md.includes('> 引用一句话')],
   ['段落间空行', md.includes('\n\n')],
   ['文件名安全化', safeFileName('a/b:c*d?e"f<g>h|i') === 'a_b_c_d_e_f_g_h_i'],
   ['空标题回退', safeFileName('   ') === '未命名'],
@@ -45,6 +104,8 @@ const cases = [
   ['表格：空单元格补位', tableBack.includes('| 香蕉 | 5 |  |')],
   // 代码块（语法高亮之后仍要能往返）
   ['代码块语言保留', docToMarkdown(markdownToDoc('```js\nlet a = 1\n```')).includes('```js')],
+  // 夹具自己也要往返稳定：剥标题 → 解析 → 再序列化，结果不变
+  ['夹具往返：按真实链路再序列化结果相同', backMd.trim() === md.trim()],
 ]
 
 let failed = 0
