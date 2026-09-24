@@ -216,7 +216,7 @@ git push origin v0.2.0
 
 **更新包是签名的**（minisign）：公钥写在 `src-tauri/tauri.conf.json` 里，私钥只存在于 CI 的 GitHub Secrets（`TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD`）。**验签不过直接拒绝安装** —— 就算更新源被换掉，也塞不进假包。
 
-发布时 CI 会自动做这些：`pnpm tauri build` 顺带产出 `.nsis.zip` 与 `.sig`，再生成 `latest.json` 一起传到 Release。客户端认的就是 Release 上这个文件：
+发布时 CI 会自动做这些：`pnpm tauri build` 产出 NSIS 安装包 `Quill_<版本>_x64-setup.exe`，Tauri 会**直接给安装包本体签名**（生成 `.exe.sig`），再生成 `latest.json` 一起传到 Release。客户端认的就是 Release 上这个文件：
 
 ```
 https://github.com/<owner>/<repo>/releases/latest/download/latest.json
