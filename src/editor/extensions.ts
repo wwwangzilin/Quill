@@ -12,6 +12,7 @@ import { BlockGutter } from './gutter'
 import { Video } from './media'
 import { AiComplete } from './aiComplete'
 import { CommentMarks } from './commentMark'
+import { MdMarkers } from './mdMarkers'
 import { TableKit } from '@tiptap/extension-table'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { createLowlight, common } from 'lowlight'
@@ -356,5 +357,7 @@ export function buildExtensions(placeholder: string) {
     Frontmatter,
     // 批注底纹：纯 decoration，不进文档数据
     CommentMarks,
+    // Markdown 标记提示：同样是装饰，把编辑器吃掉的 ** * # > 之类淡色画回来
+    MdMarkers,
   ]
 }

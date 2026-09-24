@@ -3494,3 +3494,27 @@ body.quill-dragging * {
   margin-bottom: 10px;
 }
 
+/* ---------- Markdown 标记提示 ---------- */
+/*
+ * 编辑器把 `**粗体**` 变成粗体时会吃掉那两对星号，于是没法确认文件里到底写了什么。
+ * 这些标记由 mdMarkers.ts 以 ProseMirror 装饰的形式画回来：看得见，但不进文档数据，
+ * 所以 .md 依旧干净，复制与导出都不会多出字符。
+ *
+ * 三处细节是必需的：
+ *   font-weight / font-style 重置 —— 否则粗体里的 `**` 自己也变粗，糊成一团
+ *   user-select: none            —— 视觉选中时不要把标记也框进去
+ *   pointer-events: none         —— 别挡住点文字定位光标
+ */
+.ProseMirror .md-marker {
+  color: var(--text-3);
+  opacity: 0.5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82em;
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: -0.02em;
+  white-space: pre;
+  user-select: none;
+  pointer-events: none;
+}
+
