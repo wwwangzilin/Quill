@@ -3,6 +3,7 @@ import App from './App'
 import QuickNote from './windows/QuickNote'
 import Sticky from './windows/Sticky'
 import { applyAppearance } from './core/fonts'
+import { initTheme } from './core/theme'
 import { windowRole } from './core/windows'
 import './style.css'
 
@@ -13,6 +14,9 @@ window.addEventListener('error', (e) => boot.push('ERROR ' + (e.message || Strin
 window.addEventListener('unhandledrejection', (e) => boot.push('REJECT ' + String(e.reason)))
 
 boot.push('boot ' + location.href)
+// 三种窗口都要先穿上主题。主窗口自己还会管切换，但便签与磁贴没有那段代码，
+// 漏掉这一步它们就跟着系统偏好走，和主窗口手动选的主题对不上。
+initTheme()
 applyAppearance()
 
 // 同一份前端产物，靠窗口 label 分成三种窗口：

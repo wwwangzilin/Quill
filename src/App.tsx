@@ -18,6 +18,7 @@ import QuickCapture from './ui/QuickCapture'
 import CommentsPanel from './ui/CommentsPanel'
 import { locate, type Comment } from './core/comments'
 import { checkUpdate } from './core/update'
+import { applyTheme, readTheme, type Theme } from './core/theme'
 import { applyComments, onCommentPick } from './editor/commentMark'
 import { TEMPLATES } from './core/templates'
 import { openQuickNote, openSticky } from './core/windows'
@@ -136,9 +137,7 @@ export default function App() {
   const [doc, setDoc] = useState<Doc | null>(null)
   const [view, setView] = useState<ViewMode>('write')
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [theme, setTheme] = useState<'dark' | 'light'>(() =>
-    localStorage.getItem('quill-theme') === 'light' ? 'light' : 'dark',
-  )
+  const [theme, setTheme] = useState<Theme>(() => readTheme())
   const [saving, setSaving] = useState<Saving>('idle')
   const [ready, setReady] = useState(false)
   const [mapSnap, setMapSnap] = useState<{ content: JSONContent; title: string } | null>(null)
@@ -322,9 +321,9 @@ export default function App() {
     }
   }, [])
 
+  // 主题落盘与应用都走 core/theme，和便签、磁贴用的是同一套
   useEffect(() => {
-    document.documentElement.dataset.theme = theme
-    localStorage.setItem('quill-theme', theme)
+    applyTheme(theme)
   }, [theme])
 
   useEffect(() => {
