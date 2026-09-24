@@ -9,7 +9,7 @@ import { toast } from './ui/toast'
 import { useSetting } from './core/settings'
 import ShortcutsPanel from './ui/ShortcutsPanel'
 import TrashPanel from './ui/TrashPanel'
-import SettingsPanel from './ui/SettingsPanel'
+import SettingsView from './ui/SettingsView'
 import MoreMenu, { type MenuItem } from './ui/MoreMenu'
 import CommandPalette, { type PaletteCommand } from './ui/CommandPalette'
 import BacklinksPanel from './ui/BacklinksPanel'
@@ -442,6 +442,21 @@ export default function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [flush])
+
+  // 设置界面按 Esc 返回
+  useEffect(() => {
+    if (!settingsOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      // 正在输入框里按 Esc 就不抢，交给输入框自己处理
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      e.preventDefault()
+      setSettingsOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [settingsOpen])
 
   /* ---------------- 文档操作 ---------------- */
   const openDoc = useCallback(
@@ -1009,8 +1024,8 @@ export default function App() {
     {
       key: 'settings',
       icon: '⚙',
-      label: '备份与设置',
-      hint: '字体 / 字号',
+      label: '设置',
+      hint: '外观 / 备份 / 更新',
       onSelect: () => setSettingsOpen(true),
     },
     {
@@ -1034,17 +1049,17 @@ export default function App() {
 
   const paletteCommands: PaletteCommand[] = [
     { id: 'new', title: '新建文档', hint: 'Ctrl+N', icon: '＋', run: () => void createNew() },
-    { id: 'ask', title: '问这篇文档（AI）', hint: 'Ctrl+Shift+A', icon: '✦', run: () => setChatOpen(true) },
+    { id: 'ask', title: 'AI 问答', hint: 'Ctrl+Shift+A', icon: '✦', run: () => setChatOpen(true) },
     { id: 'write', title: '切到写作视图', icon: '✎', run: () => switchView('write') },
     { id: 'map', title: '切到思维导图', icon: '◈', run: () => switchView('mindmap') },
     { id: 'export-md', title: '导出 Markdown', hint: '.md', icon: '⇩', run: exportMd },
-    { id: 'export-html', title: '导出 HTML（单文件）', hint: '.html', icon: '⇩', run: exportHtml },
+    { id: 'export-html', title: '导出单文件 HTML', hint: '.html', icon: '⇩', run: exportHtml },
     { id: 'export-pdf', title: '导出 PDF', hint: '系统打印', icon: '⎙', run: exportPdf },
     { id: 'export-json', title: '导出 JSON', hint: '.json', icon: '⇩', run: exportJson },
     { id: 'import', title: '从文件夹导入 Markdown', icon: '⇧', run: () => void importFolder() },
     { id: 'daily', title: '今天的日记', hint: 'Ctrl+D', icon: '☀', run: () => void dailyNote() },
-    { id: 'reading', title: '阅读模式（只读通读）', hint: 'F9', icon: '▤', run: toggleReading },
-    { id: 'zen', title: '禅模式（全屏沉浸）', hint: 'F11', icon: '⛶', run: toggleZen },
+    { id: 'reading', title: '阅读模式', hint: 'F9', icon: '▤', run: toggleReading },
+    { id: 'zen', title: '禅模式', hint: 'F11', icon: '⛶', run: toggleZen },
     {
       id: 'comments',
       title: '批注',
@@ -1052,7 +1067,7 @@ export default function App() {
       icon: '❝',
       run: () => setCommentsOpen(true),
     },
-    { id: 'richcopy', title: '复制为富文本（含格式）', icon: '⧉', run: () => void copyRichText() },
+    { id: 'richcopy', title: '复制为富文本', icon: '⧉', run: () => void copyRichText() },
     {
       id: 'theme',
       title: '切换亮色 / 暗色主题',
@@ -1065,12 +1080,12 @@ export default function App() {
     { id: 'quick', title: '快捷便签', hint: 'Ctrl+Space', icon: '✎', run: () => void openQuickNote() },
     {
       id: 'sticky',
-      title: '把这篇钉到桌面（磁贴）',
+      title: '钉到桌面',
       icon: '📌',
       run: () => void pinToDesktop(),
     },
     { id: 'trash', title: '打开回收站', icon: '🗑', run: () => setTrashOpen(true) },
-    { id: 'settings', title: '备份与设置', icon: '⚙', run: () => setSettingsOpen(true) },
+    { id: 'settings', title: '设置', icon: '⚙', run: () => setSettingsOpen(true) },
     { id: 'shortcuts', title: '快捷键一览', hint: 'Ctrl+/', icon: '⌘', run: () => setShortcutsOpen(true) },
     { id: 'reveal', title: '在资源管理器里打开文档仓库', icon: '🗀', run: () => void storage.reveal() },
   ]
@@ -1105,7 +1120,7 @@ export default function App() {
       <ToastHost />
       {zen && <div className="zen-hint">F11 退出禅模式</div>}
       {reading && (
-        <button className="reading-badge" onClick={toggleReading} title="退出阅读模式（F9）">
+        <button className="reading-badge" onClick={toggleReading} title="退出阅读模式 · F9">
           阅读模式 · 点这里退出
         </button>
       )}
@@ -1114,22 +1129,6 @@ export default function App() {
         open={trashOpen}
         onClose={() => setTrashOpen(false)}
         onChanged={() => void refreshDocs()}
-      />
-      <SettingsPanel
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        prose={prose}
-        onProse={setProse}
-        aiEnabled={aiEnabled}
-        onAiEnabled={setAiEnabled}
-        aiDelay={aiDelay}
-        onAiDelay={setAiDelay}
-        goal={dailyGoal}
-        onGoal={setDailyGoal}
-        desk={desk}
-        onDesk={applyDesk}
-        autostart={autostart}
-        onAutostart={applyAutostart}
       />
       <QuickCapture
         open={quickOpen}
@@ -1159,7 +1158,7 @@ export default function App() {
         {vaultMode && (
           <button
             className="btn ghost icon"
-            title={`文档仓库：${vaultLabel}（点击打开文件夹）`}
+            title={`文档仓库：${vaultLabel} · 点击打开文件夹`}
             onClick={() => void storage.reveal()}
           >
             🗀
@@ -1177,19 +1176,19 @@ export default function App() {
         <button
           className="btn ghost icon"
           onClick={() => void openQuickNote()}
-          title="快捷便签（Ctrl+Space）"
+          title="快捷便签 · Ctrl+Space"
         >
           ✎
         </button>
         <button
           className="btn ghost icon"
           onClick={() => void pinToDesktop()}
-          title="钉到桌面（磁贴）"
+          title="钉到桌面"
           disabled={!doc}
         >
           📌
         </button>
-        <MoreMenu items={moreItems} title="更多（导出 / 历史 / 外观 / 快捷键）" />
+        <MoreMenu items={moreItems} title="更多操作" />
       </div>
 
       <div className="body">
@@ -1210,7 +1209,23 @@ export default function App() {
         />
 
         <div className="main">
-          {!ready ? null : !doc ? (
+          {settingsOpen ? (
+            <SettingsView
+              onClose={() => setSettingsOpen(false)}
+              prose={prose}
+              onProse={setProse}
+              aiEnabled={aiEnabled}
+              onAiEnabled={setAiEnabled}
+              aiDelay={aiDelay}
+              onAiDelay={setAiDelay}
+              goal={dailyGoal}
+              onGoal={setDailyGoal}
+              desk={desk}
+              onDesk={applyDesk}
+              autostart={autostart}
+              onAutostart={applyAutostart}
+            />
+          ) : !ready ? null : !doc ? (
             <div className="welcome">
               <h2>
                 欢迎来到 <em>Quill</em>

@@ -101,10 +101,10 @@ export default function FindBar({ open, editor, onClose }: Props) {
         }}
       />
       <span className="find-count">{query ? `${count ? active + 1 : 0}/${count}` : '—'}</span>
-      <button className="btn ghost icon" onClick={() => jump(-1)} title="上一个（Shift+Enter）">
+      <button className="btn ghost icon" onClick={() => jump(-1)} title="上一个 · Shift+Enter">
         ↑
       </button>
-      <button className="btn ghost icon" onClick={() => jump(1)} title="下一个（Enter）">
+      <button className="btn ghost icon" onClick={() => jump(1)} title="下一个 · Enter">
         ↓
       </button>
       <input
@@ -126,7 +126,7 @@ export default function FindBar({ open, editor, onClose }: Props) {
       <button className="btn" onClick={replaceEvery} disabled={!count}>
         全部
       </button>
-      <button className="btn ghost icon" onClick={onClose} title="关闭（Esc）">
+      <button className="btn ghost icon" onClick={onClose} title="关闭 · Esc">
         ×
       </button>
     </div>

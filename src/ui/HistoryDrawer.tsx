@@ -137,7 +137,7 @@ export default function HistoryDrawer({ file, onClose, onRestored }: Props) {
               </button>
             )}
           </div>
-          <pre className="preview">{preview || '（该版本里还没有这个文件）'}</pre>
+          <pre className="preview">{preview || '该版本里还没有这个文件'}</pre>
         </div>
       )}
     </aside>

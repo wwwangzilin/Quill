@@ -140,7 +140,7 @@ export default function CommandPalette({ docs, commands, onPickDoc }: Props) {
             ref={inputRef}
             className="palette-input"
             value={query}
-            placeholder="搜文档，或者敲个命令……（Ctrl+P）"
+            placeholder="搜索文档或执行命令 · Ctrl+P"
             spellCheck={false}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}

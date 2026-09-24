@@ -92,7 +92,7 @@ export default function CommentsPanel({
           <textarea
             ref={newRef}
             className="comment-input"
-            placeholder="写点什么…（Ctrl+Enter 保存，Esc 取消）"
+            placeholder="写点什么… Ctrl+Enter 保存，Esc 取消"
             value={newText}
             onChange={(e) => setNewText(e.target.value)}
             onKeyDown={(e) => {

@@ -98,7 +98,7 @@ export default function AiChatPanel({ open, title, content, onClose, onInsert }:
       <div className="aichat-head">
         <span className="aichat-title">问这篇文档</span>
         <span className="grow" />
-        <button className="btn ghost icon" onClick={onClose} title="关闭（Esc）">
+        <button className="btn ghost icon" onClick={onClose} title="关闭 · Esc">
           ×
         </button>
       </div>

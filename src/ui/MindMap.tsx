@@ -371,7 +371,7 @@ export default function MindMap({ content, title, onJump }: Props) {
       </svg>
       {!empty && (
         <div className="mm-tools">
-          <button className="btn" onClick={() => void exportImage('png')} title="导出为 PNG（2 倍图）">
+          <button className="btn" onClick={() => void exportImage('png')} title="导出为 PNG · 2 倍图">
             导出 PNG
           </button>
           <button className="btn" onClick={() => void exportImage('svg')} title="导出为矢量 SVG">

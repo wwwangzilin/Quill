@@ -26,10 +26,10 @@ const INTER_CSS = 'https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@5.0.1
 export const FONTS: FontOption[] = [
   {
     id: 'system',
-    name: '默认（系统界面字体）',
+    name: '默认字体',
     stack: 'var(--font-ui)',
     probe: '',
-    hint: '跟着系统走，最稳当',
+    hint: '跟随系统界面字体，兼容性最好',
   },
   {
     id: 'wenkai',
@@ -37,15 +37,15 @@ export const FONTS: FontOption[] = [
     stack: '"LXGW WenKai Lite", "LXGW WenKai", "LXGW WenKai Screen", var(--font-ui)',
     probe: '"LXGW WenKai Lite"',
     cdn: WENKAI_CSS,
-    hint: '楷体笔意，长文读着舒服。首次选用会按需取字形（只下用到的字）',
+    hint: '楷体笔意，适合长文阅读。首次选用会按需加载字形，只下载用到的字',
   },
   {
     id: 'inter',
-    name: 'Inter（西文 + 数字）',
+    name: 'Inter',
     stack: '"Inter Variable", "Inter var", "Inter", var(--font-ui)',
     probe: '"Inter Variable"',
     cdn: INTER_CSS,
-    hint: '西文和数字更利落，中文自动回退',
+    hint: '西文与数字更利落，中文自动回退',
   },
   {
     id: 'yahei',
@@ -63,10 +63,10 @@ export const FONTS: FontOption[] = [
   },
   {
     id: 'songti',
-    name: '宋体（衬线）',
+    name: '宋体',
     stack: '"Songti SC", SimSun, "Noto Serif SC", serif',
     probe: 'SimSun',
-    hint: '端端正正的印刷味',
+    hint: '衬线字体，端端正正的印刷味',
   },
   {
     id: 'kaiti',
@@ -77,10 +77,10 @@ export const FONTS: FontOption[] = [
   },
   {
     id: 'mono',
-    name: '等宽（JetBrains Mono）',
+    name: 'JetBrains Mono',
     stack: 'var(--font-mono)',
     probe: '"JetBrains Mono"',
-    hint: '写代码笔记用',
+    hint: '等宽字体，适合写代码笔记',
   },
 ]
 

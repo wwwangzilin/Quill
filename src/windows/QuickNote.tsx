@@ -94,7 +94,7 @@ export default function QuickNote() {
       <div className="qn-bar" data-tauri-drag-region>
         <span className="qn-title">快捷便签</span>
         <span className="grow" />
-        <button className="qn-x" onClick={() => void closeSelf()} title="关闭（Esc）">
+        <button className="qn-x" onClick={() => void closeSelf()} title="关闭 · Esc">
           ×
         </button>
       </div>
