@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { docToMarkdown } from './markdown'
-import { markdownToDoc, splitTitle } from './md-parse'
+import { parseDocument } from './md-parse'
 import type { Comment } from './comments'
 import type { CommitInfo, DocStorage, RemoteInfo, TrashItem } from './storage'
 import { emptyContent, type Doc, type DocMeta } from './types'
@@ -68,7 +68,9 @@ export const vaultStorage: DocStorage = {
 
   async get(id) {
     const md = await invoke<string>('read_doc', { file: id })
-    const { title, body } = splitTitle(md)
+    // 一次到位：标题和 frontmatter 都从 parseDocument 出。
+    // 分成 splitTitle + markdownToDoc 两步的话，元数据会在第一步被剥掉。
+    const { title, doc } = parseDocument(md)
     const entry = await findEntry(id)
     return {
       id,
@@ -76,7 +78,7 @@ export const vaultStorage: DocStorage = {
       createdAt: entry?.created ?? Date.now(),
       updatedAt: entry?.updated ?? Date.now(),
       starred: entry?.starred ?? false,
-      content: markdownToDoc(body),
+      content: doc,
     }
   },
 

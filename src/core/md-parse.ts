@@ -419,13 +419,31 @@ export function splitTitle(md: string): { title: string; body: string } {
   return { title: m[1].trim(), body: text.slice(m[0].length) }
 }
 
-export function markdownToDoc(md: string): JSONContent {
-  const { yaml, body } = splitFrontmatter(md)
+/** 正文 + 元数据 → 文档体 */
+function bodyToDoc(body: string, yaml: string | null): JSONContent {
   const nodes = parseBlocks(body.replace(/\r\n?/g, '\n').split('\n'))
   // 元数据放在最前，且必须进文档 —— 不然保存一次就没了
   if (yaml !== null) nodes.unshift({ type: 'frontmatter', attrs: { yaml } })
   if (!nodes.length) nodes.push({ type: 'paragraph' })
   return { type: 'doc', content: nodes }
+}
+
+export function markdownToDoc(md: string): JSONContent {
+  const { yaml, body } = splitFrontmatter(md)
+  return bodyToDoc(body, yaml)
+}
+
+/**
+ * 存储层读盘用的一次到位解析。
+ *
+ * 不要再写成 splitTitle + markdownToDoc 两步走：splitTitle 内部会剥掉 frontmatter，
+ * 剥完再交给 markdownToDoc，元数据就永远没机会进文档 —— 打开一次保存一次，
+ * 用户写的 tags / date / 模板变量就全没了。
+ */
+export function parseDocument(md: string): { title: string; doc: JSONContent } {
+  const { yaml, body } = splitFrontmatter(md)
+  const { title, body: rest } = splitTitle(body)
+  return { title, doc: bodyToDoc(rest, yaml) }
 }
 
 export { indentOf }
