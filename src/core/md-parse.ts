@@ -230,11 +230,37 @@ function parseBlocks(lines: string[]): JSONContent[] {
       continue
     }
 
+    // Setext 标题：正文行 + 下一行整行等号（H1）或减号（H2）。
+    // 必须在 RULE 之前判断，否则「标题」加「---」会被拆成「段落 + 分隔线」，
+    // 而 CommonMark 里那本来就是二级标题。
+    if (
+      i + 1 < lines.length &&
+      !isBlockStart(line) &&
+      !/^(?: {4}|\t)/.test(line) &&
+      /^\s*(?:={2,}|-{2,})\s*$/.test(lines[i + 1])
+    ) {
+      out.push({
+        type: 'heading',
+        attrs: { level: /^\s*={2,}\s*$/.test(lines[i + 1]) ? 1 : 2 },
+        content: inline(line.trim()),
+      })
+      i += 2
+      continue
+    }
+
     if (FENCE.test(line)) {
-      const lang = line.replace(FENCE, '').trim()
+      // 围栏长度必须配对：用 ```` 开的块只能被 4 个及以上的反引号关掉。
+      // 否则内容里只要出现 ``` 就会被当成结束标记，块被提前截断、内容直接坏掉。
+      const open = /^\s*(`{3,}|~{3,})/.exec(line)
+      const fenceChar = open ? open[1][0] : '`'
+      const fenceLen = open ? open[1].length : 3
+      const close = new RegExp(
+        '^\\s*' + (fenceChar === '`' ? '`' : '~') + '{' + fenceLen + ',}\\s*$',
+      )
+      const lang = line.replace(/^\s*(?:`{3,}|~{3,})/, '').trim()
       const buf: string[] = []
       i += 1
-      while (i < lines.length && !FENCE.test(lines[i])) {
+      while (i < lines.length && !close.test(lines[i])) {
         buf.push(lines[i])
         i += 1
       }
@@ -308,7 +334,7 @@ function parseBlocks(lines: string[]): JSONContent[] {
     if (heading) {
       out.push({
         type: 'heading',
-        attrs: { level: Math.min(3, heading[1].length) },
+        attrs: { level: Math.min(6, heading[1].length) },
         content: inline(heading[2]),
       })
       i += 1
@@ -332,8 +358,29 @@ function parseBlocks(lines: string[]): JSONContent[] {
       continue
     }
 
+    // 缩进式代码块：CommonMark 的另一种写法，4 个空格或 1 个制表符。
+    // 必须排在 LIST 之后判断，否则「缩进的列表项」会被误当成代码。
+    if (/^(?: {4}|\t)/.test(line)) {
+      const buf: string[] = []
+      while (i < lines.length && /^(?: {4}|\t)/.test(lines[i])) {
+        buf.push(lines[i].replace(/^(?: {4}|\t)/, ''))
+        i += 1
+      }
+      out.push({
+        type: 'codeBlock',
+        attrs: { language: null },
+        content: buf.length ? [{ type: 'text', text: buf.join('\n') }] : [],
+      })
+      continue
+    }
+
     const buf: string[] = []
-    while (i < lines.length && lines[i].trim() && !isBlockStart(lines[i])) {
+    while (
+      i < lines.length &&
+      lines[i].trim() &&
+      !isBlockStart(lines[i]) &&
+      !/^(?: {4}|\t)/.test(lines[i])
+    ) {
       buf.push(lines[i])
       i += 1
     }
@@ -345,13 +392,23 @@ function parseBlocks(lines: string[]): JSONContent[] {
 
 /* ----------------------------- 入口 ----------------------------- */
 
-/** 去掉 YAML frontmatter（外部编辑器可能加），返回正文 */
+/**
+ * 拆出 YAML frontmatter。
+ *
+ * 以前这里是「剥掉就扔」——用户在 Obsidian / Hugo / Jekyll 里写的元数据，
+ * 只要被 Quill 打开过一次保存，就永久消失。现在改成拆出来交给 frontmatter 节点
+ * 原样保存、原样写回，正文照旧不受它影响。
+ */
+export function splitFrontmatter(md: string): { yaml: string | null; body: string } {
+  if (!md.startsWith('---')) return { yaml: null, body: md }
+  const m = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(md)
+  if (!m) return { yaml: null, body: md }
+  return { yaml: m[1], body: md.slice(m[0].length) }
+}
+
+/** 只要正文：标题识别等场景用不到元数据 */
 export function stripFrontmatter(md: string): string {
-  if (!md.startsWith('---')) return md
-  const end = md.indexOf('\n---', 3)
-  if (end === -1) return md
-  const after = md.indexOf('\n', end + 1)
-  return after === -1 ? '' : md.slice(after + 1)
+  return splitFrontmatter(md).body
 }
 
 /** 文档首行的 H1 当作标题，正文里就不重复显示了 */
@@ -363,7 +420,10 @@ export function splitTitle(md: string): { title: string; body: string } {
 }
 
 export function markdownToDoc(md: string): JSONContent {
-  const nodes = parseBlocks(stripFrontmatter(md).replace(/\r\n?/g, '\n').split('\n'))
+  const { yaml, body } = splitFrontmatter(md)
+  const nodes = parseBlocks(body.replace(/\r\n?/g, '\n').split('\n'))
+  // 元数据放在最前，且必须进文档 —— 不然保存一次就没了
+  if (yaml !== null) nodes.unshift({ type: 'frontmatter', attrs: { yaml } })
   if (!nodes.length) nodes.push({ type: 'paragraph' })
   return { type: 'doc', content: nodes }
 }

@@ -2868,6 +2868,41 @@ body.quill-dragging * {
   border-color: var(--accent-1);
 }
 
+/* ---------- YAML frontmatter ---------- */
+/*
+ * 外部编辑器（Obsidian / Hugo / Jekyll）写在文件头的元数据。
+ * 它不属于正文，但必须让人一眼看见「它还在」，所以做成低调的等宽灰块，
+ * 不抢正文注意力，也不参与正文排版。
+ */
+.ProseMirror .md-frontmatter {
+  margin: 0 0 1.4em;
+  padding: 10px 14px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: #9a948c;
+  background: rgba(255, 255, 255, 0.028);
+  border-left: 2px solid rgba(255, 255, 255, 0.13);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.ProseMirror .md-frontmatter::before {
+  content: 'YAML 元数据 · 原样保留';
+  display: block;
+  margin-bottom: 6px;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #6f6a63;
+}
+
+.ProseMirror .md-frontmatter.ProseMirror-selectednode {
+  border-left-color: var(--accent-1, #7c6cff);
+  background: rgba(124, 108, 255, 0.08);
+}
+
 /* ---------- 打印 / 导出 PDF ---------- */
 /*
  * 导出 PDF 走系统打印（打印机里选 Microsoft Print to PDF）。

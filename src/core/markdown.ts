@@ -58,7 +58,14 @@ function block(node: JSONContent, depth: number): string {
       return '#'.repeat(lv) + ' ' + inline(node)
     }
     case 'blockquote': {
-      const inner = (node.content ?? []).map((c) => block(c, 0)).join('\n\n')
+      const kids = node.content ?? []
+      // 嵌套引用要紧贴着上一块写：`> 外层` 换行 `> > 内层`。
+      // 中间插空行的话，序列化出来会多一个空的 `>` 行，改一次文件就多一行。
+      let inner = ''
+      kids.forEach((c, idx) => {
+        if (idx > 0) inner += c.type === 'blockquote' ? '\n' : '\n\n'
+        inner += block(c, 0)
+      })
       return inner
         .split('\n')
         .map((l) => (l ? '> ' + l : '>'))
@@ -67,10 +74,21 @@ function block(node: JSONContent, depth: number): string {
     case 'codeBlock': {
       const lang = String(node.attrs?.language ?? '')
       const code = (node.content ?? []).map((c) => c.text ?? '').join('')
-      return '```' + lang + '\n' + code + '\n```'
+      // 内容里若本身带围栏，自己就得用更长的围栏包起来（CommonMark 允许任意长度），
+      // 不然写出去的 .md 会把代码块从中间截断。
+      const runs = code.match(/`{3,}/g)
+      const fence = runs
+        ? '`'.repeat(Math.max(3, Math.max(...runs.map((r) => r.length)) + 1))
+        : '```'
+      return fence + lang + '\n' + code + '\n' + fence
     }
     case 'horizontalRule':
       return '---'
+    case 'frontmatter': {
+      // YAML 元数据原样写回，不参与正文排版
+      const yaml = String(node.attrs?.yaml ?? '')
+      return '---\n' + yaml + '\n---'
+    }
     case 'table': {
       const rows = node.content ?? []
       if (!rows.length) return ''
@@ -141,13 +159,17 @@ function listItem(item: JSONContent, depth: number, marker: string): string {
 /** 整篇文档 → markdown 全文 */
 export function docToMarkdown(content: JSONContent | undefined, title?: string): string {
   const nodes = content?.content ?? []
-  const body = nodes
+  // frontmatter 必须待在文件最开头，且在标题之前 —— 只有第一行就是 --- 才会被认出来
+  const fm = nodes.filter((n) => n.type === 'frontmatter')
+  const rest = nodes.filter((n) => n.type !== 'frontmatter')
+  const body = rest
     .map((n) => block(n, 0))
     .join('\n\n')
     .replace(/\n{3,}/g, '\n\n')
     .trimEnd()
   const head = title && title.trim() ? `# ${title.trim()}\n\n` : ''
-  return head + body + '\n'
+  const meta = fm.length ? fm.map((n) => block(n, 0)).join('\n') + '\n\n' : ''
+  return meta + head + body + '\n'
 }
 
 /** 文件名安全化（Windows 非法字符 + 长度限制） */

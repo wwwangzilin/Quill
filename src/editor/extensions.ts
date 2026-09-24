@@ -1,4 +1,4 @@
-import { Extension, mergeAttributes } from '@tiptap/core'
+import { Extension, Node, mergeAttributes } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TaskList from '@tiptap/extension-task-list'
@@ -287,12 +287,52 @@ const AssetImage = Image.extend({
   },
 })
 
+/**
+ * YAML frontmatter 块。
+ *
+ * 外部编辑器（Obsidian / Hugo / Jekyll / Quartz）习惯在文件头放元数据。
+ * 它不参与正文排版，但**一个字都不能丢** —— 丢掉等于把用户的 tags、日期、
+ * 模板变量全抹了。所以做成原子块：原样显示、原样写回，编辑器不去改它。
+ */
+export const Frontmatter = Node.create({
+  name: 'frontmatter',
+  group: 'block',
+  atom: true,
+  selectable: true,
+
+  addAttributes() {
+    return {
+      yaml: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-yaml') ?? el.textContent ?? '',
+        renderHTML: () => ({}),
+      },
+    }
+  },
+
+  parseHTML() {
+    return [{ tag: 'pre[data-frontmatter]' }]
+  },
+
+  renderHTML({ node }) {
+    return [
+      'pre',
+      {
+        'data-frontmatter': '',
+        'data-yaml': String(node.attrs.yaml ?? ''),
+        class: 'md-frontmatter',
+      },
+      String(node.attrs.yaml ?? ''),
+    ]
+  },
+})
+
 export function buildExtensions(placeholder: string) {
   return [
     // 放最前面：Tab 要优先被「接受续写建议」截走，没建议时才轮到缩进
     AiComplete,
     StarterKit.configure({
-      heading: { levels: [1, 2, 3] },
+      heading: { levels: [1, 2, 3, 4, 5, 6] },
       // 用带语法高亮的代码块替换掉自带的
       codeBlock: false,
     }),
@@ -312,6 +352,8 @@ export function buildExtensions(placeholder: string) {
     BlockGutter,
     AssetImage.configure({ inline: false, allowBase64: false }),
     Video,
+    // YAML 元数据：外部编辑器写的，原样保留不许丢
+    Frontmatter,
     // 批注底纹：纯 decoration，不进文档数据
     CommentMarks,
   ]
