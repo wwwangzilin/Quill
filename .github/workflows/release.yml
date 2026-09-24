@@ -86,6 +86,17 @@ jobs:
         shell: pwsh
         run: |
           $ver = "${{ steps.ver.outputs.version }}"
+          # 出问题时先把「到底产出了什么」摊开，省得一遍遍猜
+          Write-Host '--- 诊断：bundle 目录 ---'
+          Get-ChildItem -Recurse -File src-tauri/target/release/bundle -ErrorAction SilentlyContinue |
+            Select-Object FullName, Length | Format-Table -AutoSize
+          Write-Host '--- 诊断：release 根目录的 exe ---'
+          Get-ChildItem -File src-tauri/target/release/*.exe -ErrorAction SilentlyContinue |
+            Select-Object Name, Length | Format-Table -AutoSize
+          Write-Host '--- 诊断：签名环境变量 ---'
+          Write-Host "KEY 字符数: $($env:TAURI_SIGNING_PRIVATE_KEY.Length)"
+          Write-Host "PWD 字符数: $($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD.Length)"
+
           New-Item -ItemType Directory -Force -Path out | Out-Null
           # 产物统一改成英文名：GitHub 会静默吞掉附件名里的非 ASCII 字符
           Copy-Item src-tauri/target/release/quill.exe "out/Quill_${ver}_portable.exe"
