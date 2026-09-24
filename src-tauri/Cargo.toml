@@ -24,6 +24,10 @@ tauri-plugin-log = "2"
 tauri-plugin-global-shortcut = "2"
 # 开机自启：Windows 下就是往 HKCU\...\Run 写一条，交给插件省得自己碰注册表
 tauri-plugin-autostart = "2"
+# 自动更新：从 GitHub Release 拉 latest.json，校验 minisign 签名之后才装
+tauri-plugin-updater = "2"
+# 更新装完重启自己
+tauri-plugin-process = "2"
 # AI 续写：走兼容 OpenAI 的 /chat/completions。
 # tauri 自己就依赖 reqwest，版本对齐到同一个大版本，省一份重复编译。
 reqwest = { version = "0.13", features = ["json", "stream"] }

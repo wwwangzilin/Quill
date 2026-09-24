@@ -75,7 +75,11 @@ jobs:
       - name: 核心逻辑断言
         run: node test-core.mjs
 
-      - name: 构建桌面应用（含 NSIS 安装包）
+      - name: 构建桌面应用（含 NSIS 安装包 + 签名更新包）
+        # 自动更新的包必须签名：公钥在 tauri.conf.json 里，私钥只存在 Secrets
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build
 
       - name: 收集产物
@@ -88,6 +92,17 @@ jobs:
           $setup = Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
           if (-not $setup) { Write-Error 'NSIS 安装包没生成'; exit 1 }
           Copy-Item $setup.FullName "out/Quill_${ver}_x64-setup.exe"
+
+          # 自动更新用的是 NSIS 的 zip 包 + 它的 minisign 签名
+          $zip = Get-ChildItem src-tauri/target/release/bundle/nsis/*.nsis.zip | Select-Object -First 1
+          if (-not $zip) { Write-Error '没找到 .nsis.zip —— 检查 tauri.conf.json 里 updater.active 是不是 true'; exit 1 }
+          Copy-Item $zip.FullName "out/Quill_${ver}_x64-setup.nsis.zip"
+          $sig = "$($zip.FullName).sig"
+          if (-not (Test-Path $sig)) {
+            Write-Error '更新包没有签名 —— 检查 TAURI_SIGNING_PRIVATE_KEY 这个 Secret 配了没'
+            exit 1
+          }
+          Copy-Item $sig "out/Quill_${ver}_x64-setup.nsis.zip.sig"
           Get-ChildItem out | Select-Object Name, Length
 
       - name: 生成更新说明
@@ -124,11 +139,38 @@ jobs:
           Set-Content -Path release-notes.md -Value $notes -Encoding utf8
           Get-Content release-notes.md | Select-Object -First 6
 
+      - name: 生成更新清单 latest.json
+        shell: pwsh
+        run: |
+          $ver  = "${{ steps.ver.outputs.version }}"
+          $tag  = "${{ steps.ver.outputs.tag }}"
+          $repo = "${{ github.repository }}"
+          $sig  = (Get-Content "out/Quill_${ver}_x64-setup.nsis.zip.sig" -Raw).Trim()
+          $notes = Get-Content release-notes.md -Raw
+          $manifest = [ordered]@{
+            version  = $ver
+            notes    = $notes
+            pub_date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            platforms = [ordered]@{
+              'windows-x86_64' = [ordered]@{
+                signature = $sig
+                url = "https://github.com/$repo/releases/download/$tag/Quill_${ver}_x64-setup.nsis.zip"
+              }
+            }
+          }
+          # 客户端就认这个文件：/releases/latest/download/latest.json
+          $manifest | ConvertTo-Json -Depth 6 | Set-Content -Path latest.json -Encoding utf8
+          Write-Host "latest.json 的 version = $ver"
+          Get-Content latest.json | Select-Object -First 6
+
       - name: 上传构建产物（Actions 页可直接下载）
         uses: actions/upload-artifact@v4
         with:
           name: quill-windows-${{ steps.ver.outputs.version }}
-          path: out/*.exe
+          path: |
+            out/*.exe
+            out/*.nsis.zip
+            latest.json
           if-no-files-found: error
 
       - name: 发布 Release
@@ -138,4 +180,7 @@ jobs:
           name: Quill ${{ steps.ver.outputs.tag }}
           prerelease: ${{ steps.ver.outputs.prerelease }}
           body_path: release-notes.md
-          files: out/*.exe
+          files: |
+            out/*.exe
+            out/*.nsis.zip
+            latest.json

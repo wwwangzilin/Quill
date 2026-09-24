@@ -440,6 +440,9 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        // 自动更新：更新包必须带 minisign 签名，验不过就直接拒绝装
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(

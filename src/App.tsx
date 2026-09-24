@@ -17,6 +17,7 @@ import AiChatPanel from './ui/AiChatPanel'
 import QuickCapture from './ui/QuickCapture'
 import CommentsPanel from './ui/CommentsPanel'
 import { locate, type Comment } from './core/comments'
+import { checkUpdate } from './core/update'
 import { applyComments, onCommentPick } from './editor/commentMark'
 import { TEMPLATES } from './core/templates'
 import { openQuickNote, openSticky } from './core/windows'
@@ -403,6 +404,27 @@ export default function App() {
       setCommentsOpen(true)
     })
     return () => onCommentPick(null)
+  }, [])
+
+  /* ---------------- 自动更新 ---------------- */
+
+  /**
+   * 启动后静默查一次有没有新版：有才提示，查不到（没网、代理拦了）就当无事发生。
+   * 延迟 8 秒是别跟界面初始化抢那点启动时间。
+   */
+  useEffect(() => {
+    if (!isDesktop()) return
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const info = await checkUpdate()
+          if (info) toast.info(`有新版本 ${info.version}`, '在「设置 → 关于」里可以更新')
+        } catch {
+          /* 静默：网络不通不该打扰写作 */
+        }
+      })()
+    }, 8000)
+    return () => window.clearTimeout(timer)
   }, [])
 
   useEffect(() => {

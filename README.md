@@ -176,6 +176,22 @@ git push origin v0.2.0
 - 不带后缀（`v0.2.0`）→ 正式版
 - 补发 / 重发：在 Actions 页手动触发 Release，填 tag 名即可（tag 不存在会基于当前分支创建）
 
+## 自动更新
+
+应用启动 8 秒后**静默查一次**有没有新版本，有就弹提示；也可以手动在「设置 → 关于」里查、下载、安装，装完自动重启。
+
+**更新包是签名的**（minisign）：公钥写在 `src-tauri/tauri.conf.json` 里，私钥只存在于 CI 的 GitHub Secrets（`TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD`）。**验签不过直接拒绝安装** —— 就算更新源被换掉，也塞不进假包。
+
+发布时 CI 会自动做这些：`pnpm tauri build` 顺带产出 `.nsis.zip` 与 `.sig`，再生成 `latest.json` 一起传到 Release。客户端认的就是 Release 上这个文件：
+
+```
+https://github.com/<owner>/<repo>/releases/latest/download/latest.json
+```
+
+> **只在正式版生效**：带 `-` 后缀的 pre-release 不会成为 `latest`，所以开发版不会自动推给用户。
+
+⚠️ **私钥在 `%USERPROFILE%\.tauri\quill-updater.key`**：丢了就再也签不了更新包（只能换公钥、重发一版，老版本收不到更新）。跟密码一起备份好。
+
 ## 验收
 
 全部用 CDP 驱动无头 Edge 跑真实断言，而不是人肉点点看：

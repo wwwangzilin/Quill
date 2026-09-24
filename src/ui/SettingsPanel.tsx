@@ -9,6 +9,7 @@ import {
 } from '../core/fonts'
 import { AI_DEFAULTS, aiAvailable, aiSave, aiStatus, aiStream, type AiStatus } from '../core/ai'
 import { isDesktop, type DesktopPrefs } from '../core/desktop'
+import { checkUpdate, currentVersion, installUpdate, type UpdateInfo } from '../core/update'
 import { toast } from './toast'
 
 interface Props {
@@ -52,6 +53,49 @@ export default function SettingsPanel({
   const [info, setInfo] = useState<RemoteInfo | null>(null)
   const [busy, setBusy] = useState(false)
   const [log, setLog] = useState('')
+
+  /* ---- 自动更新 ---- */
+  const [version, setVersion] = useState('')
+  const [checking, setChecking] = useState(false)
+  const [update, setUpdate] = useState<UpdateInfo | null>(null)
+  const [installing, setInstalling] = useState(false)
+  const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
+    if (!open) return
+    void currentVersion()
+      .then(setVersion)
+      .catch(() => {})
+  }, [open])
+
+  const doCheck = async () => {
+    setChecking(true)
+    try {
+      const info = await checkUpdate()
+      setUpdate(info)
+      if (info) toast.info(`发现新版本 ${info.version}`, '可以下载安装')
+      else toast.success('已经是最新版', version ? `当前 ${version}` : '')
+    } catch (err) {
+      // 网络不通、代理拦了都会走到这儿 —— 如实说，别假装"已是最新"
+      toast.error('检查更新失败', String(err).slice(0, 140))
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  const doInstall = async () => {
+    setInstalling(true)
+    setProgress(0)
+    try {
+      await installUpdate((done, total) => {
+        setProgress(total > 0 ? Math.round((done / total) * 100) : 0)
+      })
+      // 装完会 relaunch，走不到这儿
+    } catch (err) {
+      toast.error('安装更新失败', String(err).slice(0, 140))
+      setInstalling(false)
+    }
+  }
 
   // AI 续写
   const [ai, setAi] = useState<AiStatus | null>(null)
@@ -191,6 +235,36 @@ export default function SettingsPanel({
         </div>
 
         <div className="modal-body">
+          <div className="sc-group">
+            <div className="sc-title">关于</div>
+            <div className="sc-row">
+              <span>
+                当前版本
+                <div className="hint">{version || '读取中…'}</div>
+              </span>
+              <button className="btn" disabled={checking} onClick={() => void doCheck()}>
+                {checking ? '检查中…' : '检查更新'}
+              </button>
+            </div>
+            {update && (
+              <div className="update-card">
+                <div className="update-head">
+                  有新版本 <b>{update.version}</b>
+                  <span className="grow" />
+                  <button className="btn primary" disabled={installing} onClick={() => void doInstall()}>
+                    {installing ? '下载中…' : '下载并安装'}
+                  </button>
+                </div>
+                {installing && (
+                  <div className="update-bar">
+                    <span style={{ width: `${progress}%` }} />
+                  </div>
+                )}
+                {update.notes && <div className="update-notes">{update.notes}</div>}
+              </div>
+            )}
+          </div>
+
           {isDesktop() && (
             <div className="sc-group">
               <div className="sc-title">桌面</div>

@@ -3281,3 +3281,43 @@ body.quill-dragging * {
   animation: mask-in 0.5s var(--ease-out) both;
 }
 
+/* ---------- 设置面板里的「检查更新」卡片 ---------- */
+
+.update-card {
+  margin-top: 10px;
+  padding: 11px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--accent-soft);
+}
+.update-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.update-bar {
+  margin-top: 9px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-active);
+  overflow: hidden;
+}
+.update-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--grad);
+  transition: width 0.25s var(--ease);
+}
+.update-notes {
+  margin-top: 9px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 11.5px;
+  line-height: 1.8;
+  color: var(--text-2);
+  white-space: pre-wrap;
+}
+

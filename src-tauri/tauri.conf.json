@@ -31,6 +31,18 @@
       }
     }
   },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/wwwangzilin/Quill/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk3Nzk4RUZEMEU2N0UxQ0IKUldUTDRXY08vWTU1bHdhNE1tZHZvTlFYN2Z1eHpYQlJFbkFFeFNRanFtL2tWMkpGcXZSU2piKzQK",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": ["nsis"],
