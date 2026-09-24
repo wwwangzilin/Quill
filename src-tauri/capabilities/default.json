@@ -3,5 +3,9 @@
   "identifier": "default",
   "description": "所有窗口（主窗口 / 快捷便签 / 桌面磁贴）共用这套权限",
   "windows": ["*"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen"
+  ]
 }

@@ -167,6 +167,8 @@ export default function App() {
   const [sessionKey, setSessionKey] = useState(0)
   /** 阅读模式：只读、收起干扰，用来回头通读 */
   const [reading, setReading] = useState(false)
+  /** 禅模式：窗口真全屏 + 藏掉整个界面，只剩正文（F11） */
+  const [zen, setZen] = useState(false)
   /** 桌面行为偏好（托盘 / 自启 / 自动同步）—— 存在 Rust 侧，因为托盘事件发生在前端之外 */
   const [desk, setDesk] = useState<DesktopPrefs>(DEFAULT_PREFS)
   /** 开机自启是系统里的事实，不是我们的设置，所以单独读一次 */
@@ -528,6 +530,64 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [toggleReading])
 
+  /* ---------------- 禅模式（F11） ---------------- */
+
+  const zenRef = useRef(false)
+  useEffect(() => {
+    zenRef.current = zen
+  }, [zen])
+
+  /**
+   * 禅模式：窗口切真全屏 + 藏掉标题栏 / 侧栏 / 状态栏，只剩正文。
+   * 全屏失败（被系统拒、浏览器没权限）也不影响 —— 界面该隐的还是隐。
+   */
+  const toggleZen = useCallback(() => {
+    const next = !zenRef.current
+    setZen(next)
+    void (async () => {
+      try {
+        if (isDesktop()) {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window')
+          await getCurrentWindow().setFullscreen(next)
+        } else if (next) {
+          await document.documentElement.requestFullscreen()
+        } else if (document.fullscreenElement) {
+          await document.exitFullscreen()
+        }
+      } catch {
+        /* 全屏没切成也照常进出禅模式 */
+      }
+    })()
+  }, [])
+
+  // 走捕获阶段：抢在 WebView 自己处理 F11 全屏之前
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'F11') return
+      e.preventDefault()
+      e.stopPropagation()
+      toggleZen()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [toggleZen])
+
+  // 用别的方式退出全屏（Win+↓、Esc、系统快捷键）时，跟着退出禅模式
+  useEffect(() => {
+    if (!zen || !isDesktop()) return
+    const timer = window.setInterval(() => {
+      void (async () => {
+        try {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window')
+          if (!(await getCurrentWindow().isFullscreen())) setZen(false)
+        } catch {
+          /* 取不到就当没变 */
+        }
+      })()
+    }, 1500)
+    return () => window.clearInterval(timer)
+  }, [zen])
+
   const removeDoc = useCallback(
     async (id: string) => {
       const target = docs.find((d) => d.id === id)
@@ -866,6 +926,15 @@ export default function App() {
       onSelect: toggleReading,
     },
     {
+      key: 'zen',
+      icon: '⛶',
+      label: '禅模式',
+      hint: 'F11',
+      on: zen,
+      disabled: view !== 'write',
+      onSelect: toggleZen,
+    },
+    {
       key: 'richcopy',
       icon: '⧉',
       label: '复制为富文本',
@@ -953,6 +1022,7 @@ export default function App() {
     { id: 'import', title: '从文件夹导入 Markdown', icon: '⇧', run: () => void importFolder() },
     { id: 'daily', title: '今天的日记', hint: 'Ctrl+D', icon: '☀', run: () => void dailyNote() },
     { id: 'reading', title: '阅读模式（只读通读）', hint: 'F9', icon: '▤', run: toggleReading },
+    { id: 'zen', title: '禅模式（全屏沉浸）', hint: 'F11', icon: '⛶', run: toggleZen },
     {
       id: 'comments',
       title: '批注',
@@ -1009,8 +1079,9 @@ export default function App() {
   /* ---------------- 渲染 ---------------- */
 
   return (
-    <div className={'app' + (reading ? ' reading' : '')}>
+    <div className={'app' + (reading ? ' reading' : '') + (zen ? ' zen' : '')}>
       <ToastHost />
+      {zen && <div className="zen-hint">F11 退出禅模式</div>}
       {reading && (
         <button className="reading-badge" onClick={toggleReading} title="退出阅读模式（F9）">
           阅读模式 · 点这里退出

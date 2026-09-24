@@ -3235,3 +3235,49 @@ body.quill-dragging * {
   font-size: 11.5px;
 }
 
+/* ============================ 禅模式（F11） ============================ */
+
+/* 藏掉整个界面，只剩正文；窗口本身由 Tauri 切成真全屏 */
+.app.zen .titlebar,
+.app.zen .sidebar,
+.app.zen .backlinks,
+.app.zen .reading-badge {
+  display: none;
+}
+.app.zen .editor-scroll {
+  padding-top: 9vh;
+  padding-bottom: 18vh;
+}
+/* 文档信息与标签平时收起来，鼠标进正文才浮现 —— 不打断沉浸 */
+.app.zen .doc-meta,
+.app.zen .tag-editor {
+  opacity: 0;
+  transition: opacity 0.32s var(--ease);
+}
+.app.zen .editor-inner:hover .doc-meta,
+.app.zen .editor-inner:hover .tag-editor,
+.app.zen .editor-inner:focus-within .tag-editor {
+  opacity: 1;
+}
+/* 禅模式下光标亮一点，好找 */
+.app.zen .ProseMirror {
+  caret-color: var(--accent-1);
+}
+
+.zen-hint {
+  position: fixed;
+  right: 20px;
+  bottom: 16px;
+  z-index: 60;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text-3);
+  font-size: 11.5px;
+  /* 几乎看不见，但需要时扫一眼就有 —— 而且不吃鼠标 */
+  opacity: 0.18;
+  pointer-events: none;
+  animation: mask-in 0.5s var(--ease-out) both;
+}
+
