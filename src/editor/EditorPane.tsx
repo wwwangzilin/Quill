@@ -979,7 +979,12 @@ export default function EditorPane({
       }}
     >
       <div
-        className={'editor-inner' + (switching ? ' doc-switching' : '')}
+        className={
+          'editor-inner' +
+          (switching ? ' doc-switching' : '') +
+          // 一千多个块的大文档才开「跳过视口外排版」，小文档不必担这个风险
+          (stats.blocks > 800 ? ' big-doc' : '')
+        }
         onAnimationEnd={() => setSwitching(false)}
         ref={hostRef}
       >

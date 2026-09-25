@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -162,7 +163,32 @@ pub fn read_meta(dir: &Path) -> VaultMeta {
 
 fn write_meta(dir: &Path, meta: &VaultMeta) -> Result<(), String> {
     let text = serde_json::to_string_pretty(meta).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join(META_FILE), text).map_err(|e| format!("写元数据失败: {e}"))
+    let path = dir.join(META_FILE);
+    // 先写临时文件再改名：`fs::write` 是「截断 + 写」，写到一半被打断就只剩半个 JSON。
+    // 临时文件留在同一目录（同盘才能 rename），写完之后立刻改走，窗口极短。
+    let tmp = dir.join(".quill-meta.json.tmp");
+    std::fs::write(&tmp, text).map_err(|e| format!("写元数据失败: {e}"))?;
+    std::fs::rename(&tmp, &path).map_err(|e| format!("落盘元数据失败: {e}"))
+}
+
+/*
+ * `.quill-meta.json` 里同时住着星标、标签、批注三类东西，而每个写入口都是
+ * 「整体读出来 → 改一个字段 → 整体写回去」。两件事同时发生（一边打标签、
+ * 一边写批注）就会互相覆盖：A 读完还没写，B 也读了一份旧的，B 先写、A 后写，
+ * B 的改动就没了 —— 标签「打着打着就掉」就是这么来的。
+ *
+ * 所以所有写入口都必须在同一把锁里做完整的读-改-写，别再各写各的。
+ */
+static META_LOCK: Mutex<()> = Mutex::new(());
+
+/// 在锁保护下改一次元数据。**所有**写入口都走这里。
+fn edit_meta<T>(dir: &Path, f: impl FnOnce(&mut VaultMeta) -> T) -> Result<T, String> {
+    // 前一个持锁者 panic 过也要能继续用，所以不吃 poison
+    let _guard = META_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let mut meta = read_meta(dir);
+    let out = f(&mut meta);
+    write_meta(dir, &meta)?;
+    Ok(out)
 }
 
 fn commit(dir: &Path, message: &str) -> Option<String> {
@@ -399,12 +425,12 @@ pub fn empty_trash(dir: &Path) -> Result<Option<String>, String> {
 
 pub fn star(dir: &Path, file: &str, starred: bool) -> Result<(), String> {
     let name = safe_name(file)?;
-    let mut meta = read_meta(dir);
-    meta.starred.retain(|f| f != &name);
-    if starred {
-        meta.starred.push(name.clone());
-    }
-    write_meta(dir, &meta)?;
+    edit_meta(dir, |meta| {
+        meta.starred.retain(|f| f != &name);
+        if starred {
+            meta.starred.push(name.clone());
+        }
+    })?;
     let verb = if starred { "收藏" } else { "取消收藏" };
     commit(dir, &format!("{verb}《{}》", name.trim_end_matches(".md")));
     Ok(())
@@ -412,18 +438,18 @@ pub fn star(dir: &Path, file: &str, starred: bool) -> Result<(), String> {
 
 pub fn set_tags(dir: &Path, file: &str, tags: Vec<String>) -> Result<(), String> {
     let name = safe_name(file)?;
-    let mut meta = read_meta(dir);
-    let cleaned: Vec<String> = tags
-        .into_iter()
-        .map(|t| t.trim().to_string())
-        .filter(|t| !t.is_empty())
-        .collect();
-    if cleaned.is_empty() {
-        meta.tags.remove(&name);
-    } else {
-        meta.tags.insert(name.clone(), cleaned);
-    }
-    write_meta(dir, &meta)?;
+    edit_meta(dir, |meta| {
+        let cleaned: Vec<String> = tags
+            .into_iter()
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty())
+            .collect();
+        if cleaned.is_empty() {
+            meta.tags.remove(&name);
+        } else {
+            meta.tags.insert(name.clone(), cleaned);
+        }
+    })?;
     commit(dir, &format!("标签《{}》", name.trim_end_matches(".md")));
     Ok(())
 }
@@ -444,13 +470,13 @@ pub fn comments_of(dir: &Path, file: &str) -> Vec<Comment> {
 /// 整体覆盖某篇文档的批注（批注量小，不值得做增量接口）
 pub fn set_comments(dir: &Path, file: &str, list: Vec<Comment>) -> Result<(), String> {
     let name = safe_name(file)?;
-    let mut meta = read_meta(dir);
-    if list.is_empty() {
-        meta.comments.remove(&name);
-    } else {
-        meta.comments.insert(name.clone(), list);
-    }
-    write_meta(dir, &meta)?;
+    edit_meta(dir, |meta| {
+        if list.is_empty() {
+            meta.comments.remove(&name);
+        } else {
+            meta.comments.insert(name.clone(), list);
+        }
+    })?;
     let _ = commit(dir, &format!("批注《{}》", name.trim_end_matches(".md")));
     Ok(())
 }

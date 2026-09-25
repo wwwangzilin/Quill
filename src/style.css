@@ -1357,6 +1357,18 @@ body,
   transition: background var(--dur-fast) var(--ease);
 }
 
+/* 超大文档（一千多个块）才加的那一类。
+   实测主人那篇小说 50980 字符、**1663 个顶层块** —— 解析只要 2ms，
+   真正贵的是 ProseMirror 给每个块建 DOM 和排版。这条让浏览器跳过视口外
+   那些块的排版与绘制，滚动和重排会明显轻。
+   注意：它管不着「首次打开」时建立 ProseMirror 状态的开销 —— 那得靠分段加载，
+   是另一个量级的改动，先不动。
+   小文档不加：content-visibility 会让 coordsAtPos 这类几何查询偶尔多一次强制布局。 */
+.editor-inner.big-doc .ProseMirror > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
+}
+
 /* ---------- Toast ---------- */
 .toasts {
   position: fixed;
