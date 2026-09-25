@@ -3158,11 +3158,20 @@ body.quill-dragging * {
 
 /* ---------- 正常模式 ⇄ 小说模式 ----------
    只让阅读层淡入的话，看起来是「盖上去」；让底下那一层同时往后缩一点、
-   暗下去，才像「切过去」。两边时长错开一档（0.34 / 0.36），层次更清楚。 */
-.app > *:not(.reader) {
+   暗下去，才像「切过去」。两边时长错开一档（0.34 / 0.36），层次更清楚。
+
+   ⚠️ 下面这条是 * 通配，而 transition 是**简写**、会整个覆盖子元素自己的过渡。
+   必须把顶栏 / 底栏 / 侧栏 / 顶部感应区 / 通知全排除掉：
+   顶栏靠 margin-top 收放、底栏靠 margin-bottom、侧栏靠 margin-left，
+   被这条盖住之后「展开 / 收起」就成了一帧硬切（主人报过一次「动画没了」，就是它）。
+   它们本来就被阅读层盖住，也不需要跟着缩。改这里之前先看 verify-reader 的
+   「顶栏收放没被通配规则覆盖」那两条断言。 */
+.app
+  > *:not(.reader):not(.titlebar):not(.statusbar):not(.sidebar):not(.titlebar-hot):not(.toasts) {
   transition: opacity 0.34s var(--ease-out), scale 0.34s var(--ease-out);
 }
-.app.reader-on > *:not(.reader) {
+.app.reader-on
+  > *:not(.reader):not(.titlebar):not(.statusbar):not(.sidebar):not(.titlebar-hot):not(.toasts) {
   opacity: 0.26;
   scale: 0.986;
 }
