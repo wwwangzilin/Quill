@@ -1305,11 +1305,6 @@ export default function App() {
                 setCommentsOpen(true)
               }}
               />
-              <BacklinksPanel
-                doc={{ id: doc.id, title: doc.title }}
-                docs={docs}
-                onOpen={(id) => void openDoc(id)}
-              />
             </div>
           ) : (
             <div className="pane">
@@ -1377,6 +1372,15 @@ export default function App() {
         )}
 
         <span className="grow" />
+
+        {/* 反向链接并进底栏，点开向上弹出，不再自己占正文底下的一行 */}
+        {doc && (
+          <BacklinksPanel
+            doc={{ id: doc.id, title: doc.title }}
+            docs={docs}
+            onOpen={(id) => void openDoc(id)}
+          />
+        )}
 
         <label className="width-slider" title="拖动调节正文栏宽度">
           <span className="ws-icon" aria-hidden="true">
