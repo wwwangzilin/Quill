@@ -22,6 +22,8 @@ interface Props {
   onStar: (id: string) => void
   onTagFilter: (tag: string | null) => void
   onOpenTrash: () => void
+  /** 文档库：独立一页，用来浏览与筛选全部文档 */
+  onOpenLibrary: () => void
 }
 
 const ORDER = ['今天', '昨天', '七天内', '更早']
@@ -54,6 +56,7 @@ export default function Sidebar({
   onStar,
   onTagFilter,
   onOpenTrash,
+  onOpenLibrary,
 }: Props) {
   const [q, setQ] = useState('')
   const [confirmId, setConfirmId] = useState<string | null>(null)
@@ -254,8 +257,15 @@ export default function Sidebar({
 
       <div className="side-foot">
         <div className="row">
-          <span>写作热力图</span>
+          <span>文档</span>
           <span className="grow" />
+          <button
+            className="btn ghost icon"
+            title="文档库 · 浏览与筛选全部文档"
+            onClick={onOpenLibrary}
+          >
+            ▤
+          </button>
           <button className="btn ghost icon" title="回收站" onClick={onOpenTrash}>
             ♻
           </button>

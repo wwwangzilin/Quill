@@ -1238,6 +1238,7 @@ export default function App() {
           onStar={(id) => void toggleStar(id)}
           onTagFilter={setActiveTag}
           onOpenTrash={() => setTrashOpen(true)}
+          onOpenLibrary={() => setLibraryOpen(true)}
         />
 
         <div className="main">
