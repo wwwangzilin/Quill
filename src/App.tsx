@@ -20,6 +20,7 @@ import CommentsPanel from './ui/CommentsPanel'
 import { locate, type Comment } from './core/comments'
 import { checkUpdate } from './core/update'
 import { applyTheme, nextTheme, readTheme, themeInfo, type Theme } from './core/theme'
+import { applyAutoHide, readAutoHide } from './core/chrome'
 import { applyComments, onCommentPick } from './editor/commentMark'
 import { goalProgress } from './core/stats'
 import { TEMPLATES } from './core/templates'
@@ -151,6 +152,10 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(() => readTheme())
   /** 换个主题：标题栏按钮和命令面板共用；按主题清单的顺序往下循环 */
   const cycleTheme = useCallback(() => setTheme((t) => nextTheme(t)), [])
+
+  /** 打字时把顶栏与底栏收起来（鼠标一动就回来） */
+  const [autoHide, setAutoHide] = useState(readAutoHide)
+  const [barsHidden, setBarsHidden] = useState(false)
   const [saving, setSaving] = useState<Saving>('idle')
   const [ready, setReady] = useState(false)
   const [mapSnap, setMapSnap] = useState<{ content: JSONContent; title: string } | null>(null)
@@ -185,6 +190,48 @@ export default function App() {
   const [reading, setReading] = useState(false)
   /** 禅模式：窗口真全屏 + 藏掉整个界面，只剩正文（F11） */
   const [zen, setZen] = useState(false)
+
+  /** 只在写作视图、且不在阅读/禅模式下才自动收 —— 那几个模式自己管界面 */
+  const canAutoHide = autoHide && view === 'write' && !reading && !zen && Boolean(doc)
+
+  // 在正文里敲字就把顶栏底栏收起来。只认「焦点在编辑器里、且不带修饰键」的按键 ——
+  // 否则按 Ctrl+P、或者到搜索框里打字，也会把界面收掉。
+  useEffect(() => {
+    if (!canAutoHide) {
+      setBarsHidden(false)
+      return
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.altKey || e.metaKey) return
+      const el = document.activeElement
+      if (!el || !el.closest('.ProseMirror')) return
+      setBarsHidden(true)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [canAutoHide])
+
+  // 鼠标一动就放回来。收起之后留 400ms 冷静期 ——
+  // 否则手搭在鼠标上轻微一抖，界面就自己弹回去了。
+  useEffect(() => {
+    if (!canAutoHide || !barsHidden) return
+    let armed = false
+    const timer = window.setTimeout(() => {
+      armed = true
+    }, 400)
+    const wake = () => {
+      if (armed) setBarsHidden(false)
+    }
+    window.addEventListener('mousemove', wake)
+    window.addEventListener('mousedown', wake)
+    window.addEventListener('wheel', wake, { passive: true })
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('mousemove', wake)
+      window.removeEventListener('mousedown', wake)
+      window.removeEventListener('wheel', wake)
+    }
+  }, [canAutoHide, barsHidden])
   /** 桌面行为偏好（托盘 / 自启 / 自动同步）—— 存在 Rust 侧，因为托盘事件发生在前端之外 */
   const [desk, setDesk] = useState<DesktopPrefs>(DEFAULT_PREFS)
   /** 开机自启是系统里的事实，不是我们的设置，所以单独读一次 */
@@ -1151,7 +1198,14 @@ export default function App() {
   /* ---------------- 渲染 ---------------- */
 
   return (
-    <div className={'app' + (reading ? ' reading' : '') + (zen ? ' zen' : '')}>
+    <div
+      className={
+        'app' +
+        (reading ? ' reading' : '') +
+        (zen ? ' zen' : '') +
+        (barsHidden && canAutoHide ? ' bars-hidden' : '')
+      }
+    >
       <ToastHost />
       {zen && <div className="zen-hint">F11 退出禅模式</div>}
       {reading && (
@@ -1269,6 +1323,11 @@ export default function App() {
               onClose={() => setSettingsOpen(false)}
               theme={theme}
               onTheme={setTheme}
+              autoHide={autoHide}
+              onAutoHide={(v) => {
+                setAutoHide(v)
+                applyAutoHide(v)
+              }}
               prose={prose}
               onProse={setProse}
               aiEnabled={aiEnabled}

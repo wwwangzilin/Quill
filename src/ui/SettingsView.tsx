@@ -32,6 +32,8 @@ interface Props {
   onClose: () => void
   theme: Theme
   onTheme: (next: Theme) => void
+  autoHide: boolean
+  onAutoHide: (next: boolean) => void
   prose: ProseStyle
   onProse: (next: ProseStyle) => void
   aiEnabled: boolean
@@ -65,6 +67,8 @@ export default function SettingsView({
   onClose,
   theme,
   onTheme,
+  autoHide,
+  onAutoHide,
   prose,
   onProse,
   aiEnabled,
@@ -430,6 +434,20 @@ export default function SettingsView({
 
   const writing = (
     <>
+      <label className="sc-row" style={{ cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={autoHide}
+          onChange={(e) => onAutoHide(e.target.checked)}
+          style={{ width: 14, height: 14 }}
+        />
+        <span className="sc-text">打字时自动收起顶栏与底栏</span>
+      </label>
+      <p className="hint">
+        在正文里敲字时，标题栏和状态栏会滑出去，只留写作区；鼠标一动立刻回来 ——
+        写的时候界面不来抢视线，想看状态、想拖窗口也随时找得回来。
+        阅读模式与禅模式本来就会收起界面，不受这里影响。
+      </p>
       <label className="field">
         <span>
           每日写作目标

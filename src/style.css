@@ -3891,6 +3891,19 @@ body.quill-dragging * {
   opacity: 0;
   pointer-events: none;
 }
+/* ---- 打字时自动收起顶栏底栏，鼠标一动就回来 ----
+   和禅模式同一套手法：滑出去 + 淡掉，而不是 display: none。
+   因为用的是 transform，正文位置一点都不动，收起和放回都是有过渡的。 */
+.app.bars-hidden .titlebar {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.app.bars-hidden .statusbar {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
 .app.zen .sidebar {
   margin-left: calc(var(--sidebar-w) * -1);
   opacity: 0;
