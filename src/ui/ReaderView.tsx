@@ -36,6 +36,27 @@ function plain(node: JSONContent): string {
 }
 
 /**
+ * 把一段的前 fromLine 行切掉。
+ *
+ * 章与章之间没有空行时，「上一章结尾 \n第N章 xxx \n作者：…」是**同一个段落**，
+ * 直接渲染的话每一章开头都会挂着上一章的尾巴。软换行在文档里是 hardBreak 节点，
+ * 按它数行就行。切完什么都不剩就返回 null，让调用方跳过这一块。
+ */
+function cutLeadingLines(node: JSONContent, fromLine: number): JSONContent | null {
+  if (fromLine <= 0) return node
+  const out: JSONContent[] = []
+  let line = 0
+  for (const child of node.content ?? []) {
+    if (child.type === 'hardBreak') {
+      line += 1
+      continue
+    }
+    if (line >= fromLine) out.push(child)
+  }
+  return out.length ? { ...node, content: out } : null
+}
+
+/**
  * 一个块。
  *
  * 这里刻意不引额外的东西：只认常见的几种，认不出来的降级成段落文本 ——
@@ -122,6 +143,7 @@ export default function ReaderView({ title, doc, onClose }: Props) {
               title,
               level: 1,
               start: 0,
+              line: 0,
               inferred: false,
               blocks: doc.content ?? [],
             },
@@ -290,9 +312,11 @@ export default function ReaderView({ title, doc, onClose }: Props) {
             ref={trackRef}
             style={{ transform: `translateX(-${page * 100}%)` }}
           >
-            {chapter.blocks.map((b, i) => (
-              <Block key={i} node={b} />
-            ))}
+            {chapter.blocks.map((b, i) => {
+              // 首块可能要裁掉属于上一章的那几行
+              const node = i === 0 ? cutLeadingLines(b, chapter.line) : b
+              return node ? <Block key={i} node={node} /> : null
+            })}
           </div>
         </div>
 

@@ -17,8 +17,17 @@ export interface Chapter {
   title: string
   /** 标题级别 1-6；纯文本认出来的一律按 2 算 */
   level: number
-  /** 这一章正文的第一块在文档顶层块里的下标 —— 跳章靠它 */
+  /** 这一章正文的第一块在文档顶层块里的下标 */
   start: number
+  /**
+   * 标题在那一块里的第几行（0 基）。
+   *
+   * 从网页扒下来的小说，章与章之间常常**没有空行** —— 上一章的结尾、
+   * 「第N章 xxx」、作者信息会挤在同一个段落里（靠软换行分隔）。
+   * 所以切章时得知道「从这块的第几行开始才算这一章」，
+   * 否则每一章开头都会带着上一章的尾巴。
+   */
+  line: number
   /** 是不是从「第X章」这种纯文本推出来的 */
   inferred: boolean
 }
@@ -43,28 +52,44 @@ function textOf(node: JSONContent): string {
 }
 
 /**
- * 这一段是不是以章节标题开头？是的话返回**干净的章节名**。
+ * 这一行里有没有章节标题？有的话返回**干净的章节名**。
  *
- * 判据刻意宽松：只看开头，不看整段。原因是从网页扒下来的小说
- * 会把「第1章 去学土木吧」和「作者：… 更新时间：… 字数：2022」
- * 乃至正文第一句塞在同一段里 —— 按「整段等于章节名」去卡，
- * 一篇也认不出来（这坑实装过一次）。
+ * 判据刻意宽松，因为从网页扒下来的小说排版很脏：
+ *
+ *   · 章名后面直接跟着「作者：… 更新时间：… 字数：…」，甚至接着正文第一句
+ *   · 有些站把一句推荐语用【】挂在章名前面
+ *   · 章与章之间没有空行时，上一章的结尾会和「第N章」挤在同一行
+ *
+ * 最后一种靠一个很硬的旁证认：**章名后面紧跟着元信息**。
+ * 正文里顺口提一句「第三章」是不会跟着「作者：」的。
  */
 function asChapterLine(raw: string): string | null {
-  let line = raw.split('\n')[0].trim()
+  let line = raw.trim()
   if (!line) return null
+  // 有些站会把一句推荐语用【】挂在章名前面
+  line = line.replace(/^【[^】]{0,40}】\s*/, '')
+
+  // 先把跟在章名后面的元信息裁掉
   const cut = line.search(META_TAIL)
-  if (cut > 0) line = line.slice(0, cut).trim()
-  if (!CN_HEAD.test(line) && !EN_HEAD.test(line)) return null
-  // 裁完之后还是太长，那多半只是正文里提到了「第三章」
-  return line.length <= 40 ? line : null
+  let head = cut > 0 ? line.slice(0, cut).trim() : line
+
+  // 章名被夹在正文里（上一章的结尾和它同一行）—— 从里面把它抠出来
+  if (cut > 0 && !CN_HEAD.test(head) && !EN_HEAD.test(head)) {
+    const m = head.match(/\s(第\s*[0-9０-９一二三四五六七八九十百千零两]+\s*[章节回卷篇話话部])\s*\S{0,28}$/)
+    if (m) head = m[0].trim()
+  }
+
+  if (!CN_HEAD.test(head) && !EN_HEAD.test(head)) return null
+  return head.length <= 40 ? head : null
 }
 
 /**
  * 按文档顺序抽出所有章节。
  *
- * 一个都认不出来时返回空数组 —— 调用方自己兜底成「整篇一章」，
- * 别在这里硬塞一个假章节进去。
+ * **必须逐行看，不能只看段首**：从网页扒下来的小说里，章与章之间往往没有空行，
+ * 于是「上一章结尾 \n 第N章 xxx \n 作者：…」全在同一个段落里
+ * （靠软换行分隔）。只看段首的话，一篇 22 章的小说他只认得出第 1 章
+ * —— 这坑实装机上踩过一次。
  */
 export function extractChapters(doc: JSONContent): Chapter[] {
   const out: Chapter[] = []
@@ -77,15 +102,18 @@ export function extractChapters(doc: JSONContent): Chapter[] {
         title,
         level: Number(node.attrs?.level ?? 1),
         start: i,
+        line: 0,
         inferred: false,
       })
       return
     }
-    // 段落里可能是「第一章 雨夜」这种行 —— 从别处粘进来的小说全是这种
-    if (node.type === 'paragraph') {
-      const title = asChapterLine(textOf(node))
-      if (title) out.push({ title, level: 2, start: i, inferred: true })
-    }
+    if (node.type !== 'paragraph') return
+    textOf(node)
+      .split('\n')
+      .forEach((line, k) => {
+        const title = asChapterLine(line)
+        if (title) out.push({ title, level: 2, start: i, line: k, inferred: true })
+      })
   })
   return out
 }
@@ -105,7 +133,9 @@ export function splitChapters(doc: JSONContent, fallbackTitle: string): ChapterS
   const top = doc.content ?? []
   const marks = extractChapters(doc)
   if (!marks.length) {
-    return [{ title: fallbackTitle, level: 1, start: 0, inferred: false, blocks: top }]
+    return [
+      { title: fallbackTitle, level: 1, start: 0, line: 0, inferred: false, blocks: top },
+    ]
   }
   return marks.map((m, i) => {
     const end = i + 1 < marks.length ? marks[i + 1].start : top.length
