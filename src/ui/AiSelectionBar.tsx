@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import { aiStream } from '../core/ai'
+import { readAiTuning, withStyle } from '../core/aiPrefs'
 import { toast } from './toast'
 
 interface Props {
@@ -31,8 +32,11 @@ const ACTIONS = [
   { id: 'en', label: '译英', ask: '翻译成地道、简洁的英文。' },
 ]
 
-const SYSTEM =
-  '你是中文写作的编辑。只输出改写后的正文本身：不要解释、不要复述要求、不要加引号或代码围栏，保持原有的段落结构。'
+const SYSTEM = `你是中文写作的编辑。只输出改写后的正文本身：
+- 不要解释、不要复述要求，不要写「改写后：」这类前缀，也不要用引号或代码围栏包起来
+- 保持原有的段落结构，以及原文用到的 Markdown 标记（标题、列表、加粗、链接等）
+- 除非要求里明确说了改长度，否则与原文篇幅相当
+- 只动该动的地方，其余原样保留`
 
 const MAX_CHARS = 1500
 
@@ -44,6 +48,8 @@ export default function AiSelectionBar({ editor, host, onComment }: Props) {
   const [target, setTarget] = useState<Target | null>(null)
   const [running, setRunning] = useState<string | null>(null)
   const [result, setResult] = useState('')
+  /** 结果撞上长度上限被砍断了：照样能采纳，但得让人知道它不完整 */
+  const [cut, setCut] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const seq = useRef(0)
 
@@ -52,6 +58,7 @@ export default function AiSelectionBar({ editor, host, onComment }: Props) {
     setTarget(null)
     setResult('')
     setRunning(null)
+    setCut(false)
     setExpanded(false)
   }, [])
 
@@ -107,11 +114,23 @@ export default function AiSelectionBar({ editor, host, onComment }: Props) {
       setRunning(id)
       setExpanded(true)
       setResult('')
+      setCut(false)
+      const tuning = readAiTuning()
       try {
         await aiStream(
-          { system: SYSTEM, prompt: `【改写要求】${ask}\n\n【原文】\n${target.text}`, maxTokens: 900, temperature: 0.5 },
+          {
+            system: withStyle(SYSTEM, tuning),
+            prompt: `【改写要求】${ask}\n\n【原文】\n${target.text}`,
+            maxTokens: tuning.rewriteTokens,
+            temperature: tuning.temperature,
+          },
           (full) => {
             if (mine === seq.current) setResult(full)
+          },
+          (info) => {
+            // 选中的段落可能上千字，上限给不够就会说到一半断掉。
+            // 结果照旧可用，但界面上要留个记号，免得让人以为模型就这水平
+            if (mine === seq.current) setCut(info.truncated)
           },
         )
       } catch (err) {
@@ -142,6 +161,7 @@ export default function AiSelectionBar({ editor, host, onComment }: Props) {
     setTarget(null)
     setResult('')
     setRunning(null)
+    setCut(false)
     setExpanded(false)
   }, [editor, target, result, close])
 
@@ -194,6 +214,12 @@ export default function AiSelectionBar({ editor, host, onComment }: Props) {
           </div>
 
           <div className="ai-sel-body">{result || '…'}</div>
+
+          {cut && !running && (
+            <div className="ai-trunc">
+              结果可能没写完 · 已到长度上限，可在设置 · AI 助手中调高「改写长度」
+            </div>
+          )}
 
           <div className="ai-sel-foot">
             <button className="btn primary" disabled={!result.trim() || !!running} onClick={accept}>

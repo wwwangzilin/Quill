@@ -10,6 +10,7 @@ import {
   type ProseStyle,
 } from '../core/fonts'
 import { AI_DEFAULTS, aiAvailable, aiSave, aiStatus, aiStream, type AiStatus } from '../core/ai'
+import { AI_TUNING_RANGE, resetAiTuning, useAiTuning } from '../core/aiPrefs'
 import { isDesktop, type DesktopPrefs } from '../core/desktop'
 import { checkUpdate, currentVersion, installUpdate, type UpdateInfo } from '../core/update'
 import { toast } from './toast'
@@ -79,6 +80,8 @@ export default function SettingsView({
   const [aiKey, setAiKey] = useState('')
   const [aiBusy, setAiBusy] = useState(false)
   const [aiLog, setAiLog] = useState('')
+  /** 生成参数：拖一下即时生效，不必等「保存设置」 */
+  const [tuning, setTuning] = useAiTuning()
 
   /* ---- 关于与更新 ---- */
   const [version, setVersion] = useState('')
@@ -356,6 +359,7 @@ export default function SettingsView({
       <p className="desc">
         停止输入后，模型依据上文生成一段灰色提示文本。按 Tab 接受，按 Esc 忽略；
         不接受则不会写入文档。该功能默认关闭，开启后按调用次数计费。
+        下方的长度与创意度改动即时生效，不必点保存。
       </p>
 
       <label className="sc-row" style={{ cursor: 'pointer' }}>
@@ -418,6 +422,91 @@ export default function SettingsView({
           onChange={(e) => onAiDelay(Number(e.target.value))}
         />
       </label>
+
+      <label className="field">
+        <span>
+          续写长度
+          <em className="val">{tuning.continueTokens} tokens</em>
+        </span>
+        <input
+          type="range"
+          min={AI_TUNING_RANGE.continue.min}
+          max={AI_TUNING_RANGE.continue.max}
+          step={AI_TUNING_RANGE.continue.step}
+          value={tuning.continueTokens}
+          onChange={(e) => setTuning({ continueTokens: Number(e.target.value) })}
+        />
+      </label>
+
+      <label className="field">
+        <span>
+          改写长度
+          <em className="val">{tuning.rewriteTokens} tokens</em>
+        </span>
+        <input
+          type="range"
+          min={AI_TUNING_RANGE.rewrite.min}
+          max={AI_TUNING_RANGE.rewrite.max}
+          step={AI_TUNING_RANGE.rewrite.step}
+          value={tuning.rewriteTokens}
+          onChange={(e) => setTuning({ rewriteTokens: Number(e.target.value) })}
+        />
+      </label>
+
+      <label className="field">
+        <span>
+          回答长度
+          <em className="val">{tuning.answerTokens} tokens</em>
+        </span>
+        <input
+          type="range"
+          min={AI_TUNING_RANGE.answer.min}
+          max={AI_TUNING_RANGE.answer.max}
+          step={AI_TUNING_RANGE.answer.step}
+          value={tuning.answerTokens}
+          onChange={(e) => setTuning({ answerTokens: Number(e.target.value) })}
+        />
+      </label>
+      <p className="hint">
+        三者依次对应行内续写、选中改写、全文问答的单次输出上限。中文大致一个字一个 token；
+        结果被截断时界面上会给出提示，把对应数值调高即可。
+      </p>
+
+      <label className="field">
+        <span>
+          创意度
+          <em className="val">{tuning.temperature.toFixed(2)}</em>
+        </span>
+        <input
+          type="range"
+          min={AI_TUNING_RANGE.temperature.min}
+          max={AI_TUNING_RANGE.temperature.max}
+          step={AI_TUNING_RANGE.temperature.step}
+          value={tuning.temperature}
+          onChange={(e) => setTuning({ temperature: Number(e.target.value) })}
+        />
+      </label>
+      <p className="hint">越低越稳定保守，越高越灵活。改写与问答偏保守更准，续写可以高一些。</p>
+
+      <label className="field">
+        <span>额外写作要求</span>
+        <textarea
+          value={tuning.style}
+          rows={3}
+          placeholder="例：文风克制，少用四字成语；人称统一用「我」"
+          spellCheck={false}
+          onChange={(e) => setTuning({ style: e.target.value })}
+        />
+      </label>
+      <p className="hint">
+        以上参数与要求改动后立即生效，不需要点保存。额外要求会追加到续写、改写、问答三条系统提示词末尾。
+      </p>
+
+      <div className="field-row">
+        <button className="btn" onClick={() => setTuning(resetAiTuning())}>
+          恢复默认参数
+        </button>
+      </div>
 
       <div className="field-row">
         <button className="btn primary" onClick={() => void saveAi()} disabled={aiBusy}>

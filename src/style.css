@@ -2052,6 +2052,36 @@ body.quill-dragging * {
 .field select:focus {
   border-color: var(--accent-1);
 }
+.field textarea {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.65;
+  padding: 8px 10px;
+  outline: none;
+  resize: vertical;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.field textarea:focus {
+  border-color: var(--accent-1);
+}
+.field textarea::placeholder {
+  color: var(--text-3);
+}
+/* AI 结果撞上长度上限时的提示条 */
+.ai-trunc {
+  margin-top: 8px;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--accent-3) 32%, transparent);
+  background: color-mix(in srgb, var(--accent-3) 12%, transparent);
+  color: var(--accent-3);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
 .field input[type="range"] {
   height: 20px;
   padding: 0;

@@ -17,6 +17,16 @@ export interface AiEvent {
   delta: string
   done: boolean
   text?: string | null
+  /** 结束原因。`length` 表示被 max_tokens 截断了 */
+  finishReason?: string | null
+}
+
+/** 流结束时告诉调用方「结果完不完整」 */
+export interface AiFinish {
+  text: string
+  /** 被 max_tokens 截断了（finish_reason === 'length'） */
+  truncated: boolean
+  reason?: string | null
 }
 
 export interface AiRequest {
@@ -54,16 +64,25 @@ export async function aiSave(baseUrl: string, model: string, apiKey?: string): P
 /**
  * 流式续写。每收到一段增量就回调一次（带上累积结果），
  * 返回的 Promise 在流结束时给出完整文本。
+ *
+ * onFinish 可选：想知道「结果是不是被截断了」就传它。
+ * 模型被 max_tokens 砍断时会给出 finish_reason = 'length'，
+ * 这是唯一能据以判断的信号 —— 光看文本是看不出「写完没写完」的。
  */
 export async function aiStream(
   req: AiRequest,
   onText: (full: string, delta: string) => void,
+  onFinish?: (info: AiFinish) => void,
 ): Promise<string> {
   if (!isTauri()) throw new Error('AI 续写只在桌面版里可用')
   const channel = new Channel<AiEvent>()
   let full = ''
   channel.onmessage = (msg) => {
-    if (msg.done) return
+    if (msg.done) {
+      const text = msg.text ?? full
+      onFinish?.({ text, truncated: msg.finishReason === 'length', reason: msg.finishReason })
+      return
+    }
     if (msg.delta) {
       full += msg.delta
       onText(full, msg.delta)

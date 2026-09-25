@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { aiStream } from '../core/ai'
+import { readAiTuning, withStyle } from '../core/aiPrefs'
 import { toast } from './toast'
 
 interface Props {
@@ -40,10 +41,17 @@ const QUICK = [
   { label: '起个标题', prompt: '给这篇文档起 5 个更贴切的标题，每行一个，不要解释。' },
 ]
 
+const SYSTEM = `你是写作助手，读的是用户自己写的文档：
+- 只依据文档内容作答；文档里没有提到的，就直接说没有提到，不要编造
+- 用中文，回答简洁；要点多的时候用短列表，不要写成长篇大论
+- 引用原文只摘关键短语，不要大段复述`
+
 /** 全文问答：把整篇丢给模型，问什么答什么，答案可以一键插回文末 */
 export default function AiChatPanel({ open, title, content, onClose, onInsert }: Props) {
   const [question, setQuestion] = useState('')
   const [answer, setAnswer] = useState('')
+  /** 回答撞上长度上限被砍断了 */
+  const [cut, setCut] = useState(false)
   const [busy, setBusy] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -52,6 +60,7 @@ export default function AiChatPanel({ open, title, content, onClose, onInsert }:
     if (!open) return
     setQuestion('')
     setAnswer('')
+    setCut(false)
     const timer = window.setTimeout(() => inputRef.current?.focus(), 50)
     return () => window.clearTimeout(timer)
   }, [open])
@@ -70,16 +79,18 @@ export default function AiChatPanel({ open, title, content, onClose, onInsert }:
       }
       setBusy(true)
       setAnswer('')
+      setCut(false)
+      const tuning = readAiTuning()
       try {
         await aiStream(
           {
-            system:
-              '你是写作助手。只根据用户提供的文档内容作答，不要编造文档里没有的信息；回答简洁、用中文、可以用短列表。',
+            system: withStyle(SYSTEM, tuning),
             prompt: `【文档标题】${title || '未命名'}\n\n【文档正文】\n${text}\n\n【问题】${q}`,
-            maxTokens: 700,
-            temperature: 0.4,
+            maxTokens: tuning.answerTokens,
+            temperature: tuning.temperature,
           },
           (full) => setAnswer(full),
+          (info) => setCut(info.truncated),
         )
       } catch (err) {
         setAnswer('')
@@ -122,6 +133,11 @@ export default function AiChatPanel({ open, title, content, onClose, onInsert }:
         )}
         {busy && !answer && <div className="aichat-wait">正在读这篇文档…</div>}
         {answer && <div className="aichat-answer">{answer}</div>}
+        {cut && !busy && (
+          <div className="ai-trunc">
+            回答可能没写完 · 已到长度上限，可在设置 · AI 助手中调高「回答长度」
+          </div>
+        )}
       </div>
 
       {answer && !busy && (

@@ -5,20 +5,22 @@
  *   · 只在你停手 delay 毫秒之后才发请求，边打字边发是不可能的
  *   · 光标前至少要有 6 个字，空段落不猜
  *   · 同一个前缀不重复请求（缓存最近一次的前缀）
- *   · 一次只要 1～2 句、max_tokens 96
+ *   · 一次只要 1～2 句（上限可在设置里调，默认 160 tokens）
  *   · 选中一段文本、输入法组词中，都不打扰
  */
 import { useCallback, useEffect, useRef } from 'react'
 import type { Editor } from '@tiptap/core'
 import { aiStream } from '../core/ai'
+import { readAiTuning, withStyle } from '../core/aiPrefs'
 import { toast } from '../ui/toast'
 import { aiState, clearAi, setAiState } from './aiComplete'
 
 const SYSTEM = `你是中文写作的续写助手。只输出紧接着要写下去的正文本身：
-- 不要解释、不要客套、不要复述已经有过的内容
-- 不要输出引号、不要用 Markdown 代码围栏或标题符号
-- 与上文的语言、人称、语气保持一致
-- 长度控制在 1～2 句（约 40 字以内），写成能直接接上的半句话或一整句`
+- 不要解释、不要客套、不要复述上文已经写过的话
+- 不要用引号、Markdown 标题符号或代码围栏，也不要写「……」「（未完待续）」这类占位
+- 与上文的语言、人称、语气、节奏保持一致
+- 从光标处直接接下去，不要重复光标前最后那几个字
+- 只写一小段（一两句），不要铺陈成长段`
 
 export function buildPrompt(title: string, before: string): string {
   return `【文档标题】${title || '未命名'}
@@ -75,17 +77,24 @@ export function useAiComplete({ editor, enabled, delay, title }: Options) {
       const mine = (seq.current += 1)
       setAiState(view, { text: '', pos, loading: true, error: null })
 
+      const tuning = readAiTuning()
       try {
         await aiStream(
           {
-            system: SYSTEM,
+            system: withStyle(SYSTEM, tuning),
             prompt: buildPrompt(title, context),
-            maxTokens: 96,
-            temperature: 0.75,
+            maxTokens: tuning.continueTokens,
+            temperature: tuning.temperature,
           },
           (full) => {
             if (mine !== seq.current || view.isDestroyed) return
             setAiState(view, { text: full, pos, loading: false, error: null })
+          },
+          (info) => {
+            // 撞上长度上限说明模型还有话要说。提示本身留着当参考，
+            // 但得讲清楚它为什么断在半句，否则只会让人以为 AI 坏了
+            if (mine !== seq.current || !info.truncated) return
+            toast.info('续写到了长度上限', '可在设置 · AI 助手里调高「续写长度」')
           },
         )
         if (mine === seq.current) {

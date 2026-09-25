@@ -64,6 +64,10 @@ impl From<&AiConfig> for AiStatus {
 }
 
 #[derive(Debug, Deserialize)]
+// 前端按 JS 的习惯传 maxTokens，这里必须跟着转成 camelCase ——
+// 少了这一行，serde 找不到 max_tokens，请求会一声不响地退到兜底值，
+// 于是「改写 900、问答 700」全都变成 96，输出永远断在半句上。
+#[serde(rename_all = "camelCase")]
 pub struct AiRequest {
     pub system: String,
     pub prompt: String,
@@ -71,12 +75,16 @@ pub struct AiRequest {
     pub temperature: Option<f32>,
 }
 
-/// 流式事件：增量文本 / 结束（带上完整结果）
+/// 流式事件：增量文本 / 结束（带上完整结果与结束原因）
 #[derive(Debug, Clone, Serialize)]
 pub struct AiEvent {
     pub delta: String,
     pub done: bool,
     pub text: Option<String>,
+    /// 结束原因。`length` 表示被 max_tokens 截断了 —— 这个信号必须传出去，
+    /// 否则前端只看到内容莫名其妙断在半句上，分不清是模型抽风还是长度不够。
+    #[serde(rename = "finishReason", skip_serializing_if = "Option::is_none")]
+    pub finish_reason: Option<String>,
 }
 
 fn config_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -136,8 +144,11 @@ pub fn ai_save(
     Ok(AiStatus::from(&cfg))
 }
 
-/// 把流里的一行 SSE 解析出增量文本
-fn delta_of(line: &str) -> Option<String> {
+/// 一行 SSE → (增量文本, 结束原因)。
+///
+/// 结束原因必须一并取出来：`finish_reason: "length"` 是模型在明说「我被 max_tokens
+/// 截断了」。只取 content 会把这个信号丢掉，用户就只能看到半句话。
+fn parse_chunk(line: &str) -> Option<(Option<String>, Option<String>)> {
     let data = line.strip_prefix("data:")?.trim();
     if data.is_empty() || data == "[DONE]" {
         return None;
@@ -145,12 +156,38 @@ fn delta_of(line: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_str(data).ok()?;
     // 有的网关会把错误塞在流里
     if let Some(err) = value.get("error").and_then(|e| e.get("message")).and_then(|m| m.as_str()) {
-        return Some(format!("\u{0}ERR:{err}"));
+        return Some((Some(format!("\u{0}ERR:{err}")), None));
     }
-    value
+    let delta = value
         .pointer("/choices/0/delta/content")
         .and_then(|c| c.as_str())
-        .map(|s| s.to_string())
+        .map(|s| s.to_string());
+    let reason = value
+        .pointer("/choices/0/finish_reason")
+        .and_then(|r| r.as_str())
+        .map(|s| s.to_string());
+    Some((delta, reason))
+}
+
+/// 判断是不是「本机或内网」地址，是的话别让系统代理插手。
+///
+/// Windows 的 WinINET 代理列表默认不排除回环地址，而本机常驻的加速器
+/// （Steam++ 之类）会开一个本地代理 —— 发往 localhost 的请求一旦交给它，
+/// 换回来的是一个空 404，本地 Ollama / LM Studio 就此全废。
+fn bypass_proxy(url: &str) -> bool {
+    let after = url.split("://").nth(1).unwrap_or(url);
+    let authority = after.split(['/', '?', '#']).next().unwrap_or("");
+    let authority = authority.rsplit('@').next().unwrap_or(authority); // 去掉 user:pass@
+    let host = if let Some(rest) = authority.strip_prefix('[') {
+        rest.split(']').next().unwrap_or("") // [::1]:8080
+    } else {
+        authority.split(':').next().unwrap_or("")
+    };
+    matches!(host, "localhost" | "::1" | "0.0.0.0")
+        || host.starts_with("127.")
+        || host.starts_with("10.")
+        || host.starts_with("192.168.")
+        || host.starts_with("169.254.")
 }
 
 /// 流式续写：边收边通过 channel 推给前端
@@ -169,19 +206,26 @@ pub async fn ai_stream(
     }
 
     let url = format!("{}/chat/completions", cfg.base_url.trim_end_matches('/'));
+    let max_tokens = req.max_tokens.unwrap_or(96);
+    let temperature = req.temperature.unwrap_or(0.7);
+    // 这两个值最容易被「前端没传、悄悄退回默认」坑掉，落一行日志省得以后再查一遍
+    log::info!("AI 请求：{url} / max_tokens {max_tokens} / 温度 {temperature:.2}");
     let body = serde_json::json!({
         "model": cfg.model,
         "stream": true,
-        "temperature": req.temperature.unwrap_or(0.7),
-        "max_tokens": req.max_tokens.unwrap_or(96),
+        "temperature": temperature,
+        "max_tokens": max_tokens,
         "messages": [
             { "role": "system", "content": req.system },
             { "role": "user", "content": req.prompt },
         ],
     });
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(90))
+    let mut builder = reqwest::Client::builder().timeout(Duration::from_secs(90));
+    if bypass_proxy(&url) {
+        builder = builder.no_proxy();
+    }
+    let client = builder
         .build()
         .map_err(|e| format!("建 HTTP 客户端失败: {e}"))?;
 
@@ -197,13 +241,15 @@ pub async fn ai_stream(
     if !status.is_success() {
         let detail = resp.text().await.unwrap_or_default();
         let brief: String = detail.chars().take(300).collect();
-        return Err(format!("接口返回 {status}：{brief}"));
+        // 带上真实 URL：404 这类错误多半是地址拼错了，不给 URL 根本没法查
+        return Err(format!("接口返回 {status}（{url}）：{brief}"));
     }
 
     let mut stream = resp.bytes_stream();
     let mut buf = String::new();
     let mut full = String::new();
     let mut lines = 0usize;
+    let mut finish: Option<String> = None;
 
     'outer: while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|e| format!("读取响应流失败: {e}"))?;
@@ -217,24 +263,38 @@ pub async fn ai_stream(
                 log::info!("AI 流收到 [DONE]（{lines} 行，{full_len} 字）", full_len = full.chars().count());
                 break 'outer;
             }
-            if let Some(delta) = delta_of(&line) {
-                if let Some(err) = delta.strip_prefix('\u{0}') {
-                    return Err(format!("模型返回错误：{}", err.trim_start_matches("ERR:")));
+            if let Some((delta, reason)) = parse_chunk(&line) {
+                if reason.is_some() {
+                    finish = reason;
                 }
-                if full.is_empty() {
-                    log::info!("AI 流开始返回内容");
+                if let Some(delta) = delta {
+                    if let Some(err) = delta.strip_prefix('\u{0}') {
+                        return Err(format!("模型返回错误：{}", err.trim_start_matches("ERR:")));
+                    }
+                    if full.is_empty() {
+                        log::info!("AI 流开始返回内容");
+                    }
+                    full.push_str(&delta);
+                    channel
+                        .send(AiEvent {
+                            delta: delta.clone(),
+                            done: false,
+                            text: None,
+                            finish_reason: None,
+                        })
+                        .map_err(|e| format!("推送失败: {e}"))?;
                 }
-                full.push_str(&delta);
-                channel
-                    .send(AiEvent { delta: delta.clone(), done: false, text: None })
-                    .map_err(|e| format!("推送失败: {e}"))?;
             }
         }
     }
 
-    log::info!("AI 流结束：{lines} 行 / {} 字", full.chars().count());
+    log::info!(
+        "AI 流结束：{lines} 行 / {n} 字 / 结束原因 {reason}",
+        n = full.chars().count(),
+        reason = finish.as_deref().unwrap_or("未知"),
+    );
     channel
-        .send(AiEvent { delta: String::new(), done: true, text: Some(full) })
+        .send(AiEvent { delta: String::new(), done: true, text: Some(full), finish_reason: finish })
         .map_err(|e| format!("推送失败: {e}"))?;
     Ok(())
 }
