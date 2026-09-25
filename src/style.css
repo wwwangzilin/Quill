@@ -3904,6 +3904,17 @@ body.quill-dragging * {
   opacity: 0;
   pointer-events: none;
 }
+/* 侧栏也一起收。这里用负边距而不是 transform —— 和禅模式同一套，
+   这样正文会顺势变宽，收起的地方真正让给写作区（不然只是留一块空白）。
+   收起与放回都走过渡，不会硬切。 */
+.app.bars-hidden .sidebar {
+  margin-left: calc(var(--sidebar-w) * -1);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    margin-left var(--dur) var(--ease),
+    opacity var(--dur) var(--ease);
+}
 .app.zen .sidebar {
   margin-left: calc(var(--sidebar-w) * -1);
   opacity: 0;
