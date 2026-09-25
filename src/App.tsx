@@ -15,6 +15,7 @@ import MoreMenu, { type MenuItem } from './ui/MoreMenu'
 import WindowControls from './ui/WindowControls'
 import CommandPalette, { type PaletteCommand } from './ui/CommandPalette'
 import SearchPanel from './ui/SearchPanel'
+import ReaderView from './ui/ReaderView'
 import { scanMatches } from './editor/search'
 import type { DocSearchHit } from './core/searchDocs'
 import BacklinksPanel from './ui/BacklinksPanel'
@@ -193,6 +194,8 @@ export default function App() {
   const [stats, setStats] = useState<Record<string, number>>({})
   const [jumpPath, setJumpPath] = useState<number[] | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  /** 小说阅读视图：左边章节目录，右边正文按栏排（跟编辑模式完全分开，只读） */
+  const [readerOpen, setReaderOpen] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
   const [quickOpen, setQuickOpen] = useState(false)
   /** 正文外观：字体 / 字号 / 行距，改了立刻写进 CSS 变量 */
@@ -1268,6 +1271,14 @@ export default function App() {
       onSelect: () => void importFiles(),
     },
     {
+      key: 'reader',
+      icon: '▤',
+      label: '小说阅读',
+      hint: '分栏',
+      disabled: !doc,
+      onSelect: () => setReaderOpen(true),
+    },
+    {
       key: 'reading',
       icon: '▤',
       label: '阅读模式',
@@ -1389,6 +1400,13 @@ export default function App() {
     { id: 'reading', title: '阅读模式', hint: 'F9', icon: '▤', run: toggleReading },
     { id: 'zen', title: '禅模式', hint: 'F11', icon: '⛶', run: toggleZen },
     {
+      id: 'reader',
+      title: '小说阅读',
+      hint: '分栏 + 章节目录',
+      icon: '▤',
+      run: () => setReaderOpen(true),
+    },
+    {
       id: 'comments',
       title: '批注',
       hint: comments.length ? `${comments.length} 条` : '选中文字后加',
@@ -1490,6 +1508,9 @@ export default function App() {
       />
       <CommandPalette docs={docs} commands={paletteCommands} onPickDoc={(id) => void openDoc(id)} />
       <SearchPanel onPick={jumpToHit} />
+      {readerOpen && doc && (
+        <ReaderView title={doc.title} doc={doc.content} onClose={() => setReaderOpen(false)} />
+      )}
       <AiChatPanel
         open={chatOpen && Boolean(doc)}
         title={doc?.title ?? ''}
