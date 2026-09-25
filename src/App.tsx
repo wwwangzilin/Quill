@@ -12,6 +12,7 @@ import TrashPanel from './ui/TrashPanel'
 import SettingsView from './ui/SettingsView'
 import DocLibrary from './ui/DocLibrary'
 import MoreMenu, { type MenuItem } from './ui/MoreMenu'
+import WindowControls from './ui/WindowControls'
 import CommandPalette, { type PaletteCommand } from './ui/CommandPalette'
 import BacklinksPanel from './ui/BacklinksPanel'
 import AiChatPanel from './ui/AiChatPanel'
@@ -153,9 +154,11 @@ export default function App() {
   /** 换个主题：标题栏按钮和命令面板共用；按主题清单的顺序往下循环 */
   const cycleTheme = useCallback(() => setTheme((t) => nextTheme(t)), [])
 
-  /** 打字时把顶栏与底栏收起来（鼠标一动就回来） */
+  /** 打字时把底栏与侧栏收起来（鼠标一动就回来） */
   const [autoHide, setAutoHide] = useState(readAutoHide)
   const [barsHidden, setBarsHidden] = useState(false)
+  /** 无边框窗口的顶栏：默认藏着，鼠标够到右上角才滑出来 */
+  const [barShown, setBarShown] = useState(false)
   const [saving, setSaving] = useState<Saving>('idle')
   const [ready, setReady] = useState(false)
   const [mapSnap, setMapSnap] = useState<{ content: JSONContent; title: string } | null>(null)
@@ -194,22 +197,78 @@ export default function App() {
   /** 只在写作视图、且不在阅读/禅模式下才自动收 —— 那几个模式自己管界面 */
   const canAutoHide = autoHide && view === 'write' && !reading && !zen && Boolean(doc)
 
-  // 在正文里敲字就把顶栏底栏收起来。只认「焦点在编辑器里、且不带修饰键」的按键 ——
-  // 否则按 Ctrl+P、或者到搜索框里打字，也会把界面收掉。
+  /**
+   * 顶栏和底栏是两套规则，别混在一起：
+   * - 底栏 / 侧栏（canAutoHide）：在写作视图里打字才收，鼠标一动就回来；
+   * - 顶栏（canHideBar）：窗口已经没有系统标题栏了，它本身变成「备用」的 ——
+   *   除了阅读与禅模式，任何时候都默认藏着，只有鼠标够到右上角才滑出来
+   *   （窗口按钮在那儿）。这样顶上那条跟界面不搭的边框就彻底消失了。
+   */
+  const canHideBar = autoHide && !zen && !reading
+  const barHidden = canHideBar && !barShown
+
+  // 在正文里敲字就把顶栏底栏收起来。
+  // 只排除两件事：带修饰键的快捷键、以及在真正的输入框里打字。
+  // 这里**不**判断「焦点是不是在编辑器里」—— 中文输入法组词时那个判断不稳定，
+  // 会把「打中文」这一整条路漏掉（表现就是打英文能收、打中文不收）。
   useEffect(() => {
-    if (!canAutoHide) {
-      setBarsHidden(false)
-      return
+    if (!canAutoHide) setBarsHidden(false)
+    if (!canHideBar) setBarShown(false)
+    if (!canAutoHide && !canHideBar) return
+
+    const hide = () => {
+      if (canAutoHide) setBarsHidden(true)
+      if (canHideBar) setBarShown(false)
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.altKey || e.metaKey) return
-      const el = document.activeElement
-      if (!el || !el.closest('.ProseMirror')) return
-      setBarsHidden(true)
+      const tag = document.activeElement?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      hide()
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [canAutoHide])
+    // 输入法的第一枪是 compositionstart：Windows 上那一下常常没有可用的 keydown，
+    // 所以单独听一次，中文才收得起来。
+    window.addEventListener('compositionstart', hide)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('compositionstart', hide)
+    }
+  }, [canAutoHide, canHideBar])
+
+  // 顶栏的进出场：鼠标够到右上角就放出来，离开一会儿再收回去。
+  // 判据不自己算坐标，直接问 elementFromPoint「鼠标底下现在是谁」——
+  // 顶栏里的下拉菜单（⋯ 更多 / 导出）本身就是顶栏的后代，
+  // 所以鼠标一挪到菜单上照样算「还在顶栏里」，不会点着点着顶栏自己收走。
+  useEffect(() => {
+    if (!canHideBar) return
+    let leave = 0
+    const onMove = (e: MouseEvent) => {
+      const hit = document.elementFromPoint(e.clientX, e.clientY)
+      if (hit?.closest('.titlebar, .hot-corner')) {
+        if (leave) {
+          window.clearTimeout(leave)
+          leave = 0
+        }
+        // 这里不能省着调。打字会把顶栏收掉，可鼠标一点没动 ——
+        // 要是记着「已经开过了」就不再置位，鼠标明明还停在右上角，
+        // 顶栏却再也不出来了。（这个坑实装过一次。）
+        setBarShown(true)
+        return
+      }
+      if (leave) return
+      // 留 420ms 缓冲：手从右上角往编辑器里划的时候，别让顶栏一路跟着闪
+      leave = window.setTimeout(() => {
+        leave = 0
+        setBarShown(false)
+      }, 420)
+    }
+    window.addEventListener('mousemove', onMove)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      if (leave) window.clearTimeout(leave)
+    }
+  }, [canHideBar])
 
   // 鼠标一动就放回来。收起之后留 400ms 冷静期 ——
   // 否则手搭在鼠标上轻微一抖，界面就自己弹回去了。
@@ -1203,7 +1262,8 @@ export default function App() {
         'app' +
         (reading ? ' reading' : '') +
         (zen ? ' zen' : '') +
-        (barsHidden && canAutoHide ? ' bars-hidden' : '')
+        (barsHidden && canAutoHide ? ' bars-hidden' : '') +
+        (barHidden ? ' bar-hidden' : '')
       }
     >
       <ToastHost />
@@ -1232,7 +1292,22 @@ export default function App() {
         onClose={() => setChatOpen(false)}
         onInsert={insertToEnd}
       />
-      <div className="titlebar">
+      {/* 顶栏藏起来之后留在顶部的那两块感应区。
+          右上角是主入口（窗口按钮就在那儿）；顶上那条 6px 细边是备用通道 ——
+          无边框窗口只能拖标题栏，没有它就没法用鼠标搬动窗口。
+          特别注意：细边只认「按下去」，鼠标扫过不算 ——
+          不然手从正文往上划一下就闪一条顶栏出来。 */}
+      {canHideBar && (
+        <div className="titlebar-hot" aria-hidden="true">
+          <span
+            className="hot-strip"
+            data-tauri-drag-region
+            onMouseDown={() => setBarShown(true)}
+          />
+          <span className="hot-corner" />
+        </div>
+      )}
+      <div className="titlebar" data-tauri-drag-region>
         <button
           className="btn ghost icon"
           onClick={() => setSidebarOpen((v) => !v)}
@@ -1240,7 +1315,7 @@ export default function App() {
         >
           ☰
         </button>
-        <div className="brand">
+        <div className="brand" data-tauri-drag-region>
           <span className="mark" />
           Quill
         </div>
@@ -1253,7 +1328,7 @@ export default function App() {
             🗀
           </button>
         )}
-        <div className="grow" />
+        <div className="grow" data-tauri-drag-region />
         <div className="seg">
           <button className={view === 'write' ? 'on' : ''} onClick={() => switchView('write')}>
             写作
@@ -1278,6 +1353,7 @@ export default function App() {
           📌
         </button>
         <MoreMenu items={moreItems} title="更多操作" />
+        <WindowControls />
       </div>
 
       <div className="body">

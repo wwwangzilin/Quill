@@ -441,12 +441,13 @@ export default function SettingsView({
           onChange={(e) => onAutoHide(e.target.checked)}
           style={{ width: 14, height: 14 }}
         />
-        <span className="sc-text">打字时自动收起顶栏与底栏</span>
+        <span className="sc-text">自动收起顶栏与底栏</span>
       </label>
       <p className="hint">
-        在正文里敲字时，标题栏和状态栏会滑出去，只留写作区；鼠标一动立刻回来 ——
-        写的时候界面不来抢视线，想看状态、想拖窗口也随时找得回来。
-        阅读模式与禅模式本来就会收起界面，不受这里影响。
+        窗口没有系统边框，顶栏也就不常驻了 —— 鼠标移到右上角它才滑出来
+        （窗口按钮在那儿），离开一会儿自己收回去；状态栏与侧栏则在正文里敲字时收起、
+        鼠标一动就回来。关掉这一项，界面就一直摆着不动。
+        阅读模式与禅模式本来就收界面，不受这里影响。
       </p>
       <label className="field">
         <span>

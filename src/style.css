@@ -3891,14 +3891,108 @@ body.quill-dragging * {
   opacity: 0;
   pointer-events: none;
 }
-/* ---- 打字时自动收起顶栏底栏，鼠标一动就回来 ----
-   和禅模式同一套手法：滑出去 + 淡掉，而不是 display: none。
-   因为用的是 transform，正文位置一点都不动，收起和放回都是有过渡的。 */
-.app.bars-hidden .titlebar {
+/* ---- 无边框窗口的顶栏：默认藏着，鼠标够到右上角才滑出来 ----
+   窗口去掉了系统标题栏（tauri.conf.json → decorations: false），顶栏于是从
+   「一直挂着的一条」变成了「要用时才出现的一条」。手法和禅模式、和底栏一致：
+   滑出去 + 淡掉，而不是 display: none —— 用 transform 就不占位移动，
+   顶栏进进出出时正文一个字都不会跳行。 */
+.titlebar {
+  /* 这条要写在「主题切换」那条之后：那里也声明了 transition，会把这边的盖掉 */
+  transition:
+    transform var(--dur) var(--ease),
+    opacity var(--dur) var(--ease),
+    background-color 0.34s var(--ease),
+    border-color 0.34s var(--ease),
+    color 0.34s var(--ease);
+}
+.app.bar-hidden .titlebar {
   transform: translateY(-100%);
   opacity: 0;
   pointer-events: none;
 }
+
+/* 顶栏藏起来之后留在顶部的那两块感应区。
+   右上角是主入口（窗口按钮就在那儿）；顶上那条 6px 细边是备用通道 ——
+   无边框窗口只能拖标题栏，没有它就没法用鼠标搬动窗口。
+   细边只认「按下去」：鼠标扫过不算，否则手从正文往上划一下就闪一条顶栏出来。 */
+.titlebar-hot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--titlebar-h);
+  z-index: 26;
+  pointer-events: none;
+}
+.titlebar-hot .hot-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  pointer-events: auto;
+}
+.titlebar-hot .hot-corner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 300px;
+  height: 100%;
+  pointer-events: auto;
+}
+
+/* ---- 无边框窗口右上角的三个窗口按钮 ---- */
+/* 系统标题栏没了，最小化 / 最大化 / 关闭就只剩这三个。但它们不该长成
+   Windows 原生的样子：撑满高度、贴死边角、关闭键一悬停就一块大红 —— 那套
+   硬邦邦的方钮跟这里的毛玻璃和暖色完全不是一家人。所以改成顶栏图标按钮
+   那一族的成员：小圆角、透明底、悬停才浮出一点点，安静地把事办了。 */
+.win-ctl {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+}
+.win-btn {
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+/* 圆头圆角：直角方框才是「系统味」的来源，这里全部化掉 */
+.win-btn svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.win-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+  color: var(--text);
+}
+/* 关闭键不点大红底，只借主题里那点陶土红 ——
+   意思到了，也不必把整条顶栏喊醒 */
+.win-btn.close:hover {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-3);
+}
+
+/* ---- 打字时自动收起底栏与侧栏，鼠标一动就回来 ----
+   和禅模式同一套手法：滑出去 + 淡掉，而不是 display: none。
+   顶栏不归这里管 —— 它连系统边框一起顶替掉了，常态本来就该是藏着的。 */
 .app.bars-hidden .statusbar {
   transform: translateY(100%);
   opacity: 0;
