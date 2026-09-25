@@ -144,6 +144,84 @@ pub fn ai_save(
     Ok(AiStatus::from(&cfg))
 }
 
+/// 拉取这个接口支持的模型列表（`GET /models`）。
+///
+/// `base_url` 允许传界面上正在填、还没保存的地址 —— 否则用户刚改完地址，
+/// 得先点一次保存才能看列表，很别扭。
+/// 本地服务（Ollama / LM Studio）通常不校验 Key，所以没配 Key 也照发。
+#[tauri::command]
+pub async fn ai_models(
+    app: tauri::AppHandle,
+    base_url: Option<String>,
+) -> Result<Vec<String>, String> {
+    let cfg = load_config(&app);
+    let base = base_url
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| cfg.base_url.clone());
+    if base.is_empty() {
+        return Err("接口地址是空的".into());
+    }
+    let url = format!("{}/models", base.trim_end_matches('/'));
+
+    let mut builder = reqwest::Client::builder().timeout(Duration::from_secs(20));
+    if bypass_proxy(&url) {
+        builder = builder.no_proxy();
+    }
+    let client = builder
+        .build()
+        .map_err(|e| format!("建 HTTP 客户端失败: {e}"))?;
+
+    let mut request = client.get(&url);
+    if !cfg.api_key.trim().is_empty() {
+        request = request.bearer_auth(cfg.api_key.trim());
+    }
+    let resp = request
+        .send()
+        .await
+        .map_err(|e| format!("请求 {url} 失败: {e}"))?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        let detail = resp.text().await.unwrap_or_default();
+        let brief: String = detail.chars().take(200).collect();
+        return Err(format!("接口返回 {status}（{url}）：{brief}"));
+    }
+
+    let value: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析 {url} 的响应失败: {e}"))?;
+
+    // 标准形状是 { data: [{ id }] }，但网关各有各的写法，能捞就捞
+    let list = value
+        .get("data")
+        .and_then(|d| d.as_array())
+        .or_else(|| value.get("models").and_then(|d| d.as_array()))
+        .or_else(|| value.as_array());
+    let mut ids: Vec<String> = Vec::new();
+    if let Some(arr) = list {
+        for item in arr {
+            let id = item
+                .get("id")
+                .or_else(|| item.get("name"))
+                .or_else(|| item.get("model"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if !id.trim().is_empty() {
+                ids.push(id.trim().to_string());
+            }
+        }
+    }
+    ids.sort();
+    ids.dedup();
+    if ids.is_empty() {
+        return Err(format!("{url} 没有返回可用的模型名"));
+    }
+    log::info!("拉到 {} 个模型：{url}", ids.len());
+    Ok(ids)
+}
+
 /// 一行 SSE → (增量文本, 结束原因)。
 ///
 /// 结束原因必须一并取出来：`finish_reason: "length"` 是模型在明说「我被 max_tokens

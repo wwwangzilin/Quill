@@ -2071,6 +2071,120 @@ body.quill-dragging * {
 .field textarea::placeholder {
   color: var(--text-3);
 }
+/* ---- 模型选择：输入框照旧手打，右侧箭头拉出候选 ---- */
+.model-pick {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.model-pick input {
+  flex: 1;
+  min-width: 0;
+  padding-right: 30px;
+}
+.model-caret {
+  position: absolute;
+  right: 3px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+.model-caret:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+.model-caret.open {
+  transform: rotate(180deg);
+  color: var(--accent-1);
+}
+.model-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  max-height: 268px;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: menu-in var(--dur-fast) var(--ease-out);
+}
+.model-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-3);
+}
+.model-pull {
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent-1);
+  font-size: 11px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.model-pull:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+.model-pull:disabled {
+  color: var(--text-3);
+  cursor: default;
+}
+.model-menu-body {
+  overflow-y: auto;
+  padding: 4px;
+}
+.model-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 9px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.model-item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.model-item.on {
+  background: var(--accent-soft);
+  color: var(--accent-1);
+}
+.model-empty {
+  margin: 6px 8px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
 /* AI 结果撞上长度上限时的提示条 */
 .ai-trunc {
   margin-top: 8px;

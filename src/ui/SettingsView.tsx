@@ -9,7 +9,16 @@ import {
   fontOption,
   type ProseStyle,
 } from '../core/fonts'
-import { AI_DEFAULTS, aiAvailable, aiSave, aiStatus, aiStream, type AiStatus } from '../core/ai'
+import {
+  AI_DEFAULTS,
+  aiAvailable,
+  aiModels,
+  aiSave,
+  aiStatus,
+  aiStream,
+  guessModels,
+  type AiStatus,
+} from '../core/ai'
 import { AI_TUNING_RANGE, resetAiTuning, useAiTuning } from '../core/aiPrefs'
 import { isDesktop, type DesktopPrefs } from '../core/desktop'
 import { checkUpdate, currentVersion, installUpdate, type UpdateInfo } from '../core/update'
@@ -82,6 +91,11 @@ export default function SettingsView({
   const [aiLog, setAiLog] = useState('')
   /** 生成参数：拖一下即时生效，不必等「保存设置」 */
   const [tuning, setTuning] = useAiTuning()
+  /** 模型候选：先按地址猜几个，也可以从接口拉真实列表 */
+  const [modelOpen, setModelOpen] = useState(false)
+  const [models, setModels] = useState<string[]>([])
+  const [modelBusy, setModelBusy] = useState(false)
+  const [modelPulled, setModelPulled] = useState(false)
 
   /* ---- 关于与更新 ---- */
   const [version, setVersion] = useState('')
@@ -127,6 +141,22 @@ export default function SettingsView({
     })()
   }, [])
 
+  // 接口地址一改，之前拉来的列表就不作数了，退回按地址猜的那几个
+  useEffect(() => {
+    setModelPulled(false)
+    setModels(guessModels(aiUrl))
+  }, [aiUrl])
+
+  // 点别处就把下拉收起来
+  useEffect(() => {
+    if (!modelOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.model-pick')) setModelOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [modelOpen])
+
   /* ---------------- 远程备份 ---------------- */
 
   const save = async () => {
@@ -163,6 +193,22 @@ export default function SettingsView({
   }
 
   /* ---------------- AI 助手 ---------------- */
+
+  /** 从接口拉真实模型列表 —— 这是唯一不会过时的来源 */
+  const pullModels = async () => {
+    setModelBusy(true)
+    try {
+      const list = await aiModels(aiUrl.trim())
+      setModels(list)
+      setModelPulled(true)
+      setModelOpen(true)
+      toast.success(`拿到 ${list.length} 个模型`, '点一个填进输入框')
+    } catch (err) {
+      toast.error('拉取模型列表失败', String(err).slice(0, 150))
+    } finally {
+      setModelBusy(false)
+    }
+  }
 
   const saveAi = async () => {
     setAiBusy(true)
@@ -398,15 +444,70 @@ export default function SettingsView({
       </label>
       <p className="hint">密钥只写入本机配置目录，不会进入文档仓库。</p>
 
-      <label className="field">
+      {/* 模型：既能手打（中转的模型名千奇百怪），也能从接口拉一份真实列表来选 */}
+      <div className="field">
         <span>模型</span>
-        <input
-          value={aiModel}
-          onChange={(e) => setAiModel(e.target.value)}
-          placeholder={AI_DEFAULTS.model}
-          spellCheck={false}
-        />
-      </label>
+        <div className="model-pick">
+          <input
+            value={aiModel}
+            onChange={(e) => setAiModel(e.target.value)}
+            placeholder={AI_DEFAULTS.model}
+            spellCheck={false}
+            onFocus={() => setModelOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setModelOpen(false)
+            }}
+          />
+          <button
+            type="button"
+            className={'model-caret' + (modelOpen ? ' open' : '')}
+            onClick={() => setModelOpen((v) => !v)}
+            title="选择模型"
+          >
+            ▾
+          </button>
+
+          {modelOpen && (
+            <div className="model-menu">
+              <div className="model-menu-head">
+                <span className="model-menu-title">
+                  {modelPulled ? `接口返回 ${models.length} 个` : '常见模型'}
+                </span>
+                <span className="grow" />
+                <button
+                  type="button"
+                  className="model-pull"
+                  onClick={() => void pullModels()}
+                  disabled={modelBusy}
+                >
+                  {modelBusy ? '获取中…' : '↻ 从接口获取'}
+                </button>
+              </div>
+              <div className="model-menu-body">
+                {models.length === 0 ? (
+                  <p className="model-empty">
+                    这个地址猜不出常见模型，点上面的「从接口获取」拉一份真实列表。
+                  </p>
+                ) : (
+                  models.map((m) => (
+                    <button
+                      type="button"
+                      key={m}
+                      className={'model-item' + (m === aiModel ? ' on' : '')}
+                      onClick={() => {
+                        setAiModel(m)
+                        setModelOpen(false)
+                      }}
+                    >
+                      {m}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       <label className="field">
         <span>

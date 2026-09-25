@@ -524,7 +524,8 @@ pub fn run() {
             window_ready,
             ai::ai_status,
             ai::ai_save,
-            ai::ai_stream
+            ai::ai_stream,
+            ai::ai_models
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
