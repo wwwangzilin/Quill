@@ -40,6 +40,14 @@ interface Props {
   onReady?: (editor: Editor) => void
   /** 拖进来的文本文件（.md / .txt）—— 当成新文档导入，而不是插到光标处 */
   onDropText?: (files: File[]) => void
+  /**
+   * 同上，但走的是**路径**。
+   *
+   * 桌面版拖文件进来走的是 Tauri 的原生拖拽事件，它给的是磁盘路径而不是 File
+   * 对象（浏览器模式下才走上面那个）。两条路都得有，不然拖 .txt 进来会一头
+   * 撞进「导入图片或视频」那条路上，然后什么都不发生。
+   */
+  onDropPaths?: (paths: string[]) => void
   /** 给选中的这段加批注（打开右侧批注面板） */
   onComment?: (text: string) => void
 }
@@ -135,6 +143,7 @@ export default function EditorPane({
   aiDelay,
   onReady,
   onDropText,
+  onDropPaths,
   onComment,
 }: Props) {
   const [stats, setStats] = useState<Stats>(() => countStats(doc.content))
@@ -506,6 +515,12 @@ export default function EditorPane({
   useEffect(() => {
     dropTextRef.current = onDropText ?? (() => {})
   }, [onDropText])
+
+  /** 同上，路径版本 */
+  const onDropPathsRef = useRef<(paths: string[]) => void>(() => {})
+  useEffect(() => {
+    onDropPathsRef.current = onDropPaths ?? (() => {})
+  }, [onDropPaths])
   const dropPathsRef = useRef<(paths: string[], x?: number, y?: number) => void>(() => {})
 
   /** 文件 → 仓库 assets/ → 插入节点。给了 pos 就插那儿，否则插在光标处 */
@@ -579,7 +594,15 @@ export default function EditorPane({
     pasteFilesRef.current = (files) => void insertFiles(files)
   }, [insertFiles])
   useEffect(() => {
-    dropPathsRef.current = (paths, x, y) => void insertPaths(paths, x, y)
+    dropPathsRef.current = (paths, x, y) => {
+      // 拖进来的全是文本文件 → 当新文档导入（.txt 会顺带认编码并转成 Markdown）。
+      // 混着图片或别的东西就还走老路：复制进 assets 再插到光标处。
+      if (paths.length && paths.every((p) => isImportable(p))) {
+        onDropPathsRef.current(paths)
+        return
+      }
+      void insertPaths(paths, x, y)
+    }
   }, [insertPaths])
 
   /**

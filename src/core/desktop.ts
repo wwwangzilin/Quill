@@ -3,7 +3,7 @@
  * 浏览器调试模式下全部是安全空操作 —— 调用方先看 isDesktop()。
  */
 import { invoke } from '@tauri-apps/api/core'
-import { isImportable, readImportFile, type ImportedDoc } from './txtToMd'
+import { docFromBytes, isImportable, readImportFile, type ImportedDoc } from './txtToMd'
 
 export interface DesktopPrefs {
   /** 点 × 收进托盘（这样 Ctrl+Space 快速便签才一直可用） */
@@ -80,6 +80,29 @@ export type { ImportedDoc } from './txtToMd'
  * 注意**不要**用 `file.text()` —— 它一律按 UTF-8 解码，而中文 txt 十有八九是
  * GBK，那样读出来整篇都是乱码。走 readImportFile，它会先认编码。
  */
+/**
+ * 从一串**文件路径**读出待导入的文档。
+ *
+ * 拖拽走的就是这条路：桌面版的原生拖拽事件给的是磁盘路径，不是 File 对象。
+ * 字节交给 Rust 读（base64 回来），认编码仍放在前端 —— TextDecoder 原生带 gbk。
+ */
+export async function readPathsAsDocs(paths: string[]): Promise<ImportedDoc[]> {
+  const out: ImportedDoc[] = []
+  for (const p of paths) {
+    if (!isImportable(p)) continue
+    try {
+      const b64 = await invoke<string>('read_file_b64', { path: p })
+      const bin = atob(b64)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i)
+      out.push(docFromBytes(bytes.buffer, p))
+    } catch {
+      /* 一个读不了不影响其它的 */
+    }
+  }
+  return out
+}
+
 export async function readMarkdownFolder(files: FileList | File[]): Promise<ImportedDoc[]> {
   const list = Array.from(files).filter((f) => isImportable(f.name))
   const out: ImportedDoc[] = []

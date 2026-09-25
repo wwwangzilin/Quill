@@ -490,6 +490,35 @@ pub fn get_stats(dir: &Path) -> HashMap<String, u64> {
         .unwrap_or_default()
 }
 
+/// base64 编码（同样是手写的，省一个依赖）。
+///
+/// 拖进来的 .txt 得先认出编码才知道是不是 GBK，而那是前端 TextDecoder 的强项
+/// （原生带 gbk / big5），Rust 这边要么引 encoding_rs 要么自己写，不划算。
+/// 所以这里只把字节原样端过去 —— 用 base64 而不是 JSON 数字数组：
+/// 一个几百 KB 的 txt 走数组会膨胀成几 MB 的文本，白等一趟。
+pub fn encode_base64(bytes: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b1 = chunk.get(1).copied().unwrap_or(0);
+        let b2 = chunk.get(2).copied().unwrap_or(0);
+        let n = ((chunk[0] as u32) << 16) | ((b1 as u32) << 8) | b2 as u32;
+        out.push(T[(n >> 18) as usize & 63] as char);
+        out.push(T[(n >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 {
+            T[(n >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            T[n as usize & 63] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+
 /// base64 解码（手写，省一个依赖）
 fn decode_base64(input: &str) -> Result<Vec<u8>, String> {
     const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";

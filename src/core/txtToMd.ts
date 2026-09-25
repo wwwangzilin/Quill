@@ -33,15 +33,13 @@ export function baseName(name: string): string {
 }
 
 /**
- * 认编码并读文本。
+ * 认编码并解码。
  *
  * 顺序是刻意的：**先 UTF-8 且 fatal**。因为 GBK 解码几乎不会失败
  * （任何字节序列它都能给你凑出字来），要是先试 GBK，UTF-8 的文件也会被
  * 当成 GBK 解成乱码。反过来先严格试 UTF-8，解不动才说明它多半不是 UTF-8。
  */
-export async function readTextFile(file: File): Promise<{ text: string; encoding: string }> {
-  const buf = await file.arrayBuffer()
-
+export function decodeText(buf: ArrayBuffer): { text: string; encoding: string } {
   // UTF-16 有 BOM 就能一眼认出；UTF-8 的 BOM 交给 TextDecoder 自己吞
   const head = new Uint8Array(buf, 0, Math.min(2, buf.byteLength))
   if (head[0] === 0xff && head[1] === 0xfe) {
@@ -60,6 +58,11 @@ export async function readTextFile(file: File): Promise<{ text: string; encoding
   }
   // 都解不动就别硬撑了，有损解出来至少内容还在
   return { text: new TextDecoder('utf-8').decode(buf), encoding: 'utf-8（有损）' }
+}
+
+/** 读一个 File 并认编码 */
+export async function readTextFile(file: File): Promise<{ text: string; encoding: string }> {
+  return decodeText(await file.arrayBuffer())
 }
 
 /** 这一行看着像不像文章的标题 */
@@ -154,4 +157,17 @@ export async function readImportFile(file: File): Promise<ImportedDoc> {
   const { text } = await readTextFile(file)
   const name = baseName(file.name)
   return PLAIN.test(file.name) ? txtToMarkdown(text, name) : { title: name, content: text }
+}
+
+/**
+ * 从一个路径（Tauri 原生拖拽给的是完整路径）读出来并转成待落盘的文档。
+ *
+ * 路径可能长这样：`C:\Users\JJ\Desktop\我的笔记.txt` —— 取文件名那一步要按
+ * 两种分隔符都切，Windows 上反斜杠是主分隔符。
+ */
+export function docFromBytes(buf: ArrayBuffer, path: string): ImportedDoc {
+  const { text } = decodeText(buf)
+  const file = path.split(/[\\/]/).pop() ?? path
+  const name = baseName(file)
+  return PLAIN.test(file) ? txtToMarkdown(text, name) : { title: name, content: text }
 }

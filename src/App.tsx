@@ -36,6 +36,7 @@ import {
   isDesktop,
   loadDesktopPrefs,
   readMarkdownFolder,
+  readPathsAsDocs,
   saveDesktopPrefs,
   setAutostart,
   type DesktopPrefs,
@@ -1184,6 +1185,30 @@ export default function App() {
   /** 挑几个文本文件导进来；.txt 会自动识别编码并转成 Markdown */
   const importFiles = useCallback(() => pickFiles(false), [pickFiles])
 
+  /**
+   * 拖进来的文件路径 → 导入成新文档。
+   *
+   * 桌面版拖拽走的是 Tauri 原生事件，给的是磁盘路径（不是 File 对象），
+   * 所以这条和上面那几个入口不是一回事，得单独接。
+   */
+  const importPaths = useCallback(
+    async (paths: string[]) => {
+      try {
+        const items = await readPathsAsDocs(paths)
+        if (!items.length) {
+          toast.info('拖进来的不是文本文件', '支持 .md / .markdown / .txt')
+          return
+        }
+        const n = await importMarkdown(items)
+        await refreshDocs()
+        toast.success(`已导入 ${n} 篇文档`, '同名文件会自动加序号，不会覆盖')
+      } catch (err) {
+        toast.error('导入失败', String(err).slice(0, 120))
+      }
+    },
+    [refreshDocs],
+  )
+
   /* ---------------- 标题栏的「⋯ 更多」 ---------------- */
 
   const toggleFocus = useCallback(() => {
@@ -1618,6 +1643,7 @@ export default function App() {
                 }}
                 onReady={handleEditorReady}
                 onDropText={(fs) => void runImport(fs)}
+                onDropPaths={(ps) => void importPaths(ps)}
                 onComment={(text) => {
                   setCommentFocus(null)
                   setCommentDraft(text)

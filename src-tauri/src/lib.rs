@@ -416,6 +416,16 @@ async fn search_vault(
         .map_err(|e| format!("搜索任务失败: {e}"))?
 }
 
+/// 读一个外部文件的原始字节（base64）。
+///
+/// 给「拖 .txt 进来」用：文件里可能是 GBK，得先认编码才知道怎么解 ——
+/// 那是前端 TextDecoder 的强项（原生带 gbk / big5），这里只负责把字节端过去。
+#[tauri::command]
+fn read_file_b64(path: String) -> Result<String, String> {
+    let bytes = std::fs::read(&path).map_err(|e| format!("读取失败: {e}"))?;
+    Ok(vault::encode_base64(&bytes))
+}
+
 #[tauri::command]
 fn reveal_vault(app: tauri::AppHandle) -> Result<(), String> {
     let dir = prepare(&app)?;
@@ -530,6 +540,7 @@ pub fn run() {
             git_restore,
             reveal_vault,
             search_vault,
+            read_file_b64,
             git_remote_info,
             save_git_settings,
             git_push_now,
