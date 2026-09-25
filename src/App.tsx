@@ -10,6 +10,7 @@ import { useSetting } from './core/settings'
 import ShortcutsPanel from './ui/ShortcutsPanel'
 import TrashPanel from './ui/TrashPanel'
 import SettingsView from './ui/SettingsView'
+import DocLibrary from './ui/DocLibrary'
 import MoreMenu, { type MenuItem } from './ui/MoreMenu'
 import CommandPalette, { type PaletteCommand } from './ui/CommandPalette'
 import BacklinksPanel from './ui/BacklinksPanel'
@@ -160,6 +161,7 @@ export default function App() {
   const [stats, setStats] = useState<Record<string, number>>({})
   const [jumpPath, setJumpPath] = useState<number[] | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [libraryOpen, setLibraryOpen] = useState(false)
   const [quickOpen, setQuickOpen] = useState(false)
   /** 正文外观：字体 / 字号 / 行距，改了立刻写进 CSS 变量 */
   const [prose, setProse] = useState<ProseStyle>(() => readProse())
@@ -1028,6 +1030,13 @@ export default function App() {
       onSelect: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
     },
     {
+      key: 'library',
+      icon: '▤',
+      label: '文档库',
+      hint: '浏览与筛选全部文档',
+      onSelect: () => setLibraryOpen(true),
+    },
+    {
       key: 'settings',
       icon: '⚙',
       label: '设置',
@@ -1091,6 +1100,7 @@ export default function App() {
       run: () => void pinToDesktop(),
     },
     { id: 'trash', title: '打开回收站', icon: '🗑', run: () => setTrashOpen(true) },
+    { id: 'library', title: '文档库', icon: '▤', run: () => setLibraryOpen(true) },
     { id: 'settings', title: '设置', icon: '⚙', run: () => setSettingsOpen(true) },
     { id: 'shortcuts', title: '快捷键一览', hint: 'Ctrl+/', icon: '⌘', run: () => setShortcutsOpen(true) },
     { id: 'reveal', title: '在资源管理器里打开文档仓库', icon: '🗀', run: () => void storage.reveal() },
@@ -1231,7 +1241,22 @@ export default function App() {
         />
 
         <div className="main">
-          {settingsOpen ? (
+          {libraryOpen ? (
+            <DocLibrary
+              docs={docs}
+              currentId={doc?.id ?? null}
+              onOpen={(id) => {
+                void openDoc(id)
+                setLibraryOpen(false)
+              }}
+              onCreate={() => {
+                void createNew()
+                setLibraryOpen(false)
+              }}
+              onClose={() => setLibraryOpen(false)}
+              onStar={(id) => void toggleStar(id)}
+            />
+          ) : settingsOpen ? (
             <SettingsView
               onClose={() => setSettingsOpen(false)}
               prose={prose}

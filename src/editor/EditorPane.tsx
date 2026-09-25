@@ -555,7 +555,8 @@ export default function EditorPane({
     if (!wiki) return []
     const q = wiki.query.trim().toLowerCase()
     const list = q ? allDocs.filter((t) => t.toLowerCase().includes(q)) : allDocs
-    return list.slice(0, 8)
+    // 大面板铺得下二十来张卡片；以前的小浮层只放 8 条，文档一多就得靠上下键翻
+    return list.slice(0, 24)
   }, [wiki, allDocs])
 
   const runWiki = useCallback(
@@ -745,15 +746,7 @@ export default function EditorPane({
             onPick={runSlash}
           />
         )}
-        {wiki && (
-          <WikiMenu
-            items={wikiItems}
-            index={wiki.index}
-            x={wiki.x}
-            y={wiki.y}
-            onPick={runWiki}
-          />
-        )}
+        {wiki && <WikiMenu items={wikiItems} index={wiki.index} onPick={runWiki} />}
         <AiSelectionBar editor={editor} host={hostRef} onComment={onComment ? (text) => onComment(text) : undefined} />
       </div>
       {dropping && (
