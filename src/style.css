@@ -3702,7 +3702,7 @@ body.quill-dragging * {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 28px 32px 0;
+  padding: 28px 32px 24px;
   overflow: hidden;
 }
 
@@ -3752,87 +3752,72 @@ body.quill-dragging * {
   border-color: var(--accent-1, #7c6cff);
 }
 
-/* ---------- 文档库：Word「打开」对话框那种排布 ---------- */
+/* ---------- 文档库：通栏文件列表 ---------- */
 /*
- * 左边一列位置/标签（对应 Word 的导航窗格），右边详细资料列表
- * （名称 · 标签 · 修改日期 · 字数，点列头排序）。
- * 比卡片画廊能装下多得多的信息，也更像个管理文档的地方。
+ * 照 Word 的「最近使用的文档」来：一条通栏列表，不要侧栏。
+ * 名称 · 创建 · 修改日期 · 字数 四列 + 星标，点列头排序；
+ * 筛选收在顶上那一行，不占地方。
  */
-.library-body {
-  flex: 1;
-  display: flex;
-  gap: 16px;
-  min-height: 0;
-  padding-bottom: 30px;
-}
 
-.library-nav {
-  flex: none;
-  width: 178px;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  overflow-y: auto;
-}
-
-.nav-group {
-  padding: 14px 10px 5px;
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  color: var(--text-3);
-  opacity: 0.75;
-}
-
-.nav-item {
+/* 筛选行 */
+.library-filters {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 28px;
-  padding: 0 10px;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-2, var(--text));
-  font-size: 12.5px;
-  text-align: left;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 12px;
+}
+
+.fbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-3);
+  font-size: 11.5px;
   cursor: pointer;
-  transition: background 0.12s var(--ease-out, ease);
+  transition: color 0.12s var(--ease-out, ease), background 0.12s var(--ease-out, ease);
 }
-.nav-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+.fbtn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
 }
-.nav-item.on {
-  background: rgba(124, 108, 255, 0.16);
+.fbtn.on {
+  background: rgba(124, 108, 255, 0.18);
   color: var(--text);
 }
-.nav-item .ni-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.nav-item .ni-count {
-  margin-left: auto;
-  font-size: 11px;
+.fbtn em {
   font-style: normal;
-  color: var(--text-3);
+  font-size: 10.5px;
+  opacity: 0.7;
   font-variant-numeric: tabular-nums;
+}
+.fsep {
+  width: 1px;
+  height: 14px;
+  margin: 0 4px;
+  background: var(--border);
 }
 
 .library-list {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  min-height: 0;
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
 }
 
-/* 四列：名称占满剩余，其余固定宽，和 Word 的详细资料一致 */
+/* 五列：名称占满剩余，其余按 Word 那种固定列宽排 */
 .library-list .list-head,
 .library-list .list-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 140px 132px 66px 30px;
+  grid-template-columns: minmax(0, 1fr) 132px 132px 72px 30px;
   align-items: center;
   gap: 10px;
 }
@@ -3907,9 +3892,11 @@ body.quill-dragging * {
   opacity: 0.5;
 }
 
-.lr-tags {
-  display: flex;
+/* 标签跟在文件名后面，省一列 */
+.lr-tagset {
+  display: inline-flex;
   gap: 4px;
+  margin-left: 9px;
   overflow: hidden;
 }
 .lr-tag {
@@ -3921,6 +3908,7 @@ body.quill-dragging * {
   color: var(--text-3);
 }
 
+.lr-created,
 .lr-date,
 .lr-size {
   font-size: 11.5px;

@@ -13,7 +13,7 @@ interface Props {
 type SortKey = 'title' | 'updated' | 'created' | 'chars'
 type Filter = { kind: 'all' } | { kind: 'star' } | { kind: 'tag'; tag: string }
 
-/** Word 那种「详细资料」日期：今天/昨天说人话，更早给完整日期 */
+/** 日期写成人话：今天/昨天带时刻，更早给完整日期 */
 function fullDate(ts: number): string {
   const d = new Date(ts)
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -36,9 +36,8 @@ function sizeLabel(n?: number): string {
 /**
  * 文档库。
  *
- * 布局照 Microsoft Word 的「打开」对话框来：左边一列位置/筛选（Word 的导航窗格），
- * 右边是详细资料列表 —— 名称、标签、修改日期、字数四列，点列头就能排序。
- * 之前那版是卡片画廊，好看是好看，但一眼能装下的信息太少，不像个管理文档的地方。
+ * 照 Word 的「最近使用的文档」来：**一整个通栏的文件列表**，没有左侧栏。
+ * 名称、标签、修改日期、字数四列，点列头排序；筛选收在顶上那一行。
  */
 export default function DocLibrary({
   docs,
@@ -73,7 +72,7 @@ export default function DocLibrary({
         (d.tags ?? []).some((t) => t.toLowerCase().includes(key))
       )
     })
-    const sorted = [...filtered].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       let r = 0
       if (sort === 'title') r = a.title.localeCompare(b.title, 'zh')
       else if (sort === 'created') r = a.createdAt - b.createdAt
@@ -81,18 +80,15 @@ export default function DocLibrary({
       else r = a.updatedAt - b.updatedAt
       return asc ? r : -r
     })
-    return sorted
   }, [docs, q, filter, sort, asc])
 
   const pickSort = (key: SortKey) => {
     if (sort === key) setAsc((v) => !v)
     else {
       setSort(key)
-      // 日期和字数默认从大到小，标题默认 A→Z
       setAsc(key === 'title')
     }
   }
-
   const arrow = (key: SortKey) => (sort === key ? (asc ? ' ▲' : ' ▼') : '')
 
   return (
@@ -115,116 +111,108 @@ export default function DocLibrary({
         </button>
       </div>
 
-      <div className="library-body">
-        {/* 左：位置与标签 —— 对应 Word 的导航窗格 */}
-        <div className="library-nav">
-          <div className="nav-group">位置</div>
-          <button
-            className={'nav-item' + (filter.kind === 'all' ? ' on' : '')}
-            onClick={() => setFilter({ kind: 'all' })}
-          >
-            <span className="ni-label">全部文档</span>
-            <em className="ni-count">{docs.length}</em>
-          </button>
-          <button
-            className={'nav-item' + (filter.kind === 'star' ? ' on' : '')}
-            onClick={() => setFilter({ kind: 'star' })}
-          >
-            <span className="ni-label">★ 星标</span>
-            <em className="ni-count">{starredCount}</em>
-          </button>
+      {/* 筛选收在一行里，不再占一整个侧栏 */}
+      <div className="library-filters">
+        <button
+          className={'fbtn' + (filter.kind === 'all' ? ' on' : '')}
+          onClick={() => setFilter({ kind: 'all' })}
+        >
+          全部 <em>{docs.length}</em>
+        </button>
+        <button
+          className={'fbtn' + (filter.kind === 'star' ? ' on' : '')}
+          onClick={() => setFilter({ kind: 'star' })}
+        >
+          ★ 星标 <em>{starredCount}</em>
+        </button>
+        {tags.length > 0 && <span className="fsep" />}
+        {tags.map((t) => {
+          const n = docs.filter((d) => (d.tags ?? []).includes(t)).length
+          const on = filter.kind === 'tag' && filter.tag === t
+          return (
+            <button
+              key={t}
+              className={'fbtn' + (on ? ' on' : '')}
+              onClick={() => setFilter({ kind: 'tag', tag: t })}
+            >
+              {t} <em>{n}</em>
+            </button>
+          )
+        })}
+      </div>
 
-          {tags.length > 0 && (
-            <>
-              <div className="nav-group">标签</div>
-              {tags.map((t) => {
-                const n = docs.filter((d) => (d.tags ?? []).includes(t)).length
-                const on = filter.kind === 'tag' && filter.tag === t
-                return (
-                  <button
-                    key={t}
-                    className={'nav-item' + (on ? ' on' : '')}
-                    onClick={() => setFilter({ kind: 'tag', tag: t })}
-                  >
-                    <span className="ni-label">{t}</span>
-                    <em className="ni-count">{n}</em>
-                  </button>
-                )
-              })}
-            </>
+      <div className="library-list">
+        <div className="list-head">
+          <button className="lh name" onClick={() => pickSort('title')}>
+            名称{arrow('title')}
+          </button>
+          <button className="lh tags" onClick={() => pickSort('created')}>
+            创建{arrow('created')}
+          </button>
+          <button className="lh date" onClick={() => pickSort('updated')}>
+            修改日期{arrow('updated')}
+          </button>
+          <button className="lh size" onClick={() => pickSort('chars')}>
+            字数{arrow('chars')}
+          </button>
+          <span className="lh star" />
+        </div>
+
+        <div className="list-body">
+          {rows.length === 0 ? (
+            <div className="list-empty">
+              {docs.length === 0 ? '还没有文档，点右上角「＋ 新建」写第一篇' : '没有符合条件的文档'}
+            </div>
+          ) : (
+            rows.map((d) => (
+              <div
+                key={d.id}
+                className={'list-row' + (d.id === currentId ? ' current' : '')}
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpen(d.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onOpen(d.id)
+                }}
+              >
+                <span className="lr-name" title={d.title}>
+                  <span className="lr-doc">📄</span>
+                  {d.title || '未命名'}
+                  {(d.tags ?? []).length > 0 && (
+                    <span className="lr-tagset">
+                      {(d.tags ?? []).slice(0, 3).map((t) => (
+                        <span key={t} className="lr-tag">
+                          {t}
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </span>
+                <span className="lr-created">{fullDate(d.createdAt)}</span>
+                <span className="lr-date">{fullDate(d.updatedAt)}</span>
+                <span className="lr-size">{sizeLabel(d.chars)}</span>
+                <button
+                  className={'lr-star' + (d.starred ? ' on' : '')}
+                  title={d.starred ? '取消星标' : '加星标'}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onStar(d.id, !d.starred)
+                  }}
+                >
+                  {d.starred ? '★' : '☆'}
+                </button>
+              </div>
+            ))
           )}
         </div>
 
-        {/* 右：详细资料列表 —— 对应 Word 的文件列表 */}
-        <div className="library-list">
-          <div className="list-head">
-            <button className="lh name" onClick={() => pickSort('title')}>
-              名称{arrow('title')}
-            </button>
-            <span className="lh tags">标签</span>
-            <button className="lh date" onClick={() => pickSort('updated')}>
-              修改日期{arrow('updated')}
-            </button>
-            <button className="lh size" onClick={() => pickSort('chars')}>
-              字数{arrow('chars')}
-            </button>
-            <span className="lh star" />
-          </div>
-
-          <div className="list-body">
-            {rows.length === 0 ? (
-              <div className="list-empty">
-                {docs.length === 0 ? '还没有文档，点右上角「＋ 新建」写第一篇' : '没有符合条件的文档'}
-              </div>
-            ) : (
-              rows.map((d) => (
-                <div
-                  key={d.id}
-                  className={'list-row' + (d.id === currentId ? ' current' : '')}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => onOpen(d.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') onOpen(d.id)
-                  }}
-                  onDoubleClick={() => onOpen(d.id)}
-                >
-                  <span className="lr-name" title={d.title}>
-                    <span className="lr-doc">📄</span>
-                    {d.title || '未命名'}
-                  </span>
-                  <span className="lr-tags">
-                    {(d.tags ?? []).slice(0, 3).map((t) => (
-                      <span key={t} className="lr-tag">
-                        {t}
-                      </span>
-                    ))}
-                  </span>
-                  <span className="lr-date">{fullDate(d.updatedAt)}</span>
-                  <span className="lr-size">{sizeLabel(d.chars)}</span>
-                  <button
-                    className={'lr-star' + (d.starred ? ' on' : '')}
-                    title={d.starred ? '取消星标' : '加星标'}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onStar(d.id, !d.starred)
-                    }}
-                  >
-                    {d.starred ? '★' : '☆'}
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="list-foot">
-            <span>
-              共 {rows.length} 篇
-              {rows.length !== docs.length && ` · 已筛选，全部 ${docs.length} 篇`}
-            </span>
-            <span className="grow" />
-            <span>合计 {totalChars.toLocaleString('zh-CN')} 字</span>
-          </div>
+        <div className="list-foot">
+          <span>
+            共 {rows.length} 篇
+            {rows.length !== docs.length && ` · 已筛选，全部 ${docs.length} 篇`}
+          </span>
+          <span className="grow" />
+          <span>合计 {totalChars.toLocaleString('zh-CN')} 字</span>
         </div>
       </div>
     </div>
