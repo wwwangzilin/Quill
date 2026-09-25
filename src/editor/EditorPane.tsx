@@ -196,6 +196,14 @@ export default function EditorPane({
     },
     onUpdate: ({ editor }) => {
       const json = editor.getJSON()
+      // 输入法组词中先什么都不做。
+      //
+      // 中文打字时人会在词与词之间停顿，而防抖保存只看「停手」，于是很容易
+      // 正好在组词中途触发一次保存 —— 保存带来的重渲染会打断 composition，
+      // 表现就是字突然自己上屏、光标跳回别处。组词结束后 ProseMirror 还会
+      // 再触发一次 update，那时再报上去，内容一个字都不会丢。
+      if (editor.view.composing) return
+
       setStats(countStats(json))
       onChange(json)
 

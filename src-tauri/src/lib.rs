@@ -56,14 +56,21 @@ fn create_doc(app: tauri::AppHandle, title: String) -> Result<DocEntry, String> 
 }
 
 #[tauri::command]
-fn save_doc(
+async fn save_doc(
     app: tauri::AppHandle,
     file: String,
     title: String,
     content: String,
 ) -> Result<SaveResult, String> {
     let dir = prepare(&app)?;
-    vault::save(&dir, &file, &title, &content)
+    // 写盘 + git 提交都是阻塞活，必须扔到阻塞线程池去。
+    //
+    // 同步命令会被 Tauri 放在主线程上执行：git 一慢（提交要起 git.exe、写对象、
+    // 有时还要等索引锁）整个 WebView 就僵住，正在组词的中文输入随即被系统提交 ——
+    // 用户看到的就是「一保存，字自己上屏、光标跳走了」。
+    tauri::async_runtime::spawn_blocking(move || vault::save(&dir, &file, &title, &content))
+        .await
+        .map_err(|e| format!("保存任务失败: {e}"))?
 }
 
 #[tauri::command]

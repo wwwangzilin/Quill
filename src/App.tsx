@@ -268,10 +268,13 @@ export default function App() {
   const scheduleSave = useCallback(() => {
     setSaving('saving')
     if (timerRef.current) window.clearTimeout(timerRef.current)
+    // 停手 1.4 秒才落盘。之前是 650ms —— 打字稍微一顿就写一次盘、跟着一次 git 提交，
+    // 一天下来提交历史被切得稀碎；更要命的是保存瞬间的重渲染会打断输入法组词，
+    // 中文写到一半光标就跳走了。
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null
       void persist()
-    }, 650)
+    }, 1400)
   }, [persist])
 
   const flush = useCallback(async () => {
