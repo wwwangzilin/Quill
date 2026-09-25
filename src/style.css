@@ -1463,11 +1463,15 @@ body,
   animation: soft-pulse 2s ease-in-out infinite;
 }
 
-/* ---------- 尊重系统「减少动效」 ---------- */
+/* ---------- 动效策略 ----------
+   界面里的过渡是设计的一部分，默认**不跟随**系统的「减少动效」——
+   否则在关掉系统动画的机器上，整个应用会退化成一帧帧硬切。
+   想让系统设置生效，去设置里打开「跟随系统的动画设置」；
+   那时 <html> 上会挂 .respect-motion，下面这段才开始起作用。 */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  html.respect-motion *,
+  html.respect-motion *::before,
+  html.respect-motion *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
@@ -2494,8 +2498,8 @@ body.quill-dragging * {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .quill-ai-ghost,
-  .quill-ai-ghost.is-loading {
+  html.respect-motion .quill-ai-ghost,
+  html.respect-motion .quill-ai-ghost.is-loading {
     animation: none;
   }
 }

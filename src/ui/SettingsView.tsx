@@ -20,6 +20,7 @@ import {
   type AiStatus,
 } from '../core/ai'
 import { AI_TUNING_RANGE, resetAiTuning, useAiTuning } from '../core/aiPrefs'
+import { applyRespectMotion, readRespectMotion } from '../core/motion'
 import { isDesktop, type DesktopPrefs } from '../core/desktop'
 import { checkUpdate, currentVersion, installUpdate, type UpdateInfo } from '../core/update'
 import { toast } from './toast'
@@ -89,6 +90,9 @@ export default function SettingsView({
   const [aiKey, setAiKey] = useState('')
   const [aiBusy, setAiBusy] = useState(false)
   const [aiLog, setAiLog] = useState('')
+  /** 是否跟随系统的「减少动效」—— 默认否，动画照常播 */
+  const [respectMotion, setRespectMotion] = useState(readRespectMotion)
+
   /** 生成参数：拖一下即时生效，不必等「保存设置」 */
   const [tuning, setTuning] = useAiTuning()
   /** 模型候选：先按地址猜几个，也可以从接口拉真实列表 */
@@ -310,6 +314,23 @@ export default function SettingsView({
             : option.cdn
               ? '　本机未安装，将从 CDN 按需加载字形。'
               : '　本机未安装，将回退到系统字体。'}
+      </p>
+
+      <label className="sc-row" style={{ cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={respectMotion}
+          onChange={(e) => {
+            setRespectMotion(e.target.checked)
+            applyRespectMotion(e.target.checked)
+          }}
+          style={{ width: 14, height: 14 }}
+        />
+        <span className="sc-text">跟随系统的动画设置</span>
+      </label>
+      <p className="hint">
+        默认关闭：界面里的过渡是设计的一部分，系统关掉了动效这里也照常播放 ——
+        否则面板会直接跳出来、列表会硬切，看着像没做完。确有需要（例如对动效敏感）再打开它。
       </p>
 
       <label className="field">
