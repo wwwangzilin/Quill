@@ -1435,6 +1435,18 @@ body,
   margin: 0 0 0.85em;
   text-indent: 2em;
 }
+/*
+ * 一章最长能到 6.5 万字（两千多个块），整章一次性排版仍然会顿一下。
+ * 让浏览器跳过视口外那些块的排版与绘制。
+ *
+ * **这里用着比编辑器里安全得多**：没有光标、没有装饰、没有 coordsAtPos
+ * 这类几何查询，纯展示。编辑器那边不敢这么放开，就是因为那些东西全依赖
+ * DOM 真实存在。
+ */
+.light-article > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 44px;
+}
 .light-article .reader-h {
   margin: 1.4em 0 0.6em;
   font-family: var(--font-display);
