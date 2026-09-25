@@ -23,7 +23,8 @@ interface Props {
 
 /**
  * 一条批注在本章正文里的落点：字符区间。
- * 坐标就是 `flatText(chapter.blocks)` 的下标 —— 渲染时靠 `blockOffsets` 对齐。
+ * 坐标就是 `flatText(chapter.blocks)` 的下标，渲染时靠 `blockOffsets` 对齐。
+ * （改这里只为碰一下文件让 Vite 重编 —— 见 README 的排查记录。）
  */
 interface Mark {
   id: string
@@ -258,10 +259,27 @@ export default function ReaderView({
   onClose,
 }: Props) {
   const guess = useMemo(() => guessNovel(doc), [doc])
-  /** 已经切成章节了没有。默认不切，右下角那条提示点了才切 */
-  const [slicedOn, setSlicedOn] = useState(false)
-  const [tipOpen, setTipOpen] = useState(guess.likely)
+  /**
+   * 是小说就**直接分章**，不做选择题。
+   *
+   * 像系统更新的提示那样：事情已经替你做了，右下角知会一声就完事；
+   * 判断依据收进 toast 的 detail，想反悔，工具条上留着一个开关。
+   * 以前那版要人先点一下「按章节读」才算数 —— 识别都识别出来了，
+   * 还把决定权推回来，等于白识别。
+   */
+  const [slicedOn, setSlicedOn] = useState(guess.likely)
   const slicing = slicedOn
+  /** 知会只发一次：进来时判成什么就说什么，别每次重渲染又弹一条 */
+  const announced = useRef(false)
+
+  useEffect(() => {
+    if (announced.current || !guess.likely) return
+    announced.current = true
+    toast.info(
+      `已按章节识别 · ${guess.chapters} 章`,
+      `${guess.reasons.join(' · ')} · 工具条上可以切回整篇读`,
+    )
+  }, [guess.likely, guess.chapters, guess.reasons])
 
   const chapters = useMemo(
     () =>
@@ -442,12 +460,6 @@ export default function ReaderView({
     [step, pages],
   )
 
-  const enterChapters = useCallback(() => {
-    setSlicedOn(true)
-    setTipOpen(false)
-    setCi(0)
-  }, [])
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // 抽屉开着的时候，Esc 先收抽屉
@@ -520,10 +532,18 @@ export default function ReaderView({
               ☰
             </button>
           )}
-          {/* 提示收掉之后，分章入口还得留一个 —— 不然它就再也回不来了 */}
-          {!slicing && guess.chapters >= 3 && (
-            <button className="btn ghost" onClick={enterChapters} title="按章节切开，用目录跳章">
-              按章节读
+          {/* 反悔的入口。提示只说「做了什么」，切换收在这一个开关上，不占视线 */}
+          {guess.chapters >= 3 && (
+            <button
+              className="btn ghost"
+              onClick={() => {
+                setSlicedOn((v) => !v)
+                setCi(0)
+                setPage(0)
+              }}
+              title={slicing ? '不按章节，整篇连着读' : '按章节切开，用目录跳章'}
+            >
+              {slicing ? '整篇读' : '按章节读'}
             </button>
           )}
           <span className="reader-now">{chapter.title}</span>
@@ -606,40 +626,6 @@ export default function ReaderView({
           </span>
         </footer>
       </main>
-
-      {/* 像不像小说不弹框拦人：右下角浮一条，点一下直接进分章模式，
-          不点就当整篇读。判断依据收在 title 里，想看再展开。 */}
-      {tipOpen && (
-        <div
-          className="reader-tip"
-          role="button"
-          tabIndex={0}
-          onClick={enterChapters}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') enterChapters()
-          }}
-          title={guess.reasons.join(' · ')}
-        >
-          <span className="reader-tip-mark">▤</span>
-          <span className="reader-tip-text">
-            这像是一篇小说
-            <em>
-              认出 {guess.chapters} 章 · {guess.chars} 字
-            </em>
-          </span>
-          <span className="btn primary mini">按章节读</span>
-          <button
-            className="btn ghost icon mini"
-            onClick={(e) => {
-              e.stopPropagation()
-              setTipOpen(false)
-            }}
-            title="整篇读就行"
-          >
-            ×
-          </button>
-        </div>
-      )}
 
       {/* 批注抽屉 —— 和编辑器里点「＋ 批注」出来的是同一个组件 */}
       <CommentsPanel

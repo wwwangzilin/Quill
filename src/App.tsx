@@ -608,10 +608,12 @@ export default function App() {
   // 换文档时读一次批注
   useEffect(() => {
     const id = doc?.id
-    if (!id || !storage.comments) {
-      setComments([])
-      return
-    }
+    /*
+     * 先清空。切文档的窗口期里，界面上不该还挂着上一篇的批注；
+     * 更要紧的是别让这期间的写操作拿到上一篇的列表。
+     */
+    setComments([])
+    if (!id || !storage.comments) return
     let alive = true
     void storage
       .comments(id)
@@ -976,32 +978,55 @@ export default function App() {
     }
   }, [])
 
+  /**
+   * 批注落盘：**先读磁盘，再以磁盘为准合并**。
+   *
+   * 绝对不能拿内存里的列表整个覆盖。切文档那一小会儿，内存里可能还挂着
+   * 上一篇的批注、或者新文档的列表压根没读完 —— 一覆盖就把盘上的抹掉了。
+   * 实装机上真的丢过主人的两条批注，就是这么没的。
+   * 写完顺手把内存也刷成磁盘的结果，界面不至于停在残缺的那一份上。
+   */
+  const persistComments = useCallback(
+    async (fileId: string, mutate: (list: Comment[]) => Comment[]) => {
+      if (!storage.comments || !storage.setComments) return
+      const onDisk = await storage.comments(fileId).catch(() => [] as Comment[])
+      const next = mutate(onDisk)
+      await storage.setComments(fileId, next)
+      if (docRef.current?.id === fileId) setComments(next)
+    },
+    [],
+  )
+
   /* ---------------- 批注操作 ---------------- */
 
-  const saveComment = useCallback((next: Comment) => {
-    const id = docRef.current?.id
-    if (!id) return
-    setComments((prev) => {
-      const exists = prev.some((c) => c.id === next.id)
-      const list = exists ? prev.map((c) => (c.id === next.id ? next : c)) : [...prev, next]
-      void storage
-        .setComments?.(id, list)
-        .catch((err) => toast.error('批注没存上', String(err).slice(0, 120)))
-      return list
-    })
-  }, [])
+  const saveComment = useCallback(
+    (next: Comment) => {
+      const id = docRef.current?.id
+      if (!id) return
+      // 界面先跟上（乐观更新），磁盘那份交给 persistComments 以磁盘为准去合并
+      setComments((prev) => {
+        const exists = prev.some((c) => c.id === next.id)
+        return exists ? prev.map((c) => (c.id === next.id ? next : c)) : [...prev, next]
+      })
+      void persistComments(id, (list) => {
+        const exists = list.some((c) => c.id === next.id)
+        return exists ? list.map((c) => (c.id === next.id ? next : c)) : [...list, next]
+      }).catch((err) => toast.error('批注没存上', String(err).slice(0, 120)))
+    },
+    [persistComments],
+  )
 
-  const removeComment = useCallback((cid: string) => {
-    const id = docRef.current?.id
-    if (!id) return
-    setComments((prev) => {
-      const list = prev.filter((c) => c.id !== cid)
-      void storage
-        .setComments?.(id, list)
-        .catch((err) => toast.error('批注没删掉', String(err).slice(0, 120)))
-      return list
-    })
-  }, [])
+  const removeComment = useCallback(
+    (cid: string) => {
+      const id = docRef.current?.id
+      if (!id) return
+      setComments((prev) => prev.filter((c) => c.id !== cid))
+      void persistComments(id, (list) => list.filter((c) => c.id !== cid)).catch((err) =>
+        toast.error('批注没删掉', String(err).slice(0, 120)),
+      )
+    },
+    [persistComments],
+  )
 
   /** 跳回批注锚定的那段文字；正文改过就按引文重新找 */
   const jumpToComment = useCallback((c: Comment) => {

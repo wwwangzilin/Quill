@@ -3287,76 +3287,9 @@ body.quill-dragging * {
 .reader-hint {
   font-size: 11px;
 }
-/* 「这像不像小说」不弹框拦人 —— 右下角浮一条，点一下直接进分章模式。
-   挡住正文、逼人先做选择的提示，比不问还烦。 */
-.reader-tip {
-  position: absolute;
-  right: 18px;
-  bottom: 62px;
-  z-index: 9;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  max-width: min(420px, 72vw);
-  padding: 9px 10px 9px 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border-strong);
-  background: color-mix(in srgb, var(--surface-solid) 88%, transparent);
-  backdrop-filter: blur(14px) saturate(1.3);
-  -webkit-backdrop-filter: blur(14px) saturate(1.3);
-  box-shadow: var(--shadow);
-  cursor: pointer;
-  animation: tip-in 0.34s var(--ease-out) both;
-  transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
-}
-.reader-tip:hover {
-  border-color: var(--accent-1);
-}
-@keyframes tip-in {
-  from {
-    opacity: 0;
-    translate: 0 14px;
-    scale: 0.97;
-  }
-  to {
-    opacity: 1;
-    translate: 0 0;
-    scale: 1;
-  }
-}
-.reader-tip-mark {
-  flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border-radius: 9px;
-  background: var(--accent-soft);
-  color: var(--accent-3);
-  font-size: 14px;
-}
-.reader-tip-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-  font-size: 12.5px;
-  color: var(--text);
-}
-.reader-tip-text em {
-  font-style: normal;
-  font-size: 11px;
-  color: var(--text-3);
-  font-variant-numeric: tabular-nums;
-}
-.reader-tip .btn {
-  flex: 0 0 auto;
-  padding: 4px 10px;
-  font-size: 12px;
-}
-.reader-tip .btn.icon {
-  padding: 4px 7px;
-}
+/* 分章这件事不弹框、也不浮选项条 —— 直接做，右下角用系统的 toast 知会一声
+   （.toasts 本来就在右下角、z-index 90，盖得住阅读视图）。
+   想反悔的开关在 .reader-bar 上，不占视线。 */
 
 /* 批注抽屉跟编辑器里是同一个组件；阅读视图没有标题栏，顶到最上面就行 */
 .reader > .drawer {
