@@ -153,6 +153,8 @@ export default function ReaderView({ title, doc, onClose }: Props) {
   const [ci, setCi] = useState(0)
   const [page, setPage] = useState(0)
   const [pages, setPages] = useState(1)
+  /** 翻一页要平移多少像素 —— 容器宽 + 一个栏间距 */
+  const [step, setStep] = useState(0)
   const [tocOpen, setTocOpen] = useState(true)
   const viewRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
@@ -160,18 +162,23 @@ export default function ReaderView({ title, doc, onClose }: Props) {
   const chapter = chapters[Math.min(ci, chapters.length - 1)]
 
   /**
-   * 量一次：内容条总宽 ÷ 它的自身宽 = 有多少屏。
+   * 量一次：一屏有多少栏、一共多少屏。
    *
-   * **必须用 track 自己的 clientWidth**，不能用外层 .reader-pages 的 ——
-   * 外层带着左右各 44px 的 padding，拿它当一屏会每页多挪 88px，
-   * 翻着翻着就偏出去了（这坑实装过一次）。
+   * **步进不是容器宽**。多栏布局里，容器宽 1036 装下的是
+   * 「[栏1 492][间距 52][栏2 492]」，而下一屏要从**栏3** 开始 ——
+   * 那得再跨过一个间距，所以真实步进是 1036 + 52 = 1088。
+   * 拿容器宽当步进的话每页少挪一个 gap，翻几页就肉眼可见地偏出去
+   * （这坑实装机上踩过一次）。
    */
   const measure = useCallback(() => {
     const track = trackRef.current
     if (!track) return
     const w = track.clientWidth
     if (!w) return
-    const total = Math.max(1, Math.ceil(track.scrollWidth / w))
+    const gap = parseFloat(getComputedStyle(track).columnGap) || 0
+    const s = w + gap
+    setStep(s)
+    const total = Math.max(1, Math.ceil((track.scrollWidth + gap) / s))
     setPages(total)
     setPage((p) => Math.min(p, total - 1))
   }, [])
@@ -304,13 +311,12 @@ export default function ReaderView({ title, doc, onClose }: Props) {
         )}
 
         <div className="reader-pages" ref={viewRef}>
-          {/* 位移用**自身宽度的百分比**：track 的宽正好是一屏可见的内容宽，
-              所以 -100% 就是一页。不再去读 clientWidth 现算 —— 那个值含 padding，
-              而且渲染时读到的是上一轮布局（目录展开前后宽度还不一样）。 */}
+          {/* 位移用「容器宽 + 栏间距」的像素值：多栏布局里下一屏要从下一栏开始，
+              中间还隔着一个 gap。用百分比（-100%）会少挪一个 gap，越翻越偏。 */}
           <div
             className="reader-track"
             ref={trackRef}
-            style={{ transform: `translateX(-${page * 100}%)` }}
+            style={{ transform: `translateX(-${page * step}px)` }}
           >
             {chapter.blocks.map((b, i) => {
               // 首块可能要裁掉属于上一章的那几行
