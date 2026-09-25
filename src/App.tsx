@@ -1509,7 +1509,14 @@ export default function App() {
       <CommandPalette docs={docs} commands={paletteCommands} onPickDoc={(id) => void openDoc(id)} />
       <SearchPanel onPick={jumpToHit} />
       {readerOpen && doc && (
-        <ReaderView title={doc.title} doc={doc.content} onClose={() => setReaderOpen(false)} />
+        <ReaderView
+          title={doc.title}
+          doc={doc.content}
+          comments={comments}
+          onSaveComment={saveComment}
+          onRemoveComment={removeComment}
+          onClose={() => setReaderOpen(false)}
+        />
       )}
       <AiChatPanel
         open={chatOpen && Boolean(doc)}

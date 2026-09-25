@@ -1,6 +1,7 @@
 // 核心逻辑自检：Markdown 序列化 + 文件名安全化（node 原生跑 TS，无需构建）
 import { docToMarkdown, safeFileName } from './src/core/markdown.ts'
 import { markdownToDoc, splitTitle } from './src/core/md-parse.ts'
+import { findIn, flatText, nodeText } from './src/core/comments.ts'
 
 /**
  * 序列化用的测试夹具。
@@ -107,6 +108,41 @@ const cases = [
   // 夹具自己也要往返稳定：剥标题 → 解析 → 再序列化，结果不变
   ['夹具往返：按真实链路再序列化结果相同', backMd.trim() === md.trim()],
 ]
+
+/*
+ * 批注定位。
+ *
+ * 编辑器侧（ProseMirror 的 textIndex）和阅读视图侧（flatText）必须是**同一套口径**：
+ * 都是把所有 text 节点直接接起来、不插任何分隔符。要是不一致，
+ * 同一条批注就会出现「编辑器里看得见、进阅读视图就丢了」这种鬼事。
+ * 这里锁住口径本身 + 那两种匹配策略。
+ */
+const ANNOT = [
+  { type: 'paragraph', content: [{ type: 'text', text: '第一段有这句话。' }] },
+  {
+    type: 'paragraph',
+    content: [
+      { type: 'text', text: '第二段' },
+      { type: 'hardBreak' },
+      { type: 'text', text: '换行接着写' },
+    ],
+  },
+  { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: '标题' }] },
+]
+const flat = flatText(ANNOT)
+const hit1 = findIn(flat, '有这句话')
+const hit2 = findIn(flat, '第二段\n换行') // 精确匹配不到（flat 里没有换行符）→ 走「忽略空白」那条路
+const hit3 = findIn(flat, '标题')
+
+cases.push(
+  ['批注：拍平后不含任何分隔符', flat === '第一段有这句话。第二段换行接着写标题'],
+  ['批注：hardBreak 不占字符位', nodeText({ type: 'hardBreak' }) === ''],
+  ['批注：定位到正确区间', hit1?.from === 3 && hit1?.to === 7],
+  ['批注：原文改了换行也还找得到', hit2?.from === 8 && hit2?.to === 13],
+  ['批注：落在文末也能定位', hit3?.from === 16 && hit3?.to === 18],
+  ['批注：改没了的引文返回 null', findIn(flat, '这句根本不存在') === null],
+  ['批注：空白引文不算数', findIn(flat, '   ') === null && findIn('', 'x') === null],
+)
 
 let failed = 0
 for (const [name, ok] of cases) {

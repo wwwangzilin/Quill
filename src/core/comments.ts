@@ -11,6 +11,7 @@
  * 这时列表里会把它标成「找不到原文」而不是悄悄丢掉。
  */
 import type { Node as PMNode } from '@tiptap/pm/model'
+import type { JSONContent } from '@tiptap/core'
 
 export interface Comment {
   id: string
@@ -44,13 +45,15 @@ function textIndex(doc: PMNode): { text: string; pos: number[] } {
 }
 
 /**
- * 在正文里找出这段引用现在的位置。
+ * 在一串纯文字里找出这段引用现在的位置。
  * 先精确匹配；失败就忽略空白差异再找一次（用户往往只是改了空格和换行）。
+ *
+ * 编辑器和阅读视图共用这一个 —— 两边口径必须一样，否则同一条批注
+ * 在编辑器里看得见、进阅读视图就丢了。
  */
-export function locate(doc: PMNode, quote: string): { from: number; to: number } | null {
+export function findIn(text: string, quote: string): { from: number; to: number } | null {
   const q = quote.trim()
-  if (!q) return null
-  const { text, pos } = textIndex(doc)
+  if (!q || !text) return null
 
   let at = text.indexOf(q)
   let len = q.length
@@ -67,9 +70,16 @@ export function locate(doc: PMNode, quote: string): { from: number; to: number }
     }
   }
   if (at < 0 || at + len > text.length) return null
+  return { from: at, to: at + len }
+}
 
-  const from = pos[at]
-  const to = pos[at + len - 1]
+/** 在 ProseMirror 文档里定位，返回文档位置 */
+export function locate(doc: PMNode, quote: string): { from: number; to: number } | null {
+  const { text, pos } = textIndex(doc)
+  const hit = findIn(text, quote)
+  if (!hit) return null
+  const from = pos[hit.from]
+  const to = pos[hit.to - 1]
   if (from === undefined || to === undefined) return null
   return { from, to: to + 1 }
 }
@@ -94,4 +104,30 @@ export function whenOf(ts: number): string {
   if (sameDay) return hm
   if (diff < 172_800_000) return `昨天 ${hm}`
   return `${d.getMonth() + 1}/${d.getDate()} ${hm}`
+}
+
+/* ==================== 只读侧：阅读视图用 ==================== */
+
+/** 一个节点的纯文字 */
+export function nodeText(node: JSONContent): string {
+  if (node.type === 'text') return node.text ?? ''
+  let out = ''
+  for (const c of node.content ?? []) out += nodeText(c)
+  return out
+}
+
+/**
+ * 把正文拍平成一串文字。
+ *
+ * **不插任何分隔符** —— 和编辑器侧的 textIndex() 是同一口径
+ * （那边也是把所有 text 节点直接接起来，`descendants` 天然跳过块边界）。
+ * 两边一致，同一条批注在编辑器里找得到，在阅读视图里就也找得到。
+ *
+ * 阅读视图渲染时也照这个顺序累加偏移，所以这里算出来的字符下标
+ * 就是渲染时的下标，不需要另建一张映射表。
+ */
+export function flatText(blocks: JSONContent[]): string {
+  let out = ''
+  for (const b of blocks) out += nodeText(b)
+  return out
 }

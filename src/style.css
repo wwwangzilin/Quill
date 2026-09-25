@@ -3122,7 +3122,35 @@ body.quill-dragging * {
   z-index: 88;
   display: flex;
   background: var(--bg);
-  animation: mask-in 0.2s var(--ease-out) both;
+  animation: reader-in 0.26s var(--ease-out) both;
+}
+/* 用独立的 scale / translate 属性做动效，不碰 transform ——
+   正文那条 track 的位移是 inline transform，两者叠加互不打架。 */
+@keyframes reader-in {
+  from {
+    opacity: 0;
+    scale: 0.994;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+/* 退出时先让这段播完再卸（ReaderView 里延迟 200ms 才调 onClose）。
+   全屏覆盖层直接消失是一帧硬切，观感上像闪了一下。 */
+.reader.leaving {
+  animation: reader-out 0.2s var(--ease) both;
+  pointer-events: none;
+}
+@keyframes reader-out {
+  from {
+    opacity: 1;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 0.994;
+  }
 }
 .reader-toc {
   flex: 0 0 236px;
@@ -3132,17 +3160,45 @@ body.quill-dragging * {
   border-right: 1px solid var(--border);
   background: var(--surface-solid);
 }
-.reader-toc-head {
+/* 侧栏顶部：章节 / 批注 两个页签。
+   不做第三个抽屉 —— 阅读时不该再抢走正文的宽度。 */
+.reader-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 2px;
+  padding: 8px 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.reader-tab {
+  appearance: none;
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 14px 10px;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 8px 8px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: transparent;
   color: var(--text-3);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
 }
-.reader-toc-count {
-  margin-left: auto;
+.reader-tab:hover {
+  color: var(--text-2);
+  background: var(--surface-hover);
+}
+.reader-tab.on {
+  color: var(--text);
+  border-bottom-color: var(--accent-3);
+}
+.reader-tab-n {
+  font-size: 11px;
+  color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 .reader-toc-list {
@@ -3150,6 +3206,31 @@ body.quill-dragging * {
   min-height: 0;
   overflow-y: auto;
   padding: 6px;
+}
+/* 侧栏里的批注页：复用编辑器那套 .comment-* 卡片，只把内边距收窄一点 ——
+   这里只有 236px 宽，照 336px 的抽屉排版会显得空。 */
+.reader-notes {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+.reader-notes .comment-new {
+  margin-bottom: 8px;
+  border-bottom: none;
+  border-radius: var(--radius-sm);
+}
+.reader-notes .comment-item {
+  padding: 9px 9px 7px;
+}
+.reader-notes-miss {
+  margin: 2px 2px 8px;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-3);
 }
 .reader-toc-item {
   appearance: none;
@@ -3229,28 +3310,109 @@ body.quill-dragging * {
 .reader-hint {
   font-size: 11px;
 }
-/* 够长了才冒出来的那一句「要不要识别章节」 */
+/* 「这像不像小说」得先答完，页面才算真的开始 —— 所以是居中弹窗，
+   不是顶上挂一条。判断依据摊开列在卡片里，别让用户被黑盒拦住。 */
+.reader-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 92;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.44);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: fade-in 0.18s var(--ease) both;
+}
 .reader-ask {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 0 0 auto;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
+  width: min(420px, 88vw);
+  padding: 22px 22px 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  text-align: center;
+  animation: modal-in 0.28s var(--ease-out) both;
+}
+.reader-ask-mark {
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 12px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
   background: var(--accent-soft);
+  color: var(--accent-3);
+  font-size: 20px;
+}
+.reader-ask-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: var(--text);
+}
+.reader-ask-sub {
+  margin-top: 6px;
   font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text-3);
+}
+.reader-ask-why {
+  margin: 14px 0 0;
+  padding: 9px 12px;
+  list-style: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  text-align: left;
+}
+.reader-ask-why li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 12px;
+  line-height: 1.7;
   color: var(--text-2);
 }
-.reader-ask b {
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
+.reader-ask-why li::before {
+  content: '·';
+  color: var(--accent-3);
+}
+.reader-ask-acts {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
 }
 
 .reader-pages {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: hidden;
   padding: 10px 44px 18px;
+}
+/* 选中文字后浮出来的那一条。位置由 ReaderView 按选区矩形算好，
+   x 是选区中心，所以这里给自己挪半个身位。 */
+.reader-sel {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  padding: 3px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+  animation: reader-sel-in 0.14s var(--ease-out) both;
+}
+@keyframes reader-sel-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
 }
 /* 固定高度 + column-fill: auto → 内容横向流出去，翻页靠平移 */
 .reader-track {
@@ -3264,6 +3426,21 @@ body.quill-dragging * {
   line-height: var(--prose-leading);
   color: var(--text);
   transition: transform var(--dur) var(--ease);
+  /* 换章时整条重新挂载（ReaderView 上挂了 key={ci}）：位移瞬时归零，
+     不可能出现「从上一章末尾滑回来」那一下。这里补一段淡入把「换章了」说清楚。
+     翻页不换 ci，所以不会重播。translate 是独立属性，与 inline 的
+     transform: translateX(…) 叠加，互不覆盖。 */
+  animation: reader-chap 0.3s var(--ease-out) both;
+}
+@keyframes reader-chap {
+  from {
+    opacity: 0;
+    translate: 0 7px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
 }
 .reader-track p {
   margin: 0 0 0.85em;
