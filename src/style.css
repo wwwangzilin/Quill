@@ -1685,7 +1685,10 @@ body.quill-dragging * {
 }
 
 .drag-line {
-  position: absolute;
+  /* fixed + 视口坐标：getBoundingClientRect 给的就是视口坐标，天生一对。
+     用 absolute 就得猜「谁是定位祖先」，而编辑器容器并没有 position: relative，
+     那样算出来的 top 会被解释成相对更外层的容器，线就飘到屏幕上面去了。 */
+  position: fixed;
   height: 2px;
   border-radius: 2px;
   background: var(--grad);

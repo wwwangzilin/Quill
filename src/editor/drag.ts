@@ -20,14 +20,14 @@ export const DragSort = Extension.create({
     let dragging: { pos: number; node: PMNode } | null = null
     let dropAt: number | null = null
 
-    const hostOf = (view: EditorView): HTMLElement =>
-      (view.dom.parentElement as HTMLElement) ?? view.dom
-
-    const lineEl = (view: EditorView): HTMLElement => {
+    // 落点线挂在 body 上、用 fixed 定位。
+    // 以前挂在编辑器容器里用 absolute，而那个容器没有 position: relative，
+    // 一个很小的 top 会被解释成相对更外层容器，线就飘到屏幕很上面 —— 看不出要落到哪。
+    const lineEl = (): HTMLElement => {
       if (!line) {
         line = document.createElement('div')
         line.className = 'drag-line'
-        hostOf(view).appendChild(line)
+        document.body.appendChild(line)
       }
       return line
     }
@@ -76,12 +76,12 @@ export const DragSort = Extension.create({
         const after = e.clientY > rect.top + rect.height / 2
         dropAt = after ? hit.pos + hit.node.nodeSize : hit.pos
 
-        const hostRect = hostOf(view).getBoundingClientRect()
-        const l = lineEl(view)
+        // 视口坐标直接给 fixed 元素用，不必再减任何容器的偏移
+        const l = lineEl()
         l.style.display = 'block'
-        l.style.left = `${rect.left - hostRect.left}px`
+        l.style.left = `${rect.left}px`
         l.style.width = `${rect.width}px`
-        l.style.top = `${(after ? rect.bottom : rect.top) - hostRect.top - 1}px`
+        l.style.top = `${(after ? rect.bottom : rect.top) - 1}px`
       }
 
       const onUp = () => {
