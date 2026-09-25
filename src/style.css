@@ -3987,10 +3987,10 @@ body.quill-dragging * {
   pointer-events: none;
 }
 
-/* 顶栏藏起来之后留在顶部的那两块感应区。
-   右上角是主入口（窗口按钮就在那儿）；顶上那条 6px 细边是备用通道 ——
-   无边框窗口只能拖标题栏，没有它就没法用鼠标搬动窗口。
-   细边只认「按下去」：鼠标扫过不算，否则手从正文往上划一下就闪一条顶栏出来。 */
+/* 顶栏藏起来之后留在顶部的两块感应区。
+   顶上这条细边是主入口：鼠标靠近窗口上沿（任意横向位置）就能把顶栏唤出来 ——
+   只认右上角的话，窗口一挪到屏幕右边就够不着了。
+   右上角那块仍然保留：那里是窗口按钮区，移到那儿立刻出来，不用等。 */
 .titlebar-hot {
   position: absolute;
   top: 0;
@@ -4005,7 +4005,7 @@ body.quill-dragging * {
   top: 0;
   left: 0;
   right: 0;
-  height: 6px;
+  height: 12px;
   pointer-events: auto;
 }
 .titlebar-hot .hot-corner {

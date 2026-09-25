@@ -266,28 +266,43 @@ export default function App() {
     }
   }, [canAutoHide, canHideBar])
 
-  // 顶栏的进出场：鼠标够到右上角就放出来，离开一会儿再收回去。
+  // 顶栏的进出场：鼠标够到窗口上沿（或右上角）就放出来，离开一会儿再收回去。
+  //
   // 判据不自己算坐标，直接问 elementFromPoint「鼠标底下现在是谁」——
   // 顶栏里的下拉菜单（⋯ 更多 / 导出）本身就是顶栏的后代，
   // 所以鼠标一挪到菜单上照样算「还在顶栏里」，不会点着点着顶栏自己收走。
+  //
+  // 上沿热区要**停一下才展开**：鼠标从正文往上甩是常事，
+  // 一碰就弹的话顶栏会跟着一路闪。110ms 足够滤掉「划过」，又感觉不到等待。
   useEffect(() => {
     if (!canHideBar) return
     let leave = 0
+    let rise = 0
     const onMove = (e: MouseEvent) => {
       const hit = document.elementFromPoint(e.clientX, e.clientY)
-      if (hit?.closest('.titlebar, .hot-corner')) {
+      const hot = Boolean(hit?.closest('.titlebar, .hot-corner, .hot-strip'))
+      if (hot) {
         if (leave) {
           window.clearTimeout(leave)
           leave = 0
         }
-        // 这里不能省着调。打字会把顶栏收掉，可鼠标一点没动 ——
-        // 要是记着「已经开过了」就不再置位，鼠标明明还停在右上角，
-        // 顶栏却再也不出来了。（这个坑实装过一次。）
-        setBarShown(true)
+        if (rise) return
+        rise = window.setTimeout(() => {
+          rise = 0
+          // 这里不能省着调。打字会把顶栏收掉，可鼠标一点没动 ——
+          // 要是记着「已经开过了」就不再置位，鼠标明明还停在上沿，
+          // 顶栏却再也不出来了。（这个坑实装过一次。）
+          setBarShown(true)
+        }, 110)
         return
       }
+      // 又划走了 —— 那一下不算数
+      if (rise) {
+        window.clearTimeout(rise)
+        rise = 0
+      }
       if (leave) return
-      // 留 420ms 缓冲：手从右上角往编辑器里划的时候，别让顶栏一路跟着闪
+      // 留 420ms 缓冲：手从顶栏往编辑器里划的时候，别让它一路跟着闪
       leave = window.setTimeout(() => {
         leave = 0
         setBarShown(false)
@@ -297,6 +312,7 @@ export default function App() {
     return () => {
       window.removeEventListener('mousemove', onMove)
       if (leave) window.clearTimeout(leave)
+      if (rise) window.clearTimeout(rise)
     }
   }, [canHideBar])
 
