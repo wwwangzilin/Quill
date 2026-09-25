@@ -35,6 +35,7 @@
   --prose-leading: 1.85;
   --write-width: 720px;
   --titlebar-h: 46px;
+  --statusbar-h: 28px;
   --sidebar-w: 264px;
 }
 
@@ -3887,7 +3888,7 @@ body.quill-dragging * {
 /* 藏掉整个界面，只剩正文；窗口本身由 Tauri 切成真全屏。
    同样是「滑出去 + 淡掉」而不是 display: none，切换才有过渡。 */
 .app.zen .titlebar {
-  transform: translateY(-100%);
+  margin-top: calc(var(--titlebar-h) * -1);
   opacity: 0;
   pointer-events: none;
 }
@@ -3897,16 +3898,19 @@ body.quill-dragging * {
    滑出去 + 淡掉，而不是 display: none —— 用 transform 就不占位移动，
    顶栏进进出出时正文一个字都不会跳行。 */
 .titlebar {
-  /* 这条要写在「主题切换」那条之后：那里也声明了 transition，会把这边的盖掉 */
+  /* 这条要写在「主题切换」那条之后：那里也声明了 transition，会把这边的盖掉。
+     收放走 margin 而不是 transform —— transform 只是「看起来走了」，
+     位置还占着，顶上会白留一条没人用的窄带。 */
   transition:
-    transform var(--dur) var(--ease),
+    margin-top var(--dur) var(--ease),
     opacity var(--dur) var(--ease),
     background-color 0.34s var(--ease),
     border-color 0.34s var(--ease),
     color 0.34s var(--ease);
 }
+/* 负上边距：顶栏整体移出视口顶边，底下的东西跟着上提 46px。 */
 .app.bar-hidden .titlebar {
-  transform: translateY(-100%);
+  margin-top: calc(var(--titlebar-h) * -1);
   opacity: 0;
   pointer-events: none;
 }
@@ -3994,7 +3998,7 @@ body.quill-dragging * {
    和禅模式同一套手法：滑出去 + 淡掉，而不是 display: none。
    顶栏不归这里管 —— 它连系统边框一起顶替掉了，常态本来就该是藏着的。 */
 .app.bars-hidden .statusbar {
-  transform: translateY(100%);
+  margin-bottom: calc(var(--statusbar-h) * -1);
   opacity: 0;
   pointer-events: none;
 }
@@ -4326,13 +4330,18 @@ body.quill-dragging * {
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 28px;
+  height: var(--statusbar-h);
   padding: 0 14px;
   border-top: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.02);
   font-size: 11.5px;
   color: var(--text-3);
   user-select: none;
+  /* 收起时用负下边距把它推出视口，正文顺势铺到底 ——
+     和顶栏、和侧栏是同一套：让位就真让，不在底下留一条空白 */
+  transition:
+    margin-bottom var(--dur) var(--ease),
+    opacity var(--dur) var(--ease);
 }
 
 /* 保存提示平时不占视觉，只有真的在存/刚存完才亮一下 */
