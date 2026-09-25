@@ -22,6 +22,23 @@ export default function ToastHost() {
           <span className="t-body">
             <span className="t-text">{t.text}</span>
             {t.detail && <span className="t-detail">{t.detail}</span>}
+            {/* 带按钮的提示（「上次读到这儿」这类）—— 按了才动，也按了才消失 */}
+            {t.actions && t.actions.length > 0 && (
+              <span className="t-acts">
+                {t.actions.map((a) => (
+                  <button
+                    key={a.label}
+                    className={'btn mini' + (a.primary ? ' primary' : ' ghost')}
+                    onClick={() => {
+                      a.run()
+                      toast.dismiss(t.id)
+                    }}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </span>
+            )}
           </span>
         </div>
       ))}

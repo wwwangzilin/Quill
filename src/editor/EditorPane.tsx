@@ -17,6 +17,7 @@ import { acceptAi, aiState, clearAi } from './aiComplete'
 import AiSelectionBar from '../ui/AiSelectionBar'
 import { importAssetFile } from '../core/desktop'
 import { isImportable } from '../core/txtToMd'
+import { MAX_ANCHOR, posLabel, readPos, writePos, type DocPos } from '../core/lastPos'
 
 interface Props {
   doc: Doc
@@ -62,6 +63,47 @@ interface SlashState {
   y: number
   query: string
   index: number
+}
+
+/** 能当锚点的那些块 */
+const BLOCK_SEL = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, pre'
+
+/** 去掉控制字符 —— 从网页扒来的正文里混着这些，带着它做前缀匹配必然失配 */
+function cleanText(s: string): string {
+  // eslint-disable-next-line no-control-regex
+  return s.replace(/[\u0000-\u001f\u007f]/g, '').trim()
+}
+
+/** 视口顶部那一段的开头文字 —— 用来认出「上次停在这儿」 */
+function anchorAt(scroller: HTMLElement): string {
+  const top = scroller.getBoundingClientRect().top
+  for (const b of scroller.querySelectorAll<HTMLElement>(BLOCK_SEL)) {
+    if (b.getBoundingClientRect().bottom > top + 6) {
+      return cleanText(b.textContent ?? '').slice(0, MAX_ANCHOR)
+    }
+  }
+  return ''
+}
+
+/**
+ * 按锚点找回那一段。
+ *
+ * 先要求开头对得上；找不到再退一步用「包含」—— 用户往往只是在前面加了两句，
+ * 那样锚点仍然认得出，但单纯的 startsWith 就失配了。
+ * 太短的锚点不做模糊匹配，否则随便一句话都能撞上。
+ */
+function findAnchor(scroller: HTMLElement, anchor: string): HTMLElement | null {
+  const want = cleanText(anchor)
+  if (!want) return null
+  const blocks = [...scroller.querySelectorAll<HTMLElement>(BLOCK_SEL)]
+  for (const b of blocks) {
+    if (cleanText(b.textContent ?? '').startsWith(want)) return b
+  }
+  if (want.length < 8) return null
+  for (const b of blocks) {
+    if (cleanText(b.textContent ?? '').includes(want)) return b
+  }
+  return null
 }
 
 /** 按「从 doc 根开始的 child index 链」算出 ProseMirror 位置 */
@@ -489,16 +531,138 @@ export default function EditorPane({
     onJumpDone()
   }, [editor, jumpPath, onJumpDone])
 
+  /* ---------------- 上次读到哪儿 ---------------- */
+
+  const docIdRef = useRef(doc.id)
+  const scrollTimer = useRef(0)
+
+  /** 把当前的滚动位置落下来（切换文档前也要来一下，别把旧文档的丢了） */
+  const savePosNow = useCallback(() => {
+    const el = scrollRef.current
+    const id = docIdRef.current
+    if (!el || !id) return
+    const max = el.scrollHeight - el.clientHeight
+    writePos(id, {
+      scroll: Math.max(0, Math.round(el.scrollTop)),
+      ratio: max > 0 ? Math.min(1, Math.max(0, el.scrollTop / max)) : 0,
+      anchor: anchorAt(el),
+    })
+  }, [])
+
+  /**
+   * 真的跳过去。内容可能还没铺完（尤其刚切过来那一下）—— 那时 scrollHeight
+   * 还不够高，scrollTop 设上去会被浏览器夹掉，等于没跳。所以重试几次，
+   * 一直没成就算了，不硬撑。
+   */
+  const jumpToStoredPos = useCallback((p: DocPos) => {
+    const el = scrollRef.current
+    if (!el) return
+
+    const apply = (): boolean => {
+      if (p.anchor) {
+        const hit = findAnchor(el, p.anchor)
+        if (hit) {
+          el.scrollTop = Math.max(
+            0,
+            el.scrollTop + hit.getBoundingClientRect().top - el.getBoundingClientRect().top - 12,
+          )
+          return true
+        }
+      }
+      const max = el.scrollHeight - el.clientHeight
+      if (typeof p.scroll === 'number' && p.scroll > 0 && max >= p.scroll - 4) {
+        el.scrollTop = p.scroll
+        return true
+      }
+      return false
+    }
+
+    if (apply()) return
+    let tries = 0
+    const tick = window.setInterval(() => {
+      tries += 1
+      if (apply() || tries >= 8) window.clearInterval(tick)
+    }, 120)
+  }, [])
+
+  /**
+   * 换文档（或刚打开）时问一句「要不要回到上次读到的地方」。
+   *
+   * **不自动跳**：人可能就是想从头看，替他跳过去太自作主张；
+   * 也**不写快捷键提示** —— 不是每副键盘都有 Home 键（主人的就没有），
+   * 与其教人按键，不如直接给两个按钮。
+   */
+  const offerRestore = useCallback(() => {
+    const p = readPos(docIdRef.current)
+    if (!p) return
+    // 本来就停在开头附近就别问了
+    if ((p.ratio ?? 0) < 0.06 && (p.scroll ?? 0) <= 160) return
+    toast.ask('上次读到这儿', posLabel(p), [
+      { label: '跳过去', primary: true, run: () => jumpToStoredPos(p) },
+      {
+        label: '从头看',
+        run: () => {
+          const el = scrollRef.current
+          if (el) el.scrollTop = 0
+        },
+      },
+    ])
+  }, [jumpToStoredPos])
+
+  // 滚动时记位置。节流 500ms —— 滚动事件太密，每次都写 localStorage 是白费
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onScroll = () => {
+      if (scrollTimer.current) return
+      scrollTimer.current = window.setTimeout(() => {
+        scrollTimer.current = 0
+        savePosNow()
+      }, 500)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      if (scrollTimer.current) {
+        window.clearTimeout(scrollTimer.current)
+        scrollTimer.current = 0
+      }
+    }
+  }, [savePosNow])
+
   // 切换文档：换内容但不触发保存（否则会把新内容写进旧文档）
-  const idRef = useRef(doc.id)
+  const idRef = useRef<string | null>(null)
   useEffect(() => {
     if (!editor) return
-    if (idRef.current === doc.id) return
-    idRef.current = doc.id
-    editor.commands.setContent(doc.content, { emitUpdate: false })
-    setStats(countStats(doc.content))
-    editor.commands.focus('start')
-  }, [editor, doc.id, doc.content])
+    const prev = idRef.current
+    const first = prev === null
+    if (!first && prev === doc.id) return
+
+    if (first) {
+      // 首次挂载：编辑器本来就是拿这份 content 建的，不用再 setContent
+      idRef.current = doc.id
+      docIdRef.current = doc.id
+    } else {
+      // 先把旧文档读到哪儿落下来 —— 这时 docIdRef 还指着旧的
+      if (scrollTimer.current) {
+        window.clearTimeout(scrollTimer.current)
+        scrollTimer.current = 0
+      }
+      savePosNow()
+      idRef.current = doc.id
+      docIdRef.current = doc.id
+      editor.commands.setContent(doc.content, { emitUpdate: false })
+      setStats(countStats(doc.content))
+      editor.commands.focus('start')
+    }
+
+    /*
+     * 问一句「要不要回到上次读到的地方」。首次进来要等编辑器把内容铺完
+     * （比换文档慢一些），所以延时给得长一点。
+     */
+    const t = window.setTimeout(offerRestore, first ? 460 : 120)
+    return () => window.clearTimeout(t)
+  }, [editor, doc.id, doc.content, savePosNow, offerRestore])
 
   const items = useMemo(() => (slash ? filterSlash(slash.query) : []), [slash])
 

@@ -1537,6 +1537,7 @@ export default function App() {
       <SearchPanel onPick={jumpToHit} />
       {readerOpen && doc && (
         <ReaderView
+          docId={doc.id}
           title={doc.title}
           doc={doc.content}
           comments={comments}

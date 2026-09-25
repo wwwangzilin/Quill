@@ -1,18 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { guessNovel, splitChapters } from '../core/chapters'
-import {
-  MAX_QUOTE,
-  blockOffsets,
-  findIn,
-  flatText,
-  nodeText,
-  type Comment,
-} from '../core/comments'
+import { MAX_QUOTE, blockOffsets, findIn, flatText, nodeText, type Comment } from '../core/comments'
+import { posLabel, readPos, writePos } from '../core/lastPos'
 import CommentsPanel from './CommentsPanel'
 import { toast } from './toast'
 
 interface Props {
+  /** 用到哪篇 —— 上次读到哪一屏是按文档记的 */
+  docId: string
   title: string
   doc: JSONContent
   comments: Comment[]
@@ -251,6 +247,7 @@ function Block({
  * 手感不一致通常不是审美问题，是「另起了一套」。
  */
 export default function ReaderView({
+  docId,
   title,
   doc,
   comments,
@@ -307,6 +304,14 @@ export default function ReaderView({
   const viewRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const leaveRef = useRef(false)
+  /**
+   * 「要回到的那一屏」。页数得等 measure 量完才知道，直接 setPage 会被
+   * `Math.min(p, total - 1)` 夹掉，所以先存着，量完再兑现。
+   */
+  const wantPage = useRef<number | null>(null)
+  const restored = useRef(false)
+  /** 刚恢复过来的那一次，别把页号复位成 0 */
+  const skipReset = useRef(false)
 
   const chapter = chapters[Math.min(ci, chapters.length - 1)]
 
@@ -397,7 +402,14 @@ export default function ReaderView({
     setStep(s)
     const total = Math.max(1, Math.ceil((track.scrollWidth + gap) / s))
     setPages(total)
-    setPage((p) => Math.min(p, total - 1))
+    // 有「要回到的那一屏」就先兑现，否则只是把当前页夹进新范围
+    const want = wantPage.current
+    if (want !== null) {
+      wantPage.current = null
+      setPage(Math.max(0, Math.min(want, total - 1)))
+    } else {
+      setPage((p) => Math.min(p, total - 1))
+    }
   }, [])
 
   // 换章、窗口缩放、字体变化都要重新量 —— 栏宽一变，页数就变了
@@ -410,10 +422,72 @@ export default function ReaderView({
     return () => ro.disconnect()
   }, [measure, ci])
 
-  // 换章回到第一屏
+  /*
+   * 换章回到第一屏。
+   * 「刚恢复过来」的那一次必须让路 —— measure 已经把页号兑现了，
+   * 这里再抹一次就白恢复了（实装机上踩过：章回去了，屏还停在第 1 屏）。
+   * 守卫不能用 wantPage：measure 兑现时会把它清成 null，那时它已经分不清
+   * 「本来就没有」和「刚用完」了。
+   */
   useEffect(() => {
+    if (skipReset.current) {
+      skipReset.current = false
+      return
+    }
     setPage(0)
   }, [ci])
+
+  /**
+   * 上次读到哪儿。
+   *
+   * 章按**标题**找，不按序号 —— 中间插一章、或者识别结果变了一点，
+   * 序号就全错位了，照着序号跳会跳到八竿子打不着的地方。
+   * 标题对不上就退回「第几屏」，再对不上就当没这回事。
+   */
+  useEffect(() => {
+    if (restored.current) return
+    restored.current = true
+    const p = readPos(docId)
+    if (!p) return
+    const idx = p.chapter ? chapters.findIndex((c) => c.title === p.chapter) : -1
+    const want = p.page ?? 0
+    // 没章号也没翻过页 —— 那就是停在开头，没什么好问的
+    if (idx <= 0 && want === 0) return
+
+    const jump = () => {
+      if (idx > 0) {
+        wantPage.current = want
+        skipReset.current = true
+        setCi(idx)
+      } else {
+        // 本来就是第 1 章：setCi 不会触发任何 effect，催一次 measure 兑现页号
+        wantPage.current = want
+        measure()
+      }
+    }
+
+    /*
+     * 问一句，**不自动跳**。人可能就是想从头读；
+     * 而且不给按键提示 —— 不是每副键盘都有 Home 键，直接给按钮更省事。
+     */
+    toast.ask('上次读到这儿', posLabel(p), [
+      { label: '跳过去', primary: true, run: jump },
+      { label: '从头读', run: () => {} },
+    ])
+    // 只跑一次：chapters 是挂载时就算好的（该分章的话已经分好了）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 翻页 / 换章都记一笔。localStorage 写入很便宜，不用节流
+  useEffect(() => {
+    // 还在等「回到某一屏」兑现的时候别写 —— 那会儿 page 还是 0，
+    // 写下去就把刚要恢复的位置冲掉了
+    if (!restored.current || wantPage.current !== null) return
+    writePos(docId, {
+      chapter: slicing ? chapter.title : undefined,
+      page,
+    })
+  }, [docId, slicing, chapter, page])
 
   const go = useCallback(
     (delta: number) => {

@@ -1368,6 +1368,11 @@ body,
   z-index: 90;
   pointer-events: none;
 }
+/* 提示本身要能点（上面有「跳过去 / 从头看」这种按钮）。
+   整块 pointer-events: none 是为了不挡住底下的正文，那颗按钮自己收回来即可。 */
+.toast {
+  pointer-events: auto;
+}
 .toast {
   display: flex;
   align-items: flex-start;
@@ -1430,6 +1435,15 @@ body,
   color: var(--text-3);
   font-family: var(--font-mono);
   word-break: break-all;
+}
+/* 带按钮的提示（「上次读到这儿」这类）：按了才动，也按了才消失。
+   .toasts 整块是 pointer-events: none（免得挡住底下的界面），
+   所以按钮这里得自己收回点击。 */
+.toast .t-acts {
+  display: flex;
+  gap: 6px;
+  margin-top: 9px;
+  pointer-events: auto;
 }
 
 /* ---------- 保存状态脉冲 ---------- */
