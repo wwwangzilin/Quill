@@ -41,6 +41,11 @@ export interface DocStorage {
   init(): Promise<void>
   list(): Promise<DocMeta[]>
   get(id: string): Promise<Doc | undefined>
+  /**
+   * 只取原文 Markdown，**不解析**。
+   * 几百万字的文档靠它绕开「JSONContent 化」那一步 —— 那是二十多万个块。
+   */
+  raw?(id: string): Promise<string>
   create(title: string): Promise<Doc>
   /** 保存；返回可能变化的新 id（文件模式按标题改名后会换文件名） */
   put(doc: Doc): Promise<{ id: string }>

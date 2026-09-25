@@ -1369,6 +1369,95 @@ body,
   contain-intrinsic-size: auto 56px;
 }
 
+/* ---------- 轻量阅读（几百万字的文档） ----------
+   不进 ProseMirror：只在原文上扫章节边界，按需解析当前这一章。
+   排版刻意朴素 —— 每章都要现解析现渲染，越薄越好。 */
+.light-reader {
+  position: fixed;
+  inset: 0;
+  z-index: 88;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  animation: reader-in 0.3s var(--ease-out) both;
+}
+.light-bar,
+.light-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  padding: 0 16px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.light-bar {
+  height: 46px;
+  border-bottom: 1px solid var(--border);
+}
+.light-foot {
+  height: 48px;
+  border-top: 1px solid var(--border);
+}
+.light-tag {
+  flex: 0 0 auto;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-3);
+  font-size: 11px;
+}
+.light-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.light-count {
+  font-variant-numeric: tabular-nums;
+}
+.light-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 28px 0 64px;
+}
+.light-article {
+  max-width: 46em;
+  margin: 0 auto;
+  padding: 0 32px;
+  font-family: var(--font-prose);
+  font-size: var(--prose-size);
+  line-height: var(--prose-leading);
+  color: var(--text);
+}
+.light-article p {
+  margin: 0 0 0.85em;
+  text-indent: 2em;
+}
+.light-article .reader-h {
+  margin: 1.4em 0 0.6em;
+  font-family: var(--font-display);
+  text-indent: 0;
+}
+.light-article blockquote {
+  margin: 0 0 1em;
+  padding-left: 14px;
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-2);
+}
+.light-article pre {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  overflow-x: auto;
+}
+.light-article hr {
+  margin: 1.2em 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
 /* ---------- Toast ---------- */
 .toasts {
   position: fixed;

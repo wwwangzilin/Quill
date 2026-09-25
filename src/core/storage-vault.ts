@@ -82,6 +82,16 @@ export const vaultStorage: DocStorage = {
     }
   },
 
+  /**
+   * 只取原文，不解析成 JSONContent。
+   *
+   * 给「超大文档」用：700 万字解析出来是二十多万个块，光这一步就够卡死，
+   * 而阅读并不需要那个对象图。要走轻量通道的文档先在这里摸一下大小。
+   */
+  async raw(id) {
+    return await invoke<string>('read_doc', { file: id })
+  },
+
   async create(title) {
     const entry = await invoke<DocEntry>('create_doc', { title })
     return { ...metaOf(entry), content: emptyContent() }

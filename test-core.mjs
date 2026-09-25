@@ -2,6 +2,7 @@
 import { docToMarkdown, safeFileName } from './src/core/markdown.ts'
 import { markdownToDoc, splitTitle } from './src/core/md-parse.ts'
 import { blockOffsets, findIn, flatText, nodeText } from './src/core/comments.ts'
+import { splitRawChapters } from './src/core/rawChapters.ts'
 
 /**
  * 序列化用的测试夹具。
@@ -150,6 +151,32 @@ cases.push(
    */
   ['批注：各块起始偏移要累加', JSON.stringify(offs) === JSON.stringify([0, 8, 16])],
   ['批注：末块的偏移 + 长度 = 全文长度', offs[2] + nodeText(ANNOT[2]).length === flat.length],
+)
+
+/*
+ * 原文切章（超大文档那条轻量通道用的）。
+ * 它必须在**不解析**的前提下把章分对 —— 709 万字那篇解析一次就卡死了。
+ */
+const RAW_MD = [
+  '# 标题',
+  '',
+  '第一章 开始',
+  '正文一',
+  '',
+  '第二章 继续',
+  '正文二',
+  '',
+  '这里顺口提一句第三章，但它在一句正文里',
+].join('\n')
+const rawChs = splitRawChapters(RAW_MD, '兜底标题')
+const rawOne = splitRawChapters('一篇没有章节的短文', '我的标题')
+
+cases.push(
+  ['切章：只认出真正的章节行', rawChs.length === 2],
+  ['切章：标题取干净了', rawChs[0]?.title === '第一章 开始' && rawChs[1]?.title === '第二章 继续'],
+  ['切章：区间首尾相接、末章到文末', rawChs[0]?.to === rawChs[1]?.from && rawChs[1]?.to === RAW_MD.length],
+  ['切章：正文里提到的「第三章」不算章节', !rawChs.some((c) => c.title.includes('顺口'))],
+  ['切章：没有章节就整篇当一章', rawOne.length === 1 && rawOne[0].title === '我的标题'],
 )
 
 let failed = 0

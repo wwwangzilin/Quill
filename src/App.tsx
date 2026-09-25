@@ -51,6 +51,8 @@ import {
   type ProseStyle,
 } from './core/fonts'
 import { initStorage, storage } from './core/storage'
+import { splitTitle } from './core/md-parse'
+import LightReader from './ui/LightReader'
 import { docToMarkdown, safeFileName } from './core/markdown'
 import type { Doc, DocMeta, ViewMode } from './core/types'
 import { WELCOME } from './core/welcome'
@@ -194,6 +196,14 @@ export default function App() {
   const [stats, setStats] = useState<Record<string, number>>({})
   const [jumpPath, setJumpPath] = useState<number[] | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  /**
+   * 超大文档的轻量阅读通道。
+   *
+   * 几百万字的文档不进编辑器 —— 解析成 JSONContent 是二十多万个块，
+   * ProseMirror 撑不住；而且编辑器一旦「只加载一半」，保存时会把另一半截掉。
+   * 这里收的是**原文**，只读、按章现解析。
+   */
+  const [light, setLight] = useState<{ id: string; title: string; raw: string } | null>(null)
   /** 小说阅读视图：左边章节目录，右边正文按栏排（跟编辑模式完全分开，只读） */
   const [readerOpen, setReaderOpen] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
@@ -696,11 +706,40 @@ export default function App() {
   }, [settingsOpen])
 
   /* ---------------- 文档操作 ---------------- */
+  /**
+   * 超过这个字数就不进编辑器了。
+   *
+   * 40 万字 ≈ 一万三千个顶层块，已经在卡的边缘；几百万字的那些（主人库里有
+   * 700 万字的小说）解析出来是二十多万个块，ProseMirror 必死 —— 不是加个 CSS
+   * 能救的。到了这个量级就改走轻量阅读：只读、按章现解析。
+   */
+  const HEAVY_CHARS = 400_000
+
   const openDoc = useCallback(
     async (id: string) => {
       await flush()
+
+      /*
+       * 先摸原文，再决定走哪条路。
+       * 「先解析成 JSONContent 再判断大不大」是行不通的 —— 判断之前就已经卡死了。
+       */
+      const raw = storage.raw ? await storage.raw(id).catch(() => '') : ''
+      if (raw.length > HEAVY_CHARS) {
+        setLight({
+          id,
+          title: splitTitle(raw).title || '未命名',
+          raw,
+        })
+        toast.info(
+          `这篇太长了，已经用轻量模式打开 · ${Math.round(raw.length / 10000)} 万字`,
+          '只读 · 想编辑请先把文档拆开',
+        )
+        return
+      }
+
       const next = await storage.get(id)
       if (!next) return
+      setLight(null)
       docRef.current = next
       liveRef.current = { title: next.title, content: next.content }
       lastCharsRef.current = countChars(next.content)
@@ -1535,6 +1574,15 @@ export default function App() {
       />
       <CommandPalette docs={docs} commands={paletteCommands} onPickDoc={(id) => void openDoc(id)} />
       <SearchPanel onPick={jumpToHit} />
+      {/* 超大文档走轻量阅读：不进 ProseMirror，只读、按章现解析 */}
+      {light && (
+        <LightReader
+          docId={light.id}
+          title={light.title}
+          raw={light.raw}
+          onClose={() => setLight(null)}
+        />
+      )}
       {readerOpen && doc && (
         <ReaderView
           docId={doc.id}
