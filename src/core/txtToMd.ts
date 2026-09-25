@@ -73,6 +73,47 @@ function looksLikeTitle(line: string): boolean {
   return true
 }
 
+/** 行尾是不是句末标点 —— 中文排版里，只有句末标点才说明这一段说完了 */
+const ENDS_SENTENCE = /[。！？…!?；;]$|[」』”"']$/
+
+/** 这行是不是结构性的（列表 / 引用 / 标题 / 分隔线），合并折行时要绕开 */
+const STRUCTURAL = /^\s*(?:[-*+•·]|\d+[.)、]|#|>|---)/
+
+/**
+ * 把被硬折行的段落接回去。
+ *
+ * 判据是中文排版本身的规矩：一段话说到句末标点才算完。行尾是逗号、顿号，
+ * 或者干脆没标点的，那这行还没说完 —— 紧接着的下一行是它的续行，
+ * 该接上而不是另起一段。这不是「猜」，是中文文本里确定的东西，所以敢用。
+ *
+ * 两道保险，免得把「每行一段」的清单合成一大坨：
+ *   · 前一行得够长（> 12 字符），短行多半是标题或条目，不接；
+ *   · 两边都不能是列表 / 引用 / 标题那种结构性行。
+ */
+function joinSoftWraps(lines: string[]): string[] {
+  const out: string[] = []
+  for (const line of lines) {
+    const cur = line.trim()
+    const prev = out.length ? out[out.length - 1] : null
+    const joinable =
+      prev !== null &&
+      prev.trim() !== '' &&
+      cur !== '' &&
+      prev.trim().length > 12 &&
+      !ENDS_SENTENCE.test(prev.trim()) &&
+      !STRUCTURAL.test(cur) &&
+      !STRUCTURAL.test(prev)
+    if (joinable) {
+      // 英文单词之间要留空格，中文直接接上
+      const needSpace = /[A-Za-z0-9,.;:'")\]]$/.test(prev) && /^[A-Za-z0-9([]/.test(cur)
+      out[out.length - 1] = prev.trimEnd() + (needSpace ? ' ' : '') + cur
+    } else {
+      out.push(line)
+    }
+  }
+  return out
+}
+
 /**
  * 纯文本 → 一篇能直接落盘的 Markdown。
  *
@@ -96,12 +137,16 @@ export function txtToMarkdown(raw: string, fallbackTitle: string): ImportedDoc {
 
   const lines = text.split('\n')
   let title = fallbackTitle
-  let body = text
+  let body = lines
   if (looksLikeTitle(lines[0])) {
     title = lines[0].trim()
-    body = lines.slice(1).join('\n').replace(/^\n+/, '')
+    body = lines.slice(1)
   }
-  return { title, content: `# ${title}\n\n${body}\n` }
+  const merged = joinSoftWraps(body)
+    .join('\n')
+    .replace(/^\n+/, '')
+    .trim()
+  return { title, content: `# ${title}\n\n${merged}\n` }
 }
 
 /** 读一个 File 并转成待落盘的文档（.txt 走转换，.md 原样） */

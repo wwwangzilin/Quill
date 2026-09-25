@@ -16,6 +16,7 @@ import { useAiComplete } from './useAiComplete'
 import { acceptAi, aiState, clearAi } from './aiComplete'
 import AiSelectionBar from '../ui/AiSelectionBar'
 import { importAssetFile } from '../core/desktop'
+import { isImportable } from '../core/txtToMd'
 
 interface Props {
   doc: Doc
@@ -37,6 +38,8 @@ interface Props {
   aiDelay: number
   /** 把编辑器实例交给上层（复制富文本、问文档之类要用） */
   onReady?: (editor: Editor) => void
+  /** 拖进来的文本文件（.md / .txt）—— 当成新文档导入，而不是插到光标处 */
+  onDropText?: (files: File[]) => void
   /** 给选中的这段加批注（打开右侧批注面板） */
   onComment?: (text: string) => void
 }
@@ -131,6 +134,7 @@ export default function EditorPane({
   aiEnabled,
   aiDelay,
   onReady,
+  onDropText,
   onComment,
 }: Props) {
   const [stats, setStats] = useState<Stats>(() => countStats(doc.content))
@@ -195,12 +199,16 @@ export default function EditorPane({
       // 这条是浏览器模式与原生事件失灵时的兜底
       handleDrop: (_view, event) => {
         const files = Array.from(event.dataTransfer?.files ?? [])
-        if (files.length) {
-          event.preventDefault()
-          pasteFilesRef.current(files)
+        if (!files.length) return false
+        event.preventDefault()
+        // 全是文本文件 → 当新文档导进来（.txt 顺带转成 Markdown）。
+        // 混着图片或别的东西，就还走老路「复制进 assets 再插到光标处」。
+        if (files.every((f) => isImportable(f.name))) {
+          dropTextRef.current(files)
           return true
         }
-        return false
+        pasteFilesRef.current(files)
+        return true
       },
     },
     onUpdate: ({ editor }) => {
@@ -489,6 +497,15 @@ export default function EditorPane({
   const [dropping, setDropping] = useState(false)
   /** editorProps 里的 handler 只求值一次，异步落盘的实际实现得挂在 ref 上 */
   const pasteFilesRef = useRef<(files: File[]) => void>(() => {})
+  /**
+   * 拖进来的文本文件交给外面（App）去导入。
+   * 用 ref 而不是直接读 prop：editorProps 在编辑器建好之后就不再重建了，
+   * 闭包会一直攥着第一次那个函数。
+   */
+  const dropTextRef = useRef<(files: File[]) => void>(() => {})
+  useEffect(() => {
+    dropTextRef.current = onDropText ?? (() => {})
+  }, [onDropText])
   const dropPathsRef = useRef<(paths: string[], x?: number, y?: number) => void>(() => {})
 
   /** 文件 → 仓库 assets/ → 插入节点。给了 pos 就插那儿，否则插在光标处 */

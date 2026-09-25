@@ -1102,7 +1102,7 @@ export default function App() {
 
   /** 把选出来的文件真正导进去 —— .txt 在读的时候就已经转成 Markdown 了 */
   const runImport = useCallback(
-    async (files: FileList | null) => {
+    async (files: FileList | File[] | null) => {
       if (!files || !files.length) return
       try {
         const items = await readMarkdownFolder(files)
@@ -1584,6 +1584,7 @@ export default function App() {
                   else toast.info('还没有这篇文档', title)
                 }}
                 onReady={handleEditorReady}
+                onDropText={(fs) => void runImport(fs)}
                 onComment={(text) => {
                   setCommentFocus(null)
                   setCommentDraft(text)
