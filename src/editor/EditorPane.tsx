@@ -664,7 +664,8 @@ export default function EditorPane({
     (e: React.KeyboardEvent) => {
       if (!editor) return
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+      // 只认「不按 Shift 的 Ctrl+F」——Ctrl+Shift+F 是全局搜索，让给它
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault()
         setFindOpen(true)
         return

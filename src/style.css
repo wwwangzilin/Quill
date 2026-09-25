@@ -3107,6 +3107,78 @@ body.quill-dragging * {
   font-size: 11px;
   color: var(--text-3);
 }
+.foot-gap {
+  flex: 1;
+}
+
+/* ---------- 全文搜索（Ctrl+Shift+F） ---------- */
+/* 面板骨架直接复用命令面板的 .palette-*，这里只管结果行。
+   比命令面板宽一点：一行要同时塞下「哪一篇 + 上下文片段 + 行号」。 */
+.search-panel {
+  width: min(760px, 94vw);
+  max-height: 72vh;
+}
+/* 文档名只在同一篇的第一条上出现，后面的条留出等宽空位 ——
+   这样片段能对齐成一列，一眼看出哪几条属于同一篇。 */
+.hit-row {
+  appearance: none;
+  border: none;
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.hit-row.on {
+  background: var(--accent-soft);
+}
+/* 换了一篇就在上面画一条淡线，分组靠它，不靠缩进 */
+.hit-row.first {
+  margin-top: 4px;
+}
+.hit-row.first:not(:first-child) {
+  border-top: 1px solid var(--border);
+  padding-top: 9px;
+}
+.hit-file {
+  flex: 0 0 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.hit-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hit-mark {
+  background: var(--accent-soft);
+  color: var(--accent-1);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+.hit-line {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.hit-busy,
+.hit-warn {
+  font-size: 11px;
+  color: var(--text-3);
+}
 
 /* ---------- 反向链接 ---------- */
 .main-stack {

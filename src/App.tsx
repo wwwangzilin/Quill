@@ -14,6 +14,9 @@ import DocLibrary from './ui/DocLibrary'
 import MoreMenu, { type MenuItem } from './ui/MoreMenu'
 import WindowControls from './ui/WindowControls'
 import CommandPalette, { type PaletteCommand } from './ui/CommandPalette'
+import SearchPanel from './ui/SearchPanel'
+import { scanMatches } from './editor/search'
+import type { DocSearchHit } from './core/searchDocs'
 import BacklinksPanel from './ui/BacklinksPanel'
 import AiChatPanel from './ui/AiChatPanel'
 import QuickCapture from './ui/QuickCapture'
@@ -52,6 +55,19 @@ import { WELCOME } from './core/welcome'
 import { setAssetResolver } from './core/asset'
 
 type Saving = 'idle' | 'saving' | 'saved'
+
+/**
+ * 在当前编辑器里跳到第 nth 个匹配处。
+ *
+ * 只把**光标**落过去，不选中那个词 —— 选中了的话，用户跳过来顺手一打字
+ * 就把刚找到的词覆盖掉了。光标停在词首，接着写也安全。
+ */
+function jumpToNth(ed: Editor, query: string, nth: number) {
+  const hits = scanMatches(ed, query)
+  if (!hits.length) return
+  const i = Math.min(Math.max(nth, 0), hits.length - 1)
+  ed.chain().focus().setTextSelection(hits[i].from).scrollIntoView().run()
+}
 
 function toMeta(doc: Doc): DocMeta {
   return {
@@ -361,9 +377,29 @@ export default function App() {
    * 所以额外存一份 state，仅为让它有机会重新渲染一次。
    */
   const [liveEditor, setLiveEditor] = useState<Editor | null>(null)
+
+  /**
+   * 全文搜索点进来之后要落到具体那一处，跳转请求先记在这儿。
+   *
+   * 之所以要「记下来等一等」：点了结果之后文档才刚开始换，
+   * 编辑器是新的、内容还没灌进去。等 onReady 到了再跳才落得准。
+   */
+  const pendingJumpRef = useRef<{ file: string; query: string; nth: number } | null>(null)
+
   const handleEditorReady = useCallback((ed: Editor) => {
     editorRef.current = ed
     setLiveEditor(ed)
+
+    const jump = pendingJumpRef.current
+    if (!jump) return
+    pendingJumpRef.current = null
+    // 编辑器就绪时文档未必已经切过去了，对不上就放弃这一跳（别跳到别的文章里去）
+    if (docRef.current?.id !== jump.file) return
+    // 再等一拍：onReady 之后内容才灌进编辑器，这时候扫才是全的
+    window.setTimeout(() => {
+      if (ed.isDestroyed) return
+      jumpToNth(ed, jump.query, jump.nth)
+    }, 200)
   }, [])
 
   /** 复制为富文本：粘到公众号 / Word 里格式还在 */
@@ -1299,6 +1335,21 @@ export default function App() {
     [onChange],
   )
 
+  /** 全文搜索里点一条结果：打开那篇文档，并落到那一处 */
+  const jumpToHit = useCallback(
+    (hit: DocSearchHit, query: string) => {
+      // 目标就是当前这一篇：编辑器不会重建，也就等不到 onReady，直接跳
+      const ed = editorRef.current
+      if (docRef.current?.id === hit.file && ed && !ed.isDestroyed) {
+        jumpToNth(ed, query, hit.nth)
+        return
+      }
+      pendingJumpRef.current = { file: hit.file, query, nth: hit.nth }
+      void openDoc(hit.file)
+    },
+    [openDoc],
+  )
+
   /* ---------------- 渲染 ---------------- */
 
   return (
@@ -1330,6 +1381,7 @@ export default function App() {
         onSubmit={(text) => void quickCapture(text)}
       />
       <CommandPalette docs={docs} commands={paletteCommands} onPickDoc={(id) => void openDoc(id)} />
+      <SearchPanel onPick={jumpToHit} />
       <AiChatPanel
         open={chatOpen && Boolean(doc)}
         title={doc?.title ?? ''}

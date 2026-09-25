@@ -400,6 +400,22 @@ fn is_sticky(app: tauri::AppHandle, doc: String) -> bool {
 }
 
 /// 在资源管理器里打开仓库目录 —— 「文档都是纯 md 文件」这件事要能被亲眼验证
+/// 跨文档全文搜索：在仓库所有 .md 里找一句话。
+///
+/// **必须是 async**：要在主线程上读几百个文件、逐个扫，同步命令会把 WebView
+/// 卡住（save_doc 就栽在这上面过 —— 表现是打字时字自己上屏、光标跳走）。
+#[tauri::command]
+async fn search_vault(
+    app: tauri::AppHandle,
+    query: String,
+    limit: Option<usize>,
+) -> Result<vault::SearchOut, String> {
+    let dir = prepare(&app)?;
+    tauri::async_runtime::spawn_blocking(move || vault::search(&dir, &query, limit.unwrap_or(200)))
+        .await
+        .map_err(|e| format!("搜索任务失败: {e}"))?
+}
+
 #[tauri::command]
 fn reveal_vault(app: tauri::AppHandle) -> Result<(), String> {
     let dir = prepare(&app)?;
@@ -513,6 +529,7 @@ pub fn run() {
             git_file_at,
             git_restore,
             reveal_vault,
+            search_vault,
             git_remote_info,
             save_git_settings,
             git_push_now,
