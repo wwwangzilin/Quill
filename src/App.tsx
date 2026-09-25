@@ -203,7 +203,7 @@ export default function App() {
    * ProseMirror 撑不住；而且编辑器一旦「只加载一半」，保存时会把另一半截掉。
    * 这里收的是**原文**，只读、按章现解析。
    */
-  const [light, setLight] = useState<{ id: string; title: string; raw: string } | null>(null)
+  const [light, setLight] = useState<{ id: string; title: string } | null>(null)
   /** 小说阅读视图：左边章节目录，右边正文按栏排（跟编辑模式完全分开，只读） */
   const [readerOpen, setReaderOpen] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
@@ -707,31 +707,30 @@ export default function App() {
 
   /* ---------------- 文档操作 ---------------- */
   /**
-   * 超过这个字数就不进编辑器了。
+   * 超过这个体积就不进编辑器了。
    *
-   * 40 万字 ≈ 一万三千个顶层块，已经在卡的边缘；几百万字的那些（主人库里有
-   * 700 万字的小说）解析出来是二十多万个块，ProseMirror 必死 —— 不是加个 CSS
-   * 能救的。到了这个量级就改走轻量阅读：只读、按章现解析。
+   * 按**字节**算：40 万汉字 ≈ 120 万字节。这个量级大概一万三千个顶层块，
+   * 已经在卡的边缘；几百万字的那些（主人库里有 700 万字的小说）是二十多万个块，
+   * ProseMirror 必死 —— 不是加个 CSS 能救的。到了这个量级就改走轻量阅读：
+   * 只读、按章现解析。
    */
-  const HEAVY_CHARS = 400_000
+  const HEAVY_BYTES = 1_200_000
 
   const openDoc = useCallback(
     async (id: string) => {
       await flush()
 
       /*
-       * 先摸原文，再决定走哪条路。
-       * 「先解析成 JSONContent 再判断大不大」是行不通的 —— 判断之前就已经卡死了。
+       * 先问 Rust 要一份「章节目录 + 文件大小」，**不搬正文**。
+       * 700 万字的原文有 21MB，IPC 转一趟（还得 JSON 转义）纯属浪费 ——
+       * 判断大小用不上它，切章也已经挪到 Rust 侧了。
        */
-      const raw = storage.raw ? await storage.raw(id).catch(() => '') : ''
-      if (raw.length > HEAVY_CHARS) {
-        setLight({
-          id,
-          title: splitTitle(raw).title || '未命名',
-          raw,
-        })
+      const o = storage.outline ? await storage.outline(id).catch(() => null) : null
+      if (o && o.bytes > HEAVY_BYTES) {
+        const head = storage.readSlice ? await storage.readSlice(id, 0, 600).catch(() => '') : ''
+        setLight({ id, title: splitTitle(head).title || '未命名' })
         toast.info(
-          `这篇太长了，已经用轻量模式打开 · ${Math.round(raw.length / 10000)} 万字`,
+          `这篇太长了，已经用轻量模式打开 · 约 ${Math.round(o.bytes / 3 / 10000)} 万字`,
           '只读 · 想编辑请先把文档拆开',
         )
         return
@@ -1576,12 +1575,7 @@ export default function App() {
       <SearchPanel onPick={jumpToHit} />
       {/* 超大文档走轻量阅读：不进 ProseMirror，只读、按章现解析 */}
       {light && (
-        <LightReader
-          docId={light.id}
-          title={light.title}
-          raw={light.raw}
-          onClose={() => setLight(null)}
-        />
+        <LightReader docId={light.id} title={light.title} onClose={() => setLight(null)} />
       )}
       {readerOpen && doc && (
         <ReaderView

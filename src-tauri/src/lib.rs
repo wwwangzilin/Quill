@@ -49,6 +49,33 @@ fn read_doc(app: tauri::AppHandle, file: String) -> Result<String, String> {
     vault::read(&dir, &file)
 }
 
+/*
+ * 超大文档（几百万字）专用：前端**不要**把整篇原文搬过去切章 ——
+ * IPC 会把返回值 JSON 化，21MB 转义之后更大。这里流式扫一遍只回章节索引，
+ * 正文按 read_doc_slice 一段一段取，一次最多几十 KB。
+ * 两个都是阻塞活（要真读文件），扔到阻塞线程池，别占主线程。
+ */
+#[tauri::command]
+async fn doc_outline(app: tauri::AppHandle, file: String) -> Result<vault::DocOutline, String> {
+    let dir = prepare(&app)?;
+    tauri::async_runtime::spawn_blocking(move || vault::outline(&dir, &file))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn read_doc_slice(
+    app: tauri::AppHandle,
+    file: String,
+    from: u64,
+    to: u64,
+) -> Result<String, String> {
+    let dir = prepare(&app)?;
+    tauri::async_runtime::spawn_blocking(move || vault::read_slice(&dir, &file, from, to))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 fn create_doc(app: tauri::AppHandle, title: String) -> Result<DocEntry, String> {
     let dir = prepare(&app)?;
@@ -521,6 +548,8 @@ pub fn run() {
             vault_info,
             list_docs,
             read_doc,
+            doc_outline,
+            read_doc_slice,
             create_doc,
             save_doc,
             delete_doc,

@@ -495,6 +495,162 @@ pub fn all_tags(dir: &Path) -> Vec<String> {
     out
 }
 
+/* ==================== 超大文档：按章读 ==================== */
+
+/// 一章在文件里的位置。**字节**偏移 —— 前后端统一用字节，别混字符下标。
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChapterMark {
+    pub title: String,
+    pub from: u64,
+    pub to: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocOutline {
+    pub marks: Vec<ChapterMark>,
+    /// 整个文件的字节数
+    pub bytes: u64,
+}
+
+/** 章名最长这么多**字节**（≈66 个汉字，够宽了） */
+const MAX_HEAD_BYTES: usize = 200;
+
+/** 章名后面常跟着的元信息 */
+const META_KEYS: [&str; 8] = ["作者", "更新时间", "字数", "来源", "本章", "链接", "简介", "标签"];
+
+/** 「第…章/节/回/卷/篇/部」 */
+fn is_cn_head(s: &str) -> bool {
+    let mut it = s.chars();
+    if it.next() != Some('第') {
+        return false;
+    }
+    let mut n = 0;
+    for c in it {
+        if c.is_ascii_digit() || "０１２３４５６７８９一二三四五六七八九十百千零两".contains(c) {
+            n += 1;
+            if n > 12 {
+                return false;
+            }
+        } else {
+            return "章节回卷篇話话部".contains(c);
+        }
+    }
+    false
+}
+
+/** Chapter 1 / CHAPTER IV */
+fn is_en_head(s: &str) -> bool {
+    let low = s.to_ascii_lowercase();
+    if !low.starts_with("chapter") {
+        return false;
+    }
+    match low[7..].trim_start().chars().next() {
+        Some(c) => c.is_ascii_digit() || "ivxlcdm".contains(c),
+        None => false,
+    }
+}
+
+/** 这一行如果是章名，返回干净的名字 */
+fn head_of_line(line: &str) -> Option<String> {
+    let t = line.trim();
+    if t.is_empty() {
+        return None;
+    }
+    let bare = t.trim_start_matches('#').trim_start();
+    if !is_cn_head(bare) && !is_en_head(bare) {
+        return None;
+    }
+    let mut cut = bare.len();
+    for k in META_KEYS {
+        if let Some(i) = bare.find(k) {
+            let after = &bare[i + k.len()..];
+            if (after.starts_with(':') || after.starts_with('：')) && i < cut {
+                cut = i;
+            }
+        }
+    }
+    let out = bare[..cut].trim();
+    if out.is_empty() {
+        None
+    } else {
+        Some(out.to_string())
+    }
+}
+
+/// 只扫章节边界，**不返回正文**。
+///
+/// 为什么不放在前端切：Tauri 的 IPC 会把返回值 JSON 化，700 万字（约 21MB）
+/// 的字符串转义之后更大 —— 前端为了切一次章，得先把这一大坨搬过去。
+/// 这里用 BufReader 流式扫一遍，只回几百个小对象；正文按需用 read_slice 取。
+pub fn outline(dir: &Path, file: &str) -> Result<DocOutline, String> {
+    let name = safe_name(file)?;
+    let f = std::fs::File::open(dir.join(&name)).map_err(|e| format!("打开失败: {e}"))?;
+    let mut r = std::io::BufReader::new(f);
+    let mut buf: Vec<u8> = Vec::new();
+    let mut at: u64 = 0;
+    let mut marks: Vec<ChapterMark> = Vec::new();
+
+    loop {
+        buf.clear();
+        let n = std::io::BufRead::read_until(&mut r, b'\n', &mut buf)
+            .map_err(|e| format!("读取失败: {e}"))?;
+        if n == 0 {
+            break;
+        }
+        // 只对短行做判断：正文段落动辄几百字，先按长度切掉绝大多数
+        if buf.len() <= MAX_HEAD_BYTES {
+            if let Ok(line) = std::str::from_utf8(&buf) {
+                if let Some(title) = head_of_line(line) {
+                    marks.push(ChapterMark {
+                        title,
+                        from: at,
+                        to: 0,
+                    });
+                }
+            }
+        }
+        at += n as u64;
+    }
+
+    for i in 0..marks.len() {
+        marks[i].to = if i + 1 < marks.len() {
+            marks[i + 1].from
+        } else {
+            at
+        };
+    }
+    if marks.is_empty() {
+        marks.push(ChapterMark {
+            title: String::new(),
+            from: 0,
+            to: at,
+        });
+    }
+    Ok(DocOutline { marks, bytes: at })
+}
+
+/// 只读 `[from, to)` 这一段。按章取正文用，一次最多几十 KB。
+///
+/// 切到半个字也不报错：截到最后一个完整字符为止 —— 调用方拿它去取标题，
+/// 不该因为边界差几个字节就整个失败。
+pub fn read_slice(dir: &Path, file: &str, from: u64, to: u64) -> Result<String, String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let name = safe_name(file)?;
+    let mut f = std::fs::File::open(dir.join(&name)).map_err(|e| format!("打开失败: {e}"))?;
+    let len = f.metadata().map(|m| m.len()).unwrap_or(0);
+    let from = from.min(len);
+    let to = to.clamp(from, len);
+    f.seek(SeekFrom::Start(from)).map_err(|e| e.to_string())?;
+    let mut buf = vec![0u8; (to - from) as usize];
+    f.read_exact(&mut buf).map_err(|e| format!("读取失败: {e}"))?;
+    Ok(String::from_utf8(buf).unwrap_or_else(|e| {
+        let n = e.utf8_error().valid_up_to();
+        String::from_utf8_lossy(&e.into_bytes()[..n]).into_owned()
+    }))
+}
+
 pub fn record_writing(dir: &Path, date: &str, chars: u64) -> Result<(), String> {
     if chars == 0 {
         return Ok(());

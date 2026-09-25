@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { parseDocument } from '../core/md-parse'
-import { splitRawChapters } from '../core/rawChapters'
+import type { RawChapter } from '../core/rawChapters'
 import { readPos, writePos } from '../core/lastPos'
+import { storage } from '../core/storage'
 
 interface Props {
   docId: string
   title: string
-  /** 原文 Markdown —— 注意这里收的是字符串，不是解析好的 JSON */
-  raw: string
   onClose: () => void
 }
 
@@ -66,32 +65,77 @@ function softWrapToParagraphs(md: string): string {
 /**
  * 轻量阅读器：给「几百万字」那种文档用的。
  *
- * **不走 ProseMirror，也不把全文解析成 JSONContent** —— 700 万字光解析就是
- * 二十多万个块，那一步就够卡死，而阅读根本不需要它。这里只在原文上扫一遍
- * 章节边界（实测 17ms），然后**按需**解析当前这一章：一章几万字，
- * 不到 1ms，翻到哪章算哪章。
+ * **既不进 ProseMirror，也不把全文搬进前端**：
+ *
+ *   · 章节目录由 Rust 侧流式扫出来（只回几百个小对象），原文那 21MB
+ *     一次都不经过 IPC —— 转一趟还要 JSON 转义，纯属浪费；
+ *   · 正文按需取：翻到哪章才读哪一段（几十 KB），解析不到 1ms。
  *
  * **只读**，不给编辑留口子。编辑器一旦「只加载一半」，保存时就会把另一半
  * 截掉 —— 那是不可逆的损坏。想编辑请先把文档拆开。
  */
-export default function LightReader({ docId, title, raw, onClose }: Props) {
-  // 切章只扫一遍原文，不建对象图；只在 raw 变了才重算
-  const chapters = useMemo(() => splitRawChapters(raw, title), [raw, title])
-  const [ci, setCi] = useState(() => {
-    const p = readPos(docId)
-    if (!p?.chapter) return 0
-    const i = chapters.findIndex((c) => c.title === p.chapter)
-    return i > 0 ? i : 0
-  })
+export default function LightReader({ docId, title, onClose }: Props) {
+  const [chapters, setChapters] = useState<RawChapter[]>([])
+  const [blocks, setBlocks] = useState<JSONContent[]>([])
+  const [loading, setLoading] = useState(true)
+  const [ci, setCi] = useState(0)
+  /** 恢复上次读到哪一章时，等目录回来再定位，所以先记着 */
+  const wantChapter = useRef<string | null>(null)
+  const restored = useRef(false)
+
+  // ① 章节目录：Rust 侧扫，不搬正文
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    void storage
+      .outline?.(docId)
+      .then((o) => {
+        if (!alive) return
+        const marks = o?.marks ?? []
+        setChapters(marks)
+        // 上次读到哪一章 —— 目录回来之后才认得出来
+        const p = readPos(docId)
+        if (!restored.current && p?.chapter) {
+          restored.current = true
+          const i = marks.findIndex((c) => c.title === p.chapter)
+          if (i > 0) setCi(i)
+        }
+      })
+      .catch(() => {
+        if (alive) setChapters([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [docId])
 
   const ch = chapters[Math.min(ci, chapters.length - 1)]
 
-  /** 当前章的正文 —— 只有它被解析，而且是这一章才几十 KB */
-  const blocks = useMemo(() => {
-    if (!ch) return []
-    const seg = softWrapToParagraphs(raw.slice(ch.from, ch.to))
-    return parseDocument(seg).doc.content ?? []
-  }, [raw, ch])
+  // ② 正文：只取当前这一章那一段
+  useEffect(() => {
+    if (!ch) {
+      setBlocks([])
+      setLoading(false)
+      return
+    }
+    let alive = true
+    setLoading(true)
+    void storage
+      .readSlice?.(docId, ch.from, ch.to)
+      .then((seg) => {
+        if (!alive) return
+        setBlocks(parseDocument(softWrapToParagraphs(seg ?? '')).doc.content ?? [])
+      })
+      .catch(() => {
+        if (alive) setBlocks([])
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [docId, ch])
 
   const go = useCallback(
     (delta: number) => {
@@ -100,7 +144,7 @@ export default function LightReader({ docId, title, raw, onClose }: Props) {
     [chapters.length],
   )
 
-  // 换章回到顶部
+  // 换章回到顶部，并记一笔
   useEffect(() => {
     document.querySelector('.light-reader .light-body')?.scrollTo({ top: 0 })
     if (ch) writePos(docId, { chapter: ch.title, page: 0 })
@@ -142,11 +186,15 @@ export default function LightReader({ docId, title, raw, onClose }: Props) {
       </header>
 
       <div className="light-body">
-        <article className="light-article">
-          {blocks.map((b, i) => (
-            <Block key={i} node={b} />
-          ))}
-        </article>
+        {loading && !blocks.length ? (
+          <div className="light-loading">正在取这一章…</div>
+        ) : (
+          <article className="light-article">
+            {blocks.map((b, i) => (
+              <Block key={i} node={b} />
+            ))}
+          </article>
+        )}
       </div>
 
       <footer className="light-foot">

@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { docToMarkdown } from './markdown'
 import { parseDocument } from './md-parse'
 import type { Comment } from './comments'
+import type { RawChapter } from './rawChapters'
 import type { CommitInfo, DocStorage, RemoteInfo, TrashItem } from './storage'
 import { emptyContent, type Doc, type DocMeta } from './types'
 
@@ -90,6 +91,19 @@ export const vaultStorage: DocStorage = {
    */
   async raw(id) {
     return await invoke<string>('read_doc', { file: id })
+  },
+
+  /**
+   * 超大文档的章节目录。Rust 侧流式扫一遍，只回几百个小对象 ——
+   * 别在 IPC 上搬 21MB 的原文。
+   */
+  async outline(id) {
+    return await invoke<{ marks: RawChapter[]; bytes: number }>('doc_outline', { file: id })
+  },
+
+  /** 只读一段（字节区间）。按章取正文用，一次最多几十 KB。 */
+  async readSlice(id, from, to) {
+    return await invoke<string>('read_doc_slice', { file: id, from, to })
   },
 
   async create(title) {

@@ -2,6 +2,7 @@ import { openDB, type IDBPDatabase } from 'idb'
 import { createDoc, type Doc, type DocMeta } from './types'
 import { vaultStorage } from './storage-vault'
 import type { Comment } from './comments'
+import type { RawChapter } from './rawChapters'
 
 /** 一次提交（文件模式才有） */
 export interface CommitInfo {
@@ -46,6 +47,16 @@ export interface DocStorage {
    * 几百万字的文档靠它绕开「JSONContent 化」那一步 —— 那是二十多万个块。
    */
   raw?(id: string): Promise<string>
+  /**
+   * 超大文档：**只要章节目录**，不搬正文。
+   *
+   * 700 万字的原文有 21MB，Tauri 的 IPC 还要 JSON 转义一遍 ——
+   * 前端为了切一次章得先把这一大坨搬过来，不值。切章挪到 Rust 侧流式扫，
+   * 只回几百个小对象。
+   */
+  outline?(id: string): Promise<{ marks: RawChapter[]; bytes: number }>
+  /** 超大文档：只读 `[from, to)` 这一段（**字节**偏移） */
+  readSlice?(id: string, from: number, to: number): Promise<string>
   create(title: string): Promise<Doc>
   /** 保存；返回可能变化的新 id（文件模式按标题改名后会换文件名） */
   put(doc: Doc): Promise<{ id: string }>
