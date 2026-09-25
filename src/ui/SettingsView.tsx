@@ -441,12 +441,12 @@ export default function SettingsView({
           onChange={(e) => onAutoHide(e.target.checked)}
           style={{ width: 14, height: 14 }}
         />
-        <span className="sc-text">自动收起顶栏与底栏</span>
+        <span className="sc-text">自动收起周边界面</span>
       </label>
       <p className="hint">
-        窗口没有系统边框，顶栏也就不常驻了 —— 鼠标移到右上角它才滑出来
-        （窗口按钮在那儿），离开一会儿自己收回去；状态栏与侧栏则在正文里敲字时收起、
-        鼠标一动就回来。关掉这一项，界面就一直摆着不动。
+        窗口没有系统边框，顶栏与侧栏也就不常驻了：鼠标够到右上角顶栏才滑出来
+        （窗口按钮在那儿），贴到左边缘侧栏才滑出来，状态栏则在正文里敲字时收起 ——
+        鼠标一动就都回来。关掉这一项，界面一直摆着不动。
         阅读模式与禅模式本来就收界面，不受这里影响。
       </p>
       <label className="field">

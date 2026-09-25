@@ -150,6 +150,8 @@ export default function App() {
   // 默认收起：平时写作就是全宽的，跟 Word 一样干净；选文档走文档库。
   // ☰ 仍可随时唤出（热力图、每日目标那些还在里面）。
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  /** 鼠标贴到左边缘临时唤出的侧栏 —— 看一眼就够，不改 ☰ 的开关状态 */
+  const [sidebarPeek, setSidebarPeek] = useState(false)
   const [theme, setTheme] = useState<Theme>(() => readTheme())
   /** 换个主题：标题栏按钮和命令面板共用；按主题清单的顺序往下循环 */
   const cycleTheme = useCallback(() => setTheme((t) => nextTheme(t)), [])
@@ -207,6 +209,15 @@ export default function App() {
   const canHideBar = autoHide && !zen && !reading
   const barHidden = canHideBar && !barShown
 
+  /**
+   * 侧栏此刻在不在场。
+   *
+   * 顶栏既然要够到右上角才出来，☰ 就不再是个顺手的入口了 —— 所以侧栏改成
+   * 「鼠标贴左边缘自己出来」：靠过去看一眼，走开就还回去，不改变 ☰ 的开关心意。
+   * 手动开着（☰）当然也算数，只是在打字收起时同样让位给正文。
+   */
+  const sidebarShown = sidebarPeek || (sidebarOpen && !barsHidden)
+
   // 在正文里敲字就把顶栏底栏收起来。
   // 只排除两件事：带修饰键的快捷键、以及在真正的输入框里打字。
   // 这里**不**判断「焦点是不是在编辑器里」—— 中文输入法组词时那个判断不稳定，
@@ -261,6 +272,40 @@ export default function App() {
       leave = window.setTimeout(() => {
         leave = 0
         setBarShown(false)
+      }, 420)
+    }
+    window.addEventListener('mousemove', onMove)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      if (leave) window.clearTimeout(leave)
+    }
+  }, [canHideBar])
+
+  // 鼠标贴到窗口左边缘就把侧栏放出来，走开再还回去。
+  // 判据用坐标而不是元素：无边框窗口最左边那几像素归系统的缩放边框管
+  // （WM_NCHITTEST 直接吃掉，WebView 压根收不到鼠标事件），
+  // 所以留 16px 余量 —— 等事件递到手里时，鼠标早就够得着了。
+  useEffect(() => {
+    if (!canHideBar) {
+      setSidebarPeek(false)
+      return
+    }
+    let leave = 0
+    const onMove = (e: MouseEvent) => {
+      const hit = document.elementFromPoint(e.clientX, e.clientY)
+      const on = e.clientX <= 16 || Boolean(hit?.closest('.sidebar'))
+      if (on) {
+        if (leave) {
+          window.clearTimeout(leave)
+          leave = 0
+        }
+        setSidebarPeek(true)
+        return
+      }
+      if (leave) return
+      leave = window.setTimeout(() => {
+        leave = 0
+        setSidebarPeek(false)
       }, 420)
     }
     window.addEventListener('mousemove', onMove)
@@ -1360,7 +1405,7 @@ export default function App() {
         <Sidebar
           docs={docs}
           activeId={doc?.id ?? null}
-          hidden={!sidebarOpen}
+          hidden={!sidebarShown}
           tags={allTags}
           activeTag={activeTag}
           stats={stats}
