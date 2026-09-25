@@ -33,7 +33,14 @@ import {
   setAutostart,
   type DesktopPrefs,
 } from './core/desktop'
-import { applyProse, readProse, saveProse, type ProseStyle } from './core/fonts'
+import {
+  applyProse,
+  clampWidth,
+  PROSE_RANGE,
+  readProse,
+  saveProse,
+  type ProseStyle,
+} from './core/fonts'
 import { initStorage, storage } from './core/storage'
 import { docToMarkdown, safeFileName } from './core/markdown'
 import type { Doc, DocMeta, ViewMode } from './core/types'
@@ -1164,6 +1171,22 @@ export default function App() {
           </button>
         )}
         <div className="grow" />
+        {/* 正文栏宽度：常驻在这里才叫「快速调节」——拖一下立刻见效，不必进设置翻 */}
+        <label className="width-slider" title="拖动调节正文栏宽度">
+          <span className="ws-icon" aria-hidden="true">
+            ⇔
+          </span>
+          <input
+            type="range"
+            min={PROSE_RANGE.minWidth}
+            max={PROSE_RANGE.maxWidth}
+            step={PROSE_RANGE.stepWidth}
+            value={prose.width}
+            aria-label="正文栏宽度"
+            onChange={(e) => setProse((p) => ({ ...p, width: clampWidth(Number(e.target.value)) }))}
+          />
+          <em className="ws-val">{prose.width}</em>
+        </label>
         <div className="seg">
           <button className={view === 'write' ? 'on' : ''} onClick={() => switchView('write')}>
             写作

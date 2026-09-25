@@ -88,14 +88,26 @@ export interface ProseStyle {
   font: string
   size: number
   leading: number
+  /** 正文栏宽度（px），写进 --write-width */
+  width: number
 }
 
-export const PROSE_DEFAULT: ProseStyle = { font: 'system', size: 16.5, leading: 1.85 }
-export const PROSE_RANGE = { minSize: 14, maxSize: 24, minLeading: 1.5, maxLeading: 2.6 }
+export const PROSE_DEFAULT: ProseStyle = { font: 'system', size: 16.5, leading: 1.85, width: 720 }
+export const PROSE_RANGE = {
+  minSize: 14,
+  maxSize: 24,
+  minLeading: 1.5,
+  maxLeading: 2.6,
+  // 窄到接近手机的阅读宽度，宽到铺满大屏；步进 20px 好对齐
+  minWidth: 480,
+  maxWidth: 1200,
+  stepWidth: 20,
+}
 
 const KEY_FONT = 'quill-set:proseFont'
 const KEY_SIZE = 'quill-set:proseSize'
 const KEY_LEADING = 'quill-set:proseLeading'
+const KEY_WIDTH = 'quill-set:proseWidth'
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -119,6 +131,7 @@ export function readProse(): ProseStyle {
     font: read(KEY_FONT, PROSE_DEFAULT.font),
     size: read(KEY_SIZE, PROSE_DEFAULT.size),
     leading: read(KEY_LEADING, PROSE_DEFAULT.leading),
+    width: clampWidth(read(KEY_WIDTH, PROSE_DEFAULT.width)),
   }
 }
 
@@ -126,6 +139,14 @@ export function saveProse(next: ProseStyle): void {
   write(KEY_FONT, next.font)
   write(KEY_SIZE, next.size)
   write(KEY_LEADING, next.leading)
+  write(KEY_WIDTH, next.width)
+}
+
+/** 夹到合法区间：手改过 localStorage、或从旧版本升上来，都不至于把版面撑坏 */
+export function clampWidth(px: number): number {
+  const n = Number(px)
+  if (!Number.isFinite(n)) return PROSE_DEFAULT.width
+  return Math.min(PROSE_RANGE.maxWidth, Math.max(PROSE_RANGE.minWidth, Math.round(n)))
 }
 
 /** 已经插过 <link> 的字体，别重复插 */
@@ -166,6 +187,8 @@ export function applyProse(next?: ProseStyle): ProseStyle {
   root.setProperty('--font-prose', option.stack)
   root.setProperty('--prose-size', `${style.size}px`)
   root.setProperty('--prose-leading', String(style.leading))
+  // 正文栏宽度也挂在这里：三种窗口共用一份前端产物，一处设置三处生效
+  root.setProperty('--write-width', `${clampWidth(style.width)}px`)
   return style
 }
 

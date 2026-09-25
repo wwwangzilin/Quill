@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { storage, type RemoteInfo } from '../core/storage'
-import { FONTS, PROSE_RANGE, fontInstalled, fontOption, type ProseStyle } from '../core/fonts'
+import {
+  clampWidth,
+  FONTS,
+  PROSE_DEFAULT,
+  PROSE_RANGE,
+  fontInstalled,
+  fontOption,
+  type ProseStyle,
+} from '../core/fonts'
 import { AI_DEFAULTS, aiAvailable, aiSave, aiStatus, aiStream, type AiStatus } from '../core/ai'
 import { isDesktop, type DesktopPrefs } from '../core/desktop'
 import { checkUpdate, currentVersion, installUpdate, type UpdateInfo } from '../core/update'
@@ -285,6 +293,21 @@ export default function SettingsView({
         />
       </label>
 
+      <label className="field">
+        <span>
+          正文栏宽度
+          <em className="val">{prose.width} px</em>
+        </span>
+        <input
+          type="range"
+          min={PROSE_RANGE.minWidth}
+          max={PROSE_RANGE.maxWidth}
+          step={PROSE_RANGE.stepWidth}
+          value={prose.width}
+          onChange={(e) => onProse({ ...prose, width: clampWidth(Number(e.target.value)) })}
+        />
+      </label>
+
       <div
         className="font-preview"
         style={{
@@ -297,14 +320,11 @@ export default function SettingsView({
       </div>
 
       <div className="field-row">
-        <button
-          className="btn"
-          onClick={() => onProse({ font: 'system', size: 16.5, leading: 1.85 })}
-        >
+        <button className="btn" onClick={() => onProse({ ...PROSE_DEFAULT })}>
           恢复默认
         </button>
         <span className="grow" />
-        <span className="note">正文、便签、磁贴三处同步生效</span>
+        <span className="note">正文、便签、磁贴三处同步生效；宽度也能直接拖标题栏上的滑块</span>
       </div>
     </>
   )
