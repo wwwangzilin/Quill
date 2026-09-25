@@ -132,6 +132,16 @@ export default function EditorPane({
   onComment,
 }: Props) {
   const [stats, setStats] = useState<Stats>(() => countStats(doc.content))
+  /**
+   * 换文档时给正文播一次淡入。
+   * 不用 key 强制重挂载 —— 那会把 Tiptap 实例连同撤销栈一起重建，代价太大；
+   * 这里只挂一个一次性 class，动画一结束就由 onAnimationEnd 摘掉
+   * （不用定时器：文档切换会触发多轮渲染，定时器容易被反复重置）。
+   */
+  const [switching, setSwitching] = useState(false)
+  useEffect(() => {
+    setSwitching(true)
+  }, [doc.id])
   const [slash, setSlash] = useState<SlashState | null>(null)
   const [findOpen, setFindOpen] = useState(false)
   const [wiki, setWiki] = useState<{ x: number; y: number; query: string; index: number } | null>(
@@ -690,7 +700,11 @@ export default function EditorPane({
         if (target) onOpenDoc(target)
       }}
     >
-      <div className="editor-inner" ref={hostRef}>
+      <div
+        className={'editor-inner' + (switching ? ' doc-switching' : '')}
+        onAnimationEnd={() => setSwitching(false)}
+        ref={hostRef}
+      >
         <input
           className="doc-title"
           value={doc.title}

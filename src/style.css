@@ -1112,6 +1112,11 @@ body,
   animation: page-in 0.24s var(--ease-out) both;
 }
 
+/* 换文档时正文淡一下，避免硬切 */
+.editor-inner.doc-switching {
+  animation: view-in 0.24s var(--ease-out) both;
+}
+
 /* ---------- 侧栏收放 ---------- */
 .sidebar {
   transition: margin-left var(--dur) var(--ease), opacity var(--dur) var(--ease),
