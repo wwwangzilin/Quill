@@ -1,15 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { guessNovel, splitChapters } from '../core/chapters'
-import {
-  MAX_QUOTE,
-  findIn,
-  flatText,
-  newCommentId,
-  nodeText,
-  whenOf,
-  type Comment,
-} from '../core/comments'
+import { MAX_QUOTE, findIn, flatText, nodeText, type Comment } from '../core/comments'
+import CommentsPanel from './CommentsPanel'
+import { toast } from './toast'
 
 interface Props {
   title: string
@@ -38,7 +32,12 @@ interface Mark {
  * 也照同一个顺序往下传 at，所以这里的下标就是那边算出来的下标，
  * 不用再维护一张「字符 → DOM」的映射表。
  */
-function sliced(text: string, at: number, marks: Mark[]): React.ReactNode[] {
+function sliced(
+  text: string,
+  at: number,
+  marks: Mark[],
+  onPick?: (id: string) => void,
+): React.ReactNode[] {
   const out: React.ReactNode[] = []
   const end = at + text.length
   const hits = marks.filter((m) => m.from < end && m.to > at).sort((a, b) => a.from - b.from)
@@ -56,6 +55,7 @@ function sliced(text: string, at: number, marks: Mark[]): React.ReactNode[] {
           className={'has-comment' + (m.resolved ? ' is-resolved' : '')}
           data-comment={m.id}
           title={m.note.slice(0, 120)}
+          onClick={onPick ? () => onPick(m.id) : undefined}
         >
           {text.slice(s - at, e - at)}
         </mark>,
@@ -82,7 +82,17 @@ function decorate(inner: React.ReactNode, marks?: { type: string }[]): React.Rea
 }
 
 /** 行内内容：文字 + 各种标记。标记是一层层套上去的，所以从里往外包 */
-function Inline({ nodes, at, marks }: { nodes?: JSONContent[]; at: number; marks: Mark[] }) {
+function Inline({
+  nodes,
+  at,
+  marks,
+  onPick,
+}: {
+  nodes?: JSONContent[]
+  at: number
+  marks: Mark[]
+  onPick?: (id: string) => void
+}) {
   const out: React.ReactNode[] = []
   let cur = at
   ;(nodes ?? []).forEach((n, i) => {
@@ -99,7 +109,7 @@ function Inline({ nodes, at, marks }: { nodes?: JSONContent[]; at: number; marks
     const t = n.text ?? ''
     const from = cur
     cur += t.length
-    out.push(<span key={i}>{decorate(sliced(t, from, marks), n.marks)}</span>)
+    out.push(<span key={i}>{decorate(sliced(t, from, marks, onPick), n.marks)}</span>)
   })
   return <>{out}</>
 }
@@ -148,9 +158,19 @@ function cutLeadingLines(
  * 阅读视图的目标是「把字读清楚」，不是把每种节点都还原得一模一样。
  * 真正的编辑仍然回编辑器里做。
  */
-function Block({ node, at, marks }: { node: JSONContent; at: number; marks: Mark[] }) {
+function Block({
+  node,
+  at,
+  marks,
+  onPick,
+}: {
+  node: JSONContent
+  at: number
+  marks: Mark[]
+  onPick?: (id: string) => void
+}) {
   const kids = (node.content ?? []).map((c, i) => (
-    <Block key={i} node={c} at={at + offsetBefore(node, i)} marks={marks} />
+    <Block key={i} node={c} at={at + offsetBefore(node, i)} marks={marks} onPick={onPick} />
   ))
   switch (node.type) {
     case 'heading': {
@@ -158,14 +178,14 @@ function Block({ node, at, marks }: { node: JSONContent; at: number; marks: Mark
       const Tag = (lv === 2 ? 'h2' : lv === 3 ? 'h3' : 'h4') as 'h2' | 'h3' | 'h4'
       return (
         <Tag className="reader-h">
-          <Inline nodes={node.content} at={at} marks={marks} />
+          <Inline nodes={node.content} at={at} marks={marks} onPick={onPick} />
         </Tag>
       )
     }
     case 'paragraph':
       return (
         <p>
-          <Inline nodes={node.content} at={at} marks={marks} />
+          <Inline nodes={node.content} at={at} marks={marks} onPick={onPick} />
         </p>
       )
     case 'blockquote':
@@ -179,7 +199,7 @@ function Block({ node, at, marks }: { node: JSONContent; at: number; marks: Mark
     case 'codeBlock':
       return (
         <pre>
-          <code>{sliced(nodeText(node), at, marks)}</code>
+          <code>{sliced(nodeText(node), at, marks, onPick)}</code>
         </pre>
       )
     case 'horizontalRule':
@@ -195,7 +215,7 @@ function Block({ node, at, marks }: { node: JSONContent; at: number; marks: Mark
     default:
       return (
         <p>
-          <Inline nodes={node.content} at={at} marks={marks} />
+          <Inline nodes={node.content} at={at} marks={marks} onPick={onPick} />
         </p>
       )
   }
@@ -204,19 +224,20 @@ function Block({ node, at, marks }: { node: JSONContent; at: number; marks: Mark
 /* ============================ 主视图 ============================ */
 
 /**
- * 小说阅读视图：左边章节目录 / 批注，右边正文按栏排。
+ * 小说阅读视图：左边章节目录，右边正文按栏排。
  *
  * 「分栏」用的是 CSS `columns` + `column-fill: auto`：给一个固定高度的容器，
  * 内容填满第一栏就自动往第二栏流，横向溢出多少就是多少屏。翻页就是把
  * 内容条横向平移一个视口宽 —— 这是电子书阅读器最常见的那套做法，
  * 不用自己算断行位置，中文英文都交给排版引擎。
  *
- * 章节**不是进门就切**：先让 guessNovel 判断这像不像小说（章节数、对白密度、
- * 篇幅一起打分），像才问一句「要按章节识别吗」。不问就切的话，
- * 一篇读书笔记也会被切得七零八落。
+ * 章节**不自动切**：先让 guessNovel 判断这像不像小说，像就在右下角浮一条提示，
+ * 点一下直接进分章模式。默认整篇读 —— 一篇读书笔记被硬切成章节只会更碎，
+ * 但也不该拿一个确认框把人拦在门口。
  *
- * 批注也在这里看得见：底纹是照 `core/comments.ts` 的引文现找的，
- * 和编辑器里是同一套定位策略 —— 两边找得到同一句话。
+ * 批注走的是和编辑器**同一套东西**：`core/comments.ts` 的定位、
+ * `CommentsPanel` 抽屉、`.ai-sel` 浮条、`.has-comment` 底纹。
+ * 手感不一致通常不是审美问题，是「另起了一套」。
  */
 export default function ReaderView({
   title,
@@ -227,11 +248,10 @@ export default function ReaderView({
   onClose,
 }: Props) {
   const guess = useMemo(() => guessNovel(doc), [doc])
-  const needAsk = guess.likely
-  /** null = 还没答；答过之后才决定切不切 */
-  const [wantChapters, setWantChapters] = useState<boolean | null>(null)
-  /** 还没答之前先不切 —— 免得弹窗还挂着，目录已经变了 */
-  const slicing = wantChapters === true
+  /** 已经切成章节了没有。默认不切，右下角那条提示点了才切 */
+  const [slicedOn, setSlicedOn] = useState(false)
+  const [tipOpen, setTipOpen] = useState(guess.likely)
+  const slicing = slicedOn
 
   const chapters = useMemo(
     () =>
@@ -255,7 +275,6 @@ export default function ReaderView({
   /** 翻一页要平移多少像素 —— 容器宽 + 一个栏间距 */
   const [step, setStep] = useState(0)
   const [tocOpen, setTocOpen] = useState(true)
-  const [tab, setTab] = useState<'chapters' | 'notes'>('chapters')
   const [leaving, setLeaving] = useState(false)
   const viewRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
@@ -274,20 +293,18 @@ export default function ReaderView({
       }),
     [comments, text],
   )
-  /** 引文在本章里找不到的条数 —— 如实报出来，不当没这回事 */
-  const missing = comments.length - marks.length
 
-  const [sel, setSel] = useState<{ quote: string; x: number; y: number } | null>(null)
+  const [sel, setSel] = useState<{ quote: string; x: number; y: number; flip: boolean } | null>(null)
+  const [notesOpen, setNotesOpen] = useState(false)
   const [draft, setDraft] = useState<string | null>(null)
-  const [newText, setNewText] = useState('')
-  const [editId, setEditId] = useState<string | null>(null)
-  const [editText, setEditText] = useState('')
-  const noteRef = useRef<HTMLTextAreaElement>(null)
+  const [focusId, setFocusId] = useState<string | null>(null)
 
-  const effTab: 'chapters' | 'notes' = slicing ? tab : 'notes'
-  const showAside = tocOpen && (slicing || comments.length > 0)
-
-  /** 面板里面板条控制不了：选起来、算好浮条该浮在哪儿 */
+  /**
+   * 选中一段 → 记下引文和浮条该浮在哪儿。
+   *
+   * 位置算法跟编辑器里的 AiSelectionBar 一模一样（选区中心、上边留 8px、
+   * 贴顶就翻到下面），这样同一条浮条在两个界面里落点一致。
+   */
   const pickSelection = useCallback(() => {
     const box = viewRef.current
     const s = window.getSelection()
@@ -307,44 +324,29 @@ export default function ReaderView({
     }
     const r = range.getBoundingClientRect()
     const b = box.getBoundingClientRect()
-    // 靠顶的时候放下面 —— 否则浮条会被 .reader-pages 的 overflow 裁掉
-    const below = r.top - b.top < 56
+    const topY = r.top - b.top
+    const flip = topY < 64
     setSel({
       quote: quote.slice(0, MAX_QUOTE),
-      x: Math.min(Math.max(r.left + r.width / 2 - b.left, 76), Math.max(76, b.width - 76)),
-      y: below ? r.bottom - b.top + 10 : r.top - b.top - 42,
+      x: Math.min(Math.max(r.left + r.width / 2 - b.left, 96), Math.max(96, b.width - 96)),
+      y: flip ? r.bottom - b.top : topY,
+      flip,
     })
   }, [])
 
   const startNote = useCallback(() => {
     if (!sel) return
     setDraft(sel.quote)
-    setTab('notes')
-    setTocOpen(true)
+    setNotesOpen(true)
     setSel(null)
     window.getSelection()?.removeAllRanges()
   }, [sel])
 
-  useEffect(() => {
-    if (!draft) return
-    const t = window.setTimeout(() => noteRef.current?.focus(), 70)
-    return () => window.clearTimeout(t)
-  }, [draft])
-
-  const submitNote = () => {
-    const note = newText.trim()
-    if (!note || !draft) return
-    onSaveComment({ id: newCommentId(), quote: draft, note, created: Date.now(), resolved: false })
-    setNewText('')
-    setDraft(null)
-  }
-
-  const submitEdit = (c: Comment) => {
-    const note = editText.trim()
-    if (!note) return
-    onSaveComment({ ...c, note })
-    setEditId(null)
-  }
+  /** 点正文里的底纹 → 开抽屉并滚到那一条 */
+  const pickMark = useCallback((id: string) => {
+    setFocusId(id)
+    setNotesOpen(true)
+  }, [])
 
   /**
    * 量一次：一屏有多少栏、一共多少屏。
@@ -416,7 +418,11 @@ export default function ReaderView({
     (id: string) => {
       const track = trackRef.current
       const el = track?.querySelector<HTMLElement>(`[data-comment="${id}"]`)
-      if (!track || !el || !step) return
+      if (!el) {
+        toast.info('这条批注不在这一章', '可能是引文改动了，或者它在别的章节里')
+        return
+      }
+      if (!track || !step) return
       // track 已经被平移过了，两者相减得到的是**内容坐标**，与当前页无关
       const at = el.getBoundingClientRect().left - track.getBoundingClientRect().left
       setPage(Math.max(0, Math.min(pages - 1, Math.floor(at / step))))
@@ -424,15 +430,25 @@ export default function ReaderView({
     [step, pages],
   )
 
+  const enterChapters = useCallback(() => {
+    setSlicedOn(true)
+    setTipOpen(false)
+    setCi(0)
+  }, [])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 抽屉开着的时候，Esc 先收抽屉
+      if (e.key === 'Escape' && notesOpen) {
+        e.preventDefault()
+        setNotesOpen(false)
+        return
+      }
       if (e.key === 'Escape') {
         e.preventDefault()
         close()
         return
       }
-      // 弹窗还挂着的时候，翻页键不该生效
-      if (needAsk && wantChapters === null) return
       if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
         e.preventDefault()
         go(1)
@@ -455,183 +471,81 @@ export default function ReaderView({
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [go, close, ci, chapters.length, slicing, needAsk, wantChapters])
+  }, [go, close, ci, chapters.length, slicing, notesOpen])
 
   return (
     <div className={'reader' + (leaving ? ' leaving' : '')}>
-      {showAside && (
+      {slicing && tocOpen && (
         <aside className="reader-toc">
-          <div className="reader-tabs">
-            {slicing && (
-              <button
-                className={'reader-tab' + (effTab === 'chapters' ? ' on' : '')}
-                onClick={() => setTab('chapters')}
-              >
-                章节<span className="reader-tab-n">{chapters.length}</span>
-              </button>
-            )}
-            <button
-              className={'reader-tab' + (effTab === 'notes' ? ' on' : '')}
-              onClick={() => setTab('notes')}
-            >
-              批注<span className="reader-tab-n">{comments.length}</span>
-            </button>
+          <div className="reader-toc-head">
+            章节目录
+            <span className="reader-toc-count">{chapters.length} 章</span>
           </div>
-
-          {effTab === 'chapters' ? (
-            <div className="reader-toc-list">
-              {chapters.map((c, i) => (
-                <button
-                  key={`${c.start}-${i}`}
-                  className={'reader-toc-item' + (i === ci ? ' on' : '')}
-                  onClick={() => setCi(i)}
-                  title={c.inferred ? '这一章是从「第X章」这类文字里认出来的' : c.title}
-                >
-                  <span className="reader-toc-n">{i + 1}</span>
-                  <span className="reader-toc-title">{c.title}</span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="reader-notes">
-              {draft && (
-                <div className="comment-new">
-                  <div className="comment-quote" title={draft}>
-                    {draft}
-                  </div>
-                  <textarea
-                    ref={noteRef}
-                    className="comment-input"
-                    placeholder="写点什么… Ctrl+Enter 保存"
-                    value={newText}
-                    onChange={(e) => setNewText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                        e.preventDefault()
-                        submitNote()
-                      }
-                      if (e.key === 'Escape') {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setDraft(null)
-                      }
-                    }}
-                  />
-                  <div className="comment-actions">
-                    <button className="btn primary" disabled={!newText.trim()} onClick={submitNote}>
-                      保存
-                    </button>
-                    <button className="btn ghost" onClick={() => setDraft(null)}>
-                      取消
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {!comments.length && !draft && (
-                <div className="comments-empty">
-                  还没有批注。
-                  <br />
-                  在正文里选中一段文字，点浮出来的「批注」。
-                </div>
-              )}
-
-              {missing > 0 && (
-                <div className="reader-notes-miss">
-                  {missing} 条批注的原文不在这一章（或已经被改掉）
-                </div>
-              )}
-
-              {comments.map((c) => (
-                <div key={c.id} className="comment-item">
-                  <div className="comment-quote" title={c.quote} onClick={() => jumpTo(c.id)}>
-                    {c.quote.length > 100 ? `${c.quote.slice(0, 100)}…` : c.quote}
-                  </div>
-
-                  {editId === c.id ? (
-                    <>
-                      <textarea
-                        className="comment-input"
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                            e.preventDefault()
-                            submitEdit(c)
-                          }
-                          if (e.key === 'Escape') {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            setEditId(null)
-                          }
-                        }}
-                      />
-                      <div className="comment-actions">
-                        <button
-                          className="btn primary"
-                          disabled={!editText.trim()}
-                          onClick={() => submitEdit(c)}
-                        >
-                          保存
-                        </button>
-                        <button className="btn ghost" onClick={() => setEditId(null)}>
-                          取消
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="comment-note">{c.note}</div>
-                      <div className="comment-foot">
-                        <span className="comment-when">{whenOf(c.created)}</span>
-                        <span className="grow" />
-                        <button
-                          className="btn ghost mini"
-                          onClick={() => {
-                            setEditId(c.id)
-                            setEditText(c.note)
-                          }}
-                        >
-                          改
-                        </button>
-                        <button className="btn ghost mini" onClick={() => onRemoveComment(c.id)}>
-                          删
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="reader-toc-list">
+            {chapters.map((c, i) => (
+              <button
+                key={`${c.start}-${i}`}
+                className={'reader-toc-item' + (i === ci ? ' on' : '')}
+                onClick={() => setCi(i)}
+                title={c.inferred ? '这一章是从「第X章」这类文字里认出来的' : c.title}
+              >
+                <span className="reader-toc-n">{i + 1}</span>
+                <span className="reader-toc-title">{c.title}</span>
+              </button>
+            ))}
+          </div>
         </aside>
       )}
 
       <main className="reader-main">
         <header className="reader-bar">
-          <button
-            className="btn ghost icon"
-            onClick={() => setTocOpen((v) => !v)}
-            title={tocOpen ? '收起侧栏' : '展开侧栏'}
-          >
-            ☰
-          </button>
+          {slicing && (
+            <button
+              className="btn ghost icon"
+              onClick={() => setTocOpen((v) => !v)}
+              title={tocOpen ? '收起目录' : '展开目录'}
+            >
+              ☰
+            </button>
+          )}
+          {/* 提示收掉之后，分章入口还得留一个 —— 不然它就再也回不来了 */}
+          {!slicing && guess.chapters >= 3 && (
+            <button className="btn ghost" onClick={enterChapters} title="按章节切开，用目录跳章">
+              按章节读
+            </button>
+          )}
           <span className="reader-now">{chapter.title}</span>
           <span className="reader-gap" />
           <span className="reader-page">
             {page + 1} / {pages}
           </span>
+          <button
+            className={'btn ghost icon' + (notesOpen ? ' on' : '')}
+            onClick={() => setNotesOpen((v) => !v)}
+            title={comments.length ? `批注 · ${comments.length} 条` : '批注 · 选中文字后加'}
+          >
+            ❝
+          </button>
           <button className="btn ghost icon" onClick={close} title="退出阅读 · Esc">
             ✕
           </button>
         </header>
 
         <div className="reader-pages" ref={viewRef} onMouseUp={pickSelection}>
+          {/* 浮条直接用编辑器那一套 .ai-sel：同样的结构、同样的定位、
+              同样的出现动画。手感不一致往往就是「另起了一套」造成的。 */}
           {sel && (
-            <div className="reader-sel" style={{ left: sel.x, top: sel.y }}>
-              <button className="btn mini" onMouseDown={(e) => e.preventDefault()} onClick={startNote}>
-                ❝ 批注
-              </button>
+            <div
+              className={'ai-sel reader-sel' + (sel.flip ? ' flip' : '')}
+              style={{ left: `${sel.x}px`, top: `${sel.y}px` }}
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              <div className="ai-sel-row">
+                <span className="ai-sel-tag">批注</span>
+                <button className="ai-sel-btn" onClick={startNote}>
+                  ＋ 加批注
+                </button>
+              </div>
             </div>
           )}
 
@@ -648,7 +562,7 @@ export default function ReaderView({
               // 首块可能要裁掉属于上一章的那几行
               const cut = i === 0 ? cutLeadingLines(b, chapter.line) : { node: b, skipped: 0 }
               return cut.node ? (
-                <Block key={i} node={cut.node} at={cut.skipped} marks={marks} />
+                <Block key={i} node={cut.node} at={cut.skipped} marks={marks} onPick={pickMark} />
               ) : null
             })}
           </div>
@@ -675,42 +589,52 @@ export default function ReaderView({
         </footer>
       </main>
 
-      {/* 像不像小说由 guessNovel 打分，这里只负责把「凭什么」摊开问一句。
-          做成居中弹窗而不是顶上挂一条：这件事得先答完，页面才算真的开始。 */}
-      {needAsk && wantChapters === null && (
-        <div className="reader-mask">
-          <div className="reader-ask" role="dialog" aria-modal="true">
-            <div className="reader-ask-mark">▤</div>
-            <div className="reader-ask-title">这看着像一篇小说</div>
-            <div className="reader-ask-sub">要不要按章节切开？切开之后左边就有目录，可以跳章读。</div>
-            <ul className="reader-ask-why">
-              {guess.reasons.map((r) => (
-                <li key={r}>{r}</li>
-              ))}
-            </ul>
-            <div className="reader-ask-acts">
-              <button
-                className="btn ghost"
-                onClick={() => {
-                  setWantChapters(false)
-                  setTab('notes')
-                }}
-              >
-                整篇读
-              </button>
-              <button
-                className="btn primary"
-                onClick={() => {
-                  setWantChapters(true)
-                  setTab('chapters')
-                }}
-              >
-                按章节读
-              </button>
-            </div>
-          </div>
+      {/* 像不像小说不弹框拦人：右下角浮一条，点一下直接进分章模式，
+          不点就当整篇读。判断依据收在 title 里，想看再展开。 */}
+      {tipOpen && (
+        <div
+          className="reader-tip"
+          role="button"
+          tabIndex={0}
+          onClick={enterChapters}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') enterChapters()
+          }}
+          title={guess.reasons.join(' · ')}
+        >
+          <span className="reader-tip-mark">▤</span>
+          <span className="reader-tip-text">
+            这像是一篇小说
+            <em>
+              认出 {guess.chapters} 章 · {guess.chars} 字
+            </em>
+          </span>
+          <span className="btn primary mini">按章节读</span>
+          <button
+            className="btn ghost icon mini"
+            onClick={(e) => {
+              e.stopPropagation()
+              setTipOpen(false)
+            }}
+            title="整篇读就行"
+          >
+            ×
+          </button>
         </div>
       )}
+
+      {/* 批注抽屉 —— 和编辑器里点「＋ 批注」出来的是同一个组件 */}
+      <CommentsPanel
+        open={notesOpen}
+        onClose={() => setNotesOpen(false)}
+        comments={comments}
+        draft={draft}
+        onDraftDone={() => setDraft(null)}
+        onSave={onSaveComment}
+        onDelete={onRemoveComment}
+        onJump={(c) => jumpTo(c.id)}
+        focusId={focusId}
+      />
     </div>
   )
 }
