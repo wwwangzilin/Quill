@@ -211,6 +211,8 @@ export default function App() {
   const [reading, setReading] = useState(false)
   /** 禅模式：窗口真全屏 + 藏掉整个界面，只剩正文（F11） */
   const [zen, setZen] = useState(false)
+  /** 进全屏之前窗口是不是最大化的 —— 退出来要照原样补回去 */
+  const wasMaximizedRef = useRef(false)
 
   /** 只在写作视图、且不在阅读/禅模式下才自动收 —— 那几个模式自己管界面 */
   const canAutoHide = autoHide && view === 'write' && !reading && !zen && Boolean(doc)
@@ -798,7 +800,29 @@ export default function App() {
       try {
         if (isDesktop()) {
           const { getCurrentWindow } = await import('@tauri-apps/api/window')
-          await getCurrentWindow().setFullscreen(next)
+          const win = getCurrentWindow()
+          if (next) {
+            // 进全屏之前，先把窗口从最大化还原掉。
+            //
+            // 「最大化」和「全屏」这两个状态在 Windows 上会打架：最大化时窗口矩形
+            // 已经是整屏了，这时再调 setFullscreen(true)，窗口一个像素都不动，
+            // 而 WebView 的视口还停在**工作区**高度 —— 屏幕下方就留出一条任务栏
+            // 那么高的黑条（露出来的是窗口背景色）。先还原成普通窗口，全屏才真铺满。
+            wasMaximizedRef.current = await win.isMaximized()
+            if (wasMaximizedRef.current) {
+              await win.toggleMaximize()
+              // 等 Windows 把「还原」这一步落定，否则紧接着的全屏会读到旧状态
+              await new Promise((r) => window.setTimeout(r, 140))
+            }
+            await win.setFullscreen(true)
+          } else {
+            await win.setFullscreen(false)
+            if (wasMaximizedRef.current) {
+              wasMaximizedRef.current = false
+              await new Promise((r) => window.setTimeout(r, 140))
+              await win.toggleMaximize()
+            }
+          }
         } else if (next) {
           await document.documentElement.requestFullscreen()
         } else if (document.fullscreenElement) {
@@ -829,7 +853,16 @@ export default function App() {
       void (async () => {
         try {
           const { getCurrentWindow } = await import('@tauri-apps/api/window')
-          if (!(await getCurrentWindow().isFullscreen())) setZen(false)
+          const win = getCurrentWindow()
+          if (!(await win.isFullscreen())) {
+            setZen(false)
+            // 全屏是被别的方式退掉的，这里同样得把最大化补回去 ——
+            // 不补的话窗口会停在被还原的那个大小上
+            if (wasMaximizedRef.current) {
+              wasMaximizedRef.current = false
+              await win.toggleMaximize()
+            }
+          }
         } catch {
           /* 取不到就当没变 */
         }
