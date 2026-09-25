@@ -144,7 +144,9 @@ export default function App() {
   const [docs, setDocs] = useState<DocMeta[]>([])
   const [doc, setDoc] = useState<Doc | null>(null)
   const [view, setView] = useState<ViewMode>('write')
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  // 默认收起：平时写作就是全宽的，跟 Word 一样干净；选文档走文档库。
+  // ☰ 仍可随时唤出（热力图、每日目标那些还在里面）。
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(() => readTheme())
   const [saving, setSaving] = useState<Saving>('idle')
   const [ready, setReady] = useState(false)
@@ -1256,6 +1258,10 @@ export default function App() {
               }}
               onClose={() => setLibraryOpen(false)}
               onStar={(id) => void toggleStar(id)}
+              onOpenTrash={() => {
+                setLibraryOpen(false)
+                setTrashOpen(true)
+              }}
             />
           ) : settingsOpen ? (
             <SettingsView

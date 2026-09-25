@@ -8,6 +8,8 @@ interface Props {
   onCreate: () => void
   onClose: () => void
   onStar: (id: string, starred: boolean) => void
+  /** 侧栏默认收起了，回收站的入口挪到这里 */
+  onOpenTrash: () => void
 }
 
 type SortKey = 'title' | 'updated' | 'created' | 'chars'
@@ -46,6 +48,7 @@ export default function DocLibrary({
   onCreate,
   onClose,
   onStar,
+  onOpenTrash,
 }: Props) {
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>({ kind: 'all' })
@@ -105,6 +108,9 @@ export default function DocLibrary({
         />
         <button className="btn" onClick={onCreate}>
           ＋ 新建
+        </button>
+        <button className="btn ghost" onClick={onOpenTrash} title="回收站">
+          ♻ 回收站
         </button>
         <button className="btn ghost" onClick={onClose}>
           返回写作
