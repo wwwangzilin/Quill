@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
-import { splitChapters } from '../core/chapters'
+import { guessNovel, splitChapters } from '../core/chapters'
 
 interface Props {
   title: string
@@ -94,15 +94,6 @@ function Block({ node }: { node: JSONContent }) {
 }
 
 /**
- * 少于这个字数就压根不折腾章节。
- *
- * 几百字的东西硬按「第X章」切开只会更碎，而且那种短文本里
- * 「第三章」多半是正文里提到了第三章，不是真章节。
- * 到了这个体量才值得问一句要不要识别。
- */
-const ASK_CHAPTERS_OVER = 3000
-
-/**
  * 小说阅读视图：左边章节目录，右边正文按栏排。
  *
  * 「分栏」用的是 CSS `columns` + `column-fill: auto`：给一个固定高度的容器，
@@ -110,15 +101,16 @@ const ASK_CHAPTERS_OVER = 3000
  * 内容条横向平移一个视口宽 —— 这是电子书阅读器最常见的那套做法，
  * 不用自己算断行位置，中文英文都交给排版引擎。
  *
- * 章节**不是进门就切**：字数够多时才问一句「要不要按章节识别」。
- * 不问就切的话，短文档会被切得七零八落，而且识别本身也可能认错。
+ * 章节**不是进门就切**：先让 guessNovel 判断这像不像小说（章节数、对白密度、
+ * 篇幅一起打分），像才问一句「要按章节识别吗」。不问就切的话，
+ * 一篇读书笔记也会被切得七零八落。
  */
 export default function ReaderView({ title, doc, onClose }: Props) {
-  const chars = useMemo(() => plain(doc).replace(/\s/g, '').length, [doc])
-  const needAsk = chars >= ASK_CHAPTERS_OVER
+  const guess = useMemo(() => guessNovel(doc), [doc])
+  const needAsk = guess.likely
   /** null = 还没答；答过之后才决定切不切 */
   const [wantChapters, setWantChapters] = useState<boolean | null>(null)
-  /** 短文档不问，也就没有章节 */
+  /** 还没答之前先不切 —— 免得提示条还挂着，目录已经变了 */
   const slicing = wantChapters === true
 
   const chapters = useMemo(
@@ -268,12 +260,12 @@ export default function ReaderView({ title, doc, onClose }: Props) {
           </button>
         </header>
 
-        {/* 够长了才问一句。不问就切的话短文会被切碎，
-            而且那种短文本里的「第三章」多半只是正文提到了第三章。 */}
+        {/* 先判断像不像小说，像才问这一句。
+            判断依据直接摊开写，别让用户被一个黑盒弹窗拦住。 */}
         {needAsk && wantChapters === null && (
           <div className="reader-ask">
             <span>
-              这篇有 <b>{chars.toLocaleString()}</b> 字 —— 要按章节识别吗？
+              这篇看着像小说（{guess.reasons.join(' · ')}）—— 要按章节识别吗？
             </span>
             <button className="btn primary" onClick={() => setWantChapters(true)}>
               识别章节
