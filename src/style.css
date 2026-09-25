@@ -751,6 +751,78 @@ body::before {
 .mindmap svg:active {
   cursor: grabbing;
 }
+/* 切到导图时把编辑器藏起来 —— 但保持挂载，否则 editor 会被销毁，导图就没得编辑 */
+.main-stack.is-hidden {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+/* ---- 思维导图：布局切换器 ---- */
+.mm-layouts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.mm-lay {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 11.5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+.mm-lay:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.mm-lay.on {
+  color: var(--accent-1);
+  border-color: var(--accent-1);
+  background: var(--accent-soft);
+}
+/* ---- 节点状态 ---- */
+.mindmap .mm-node {
+  cursor: pointer;
+}
+.mm-node.sel .box {
+  stroke: var(--accent-1);
+  stroke-width: 1.8;
+}
+.mm-node.dragging {
+  opacity: 0.45;
+}
+.mm-node.droptarget .box {
+  stroke: var(--accent-2);
+  stroke-width: 2;
+  stroke-dasharray: 5 3;
+}
+/* 紧凑大纲：不画线，节点框也退成透明，只留缩进层级 */
+.mm-node.flat .box {
+  fill: transparent;
+  stroke: transparent;
+}
+/* ---- 改名输入框（浮在节点上的 HTML 层，不进导出） ---- */
+.mm-edit {
+  position: absolute;
+  z-index: 30;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-1);
+  background: var(--surface-solid);
+  color: var(--text);
+  font-family: inherit;
+  outline: none;
+  box-shadow: var(--shadow-sm);
+}
 .mm-node text {
   font-family: var(--font-ui);
   font-size: 12.5px;
@@ -2184,6 +2256,162 @@ body.quill-dragging * {
   font-size: 11.5px;
   line-height: 1.6;
   color: var(--text-3);
+}
+/* ---- 语法提示：光标后面一枚小标签，移上去展开说明与效果 ---- */
+.syntax-hint {
+  position: absolute;
+  z-index: 46;
+  transform: translateY(-1px);
+  animation: fade-in var(--dur-fast) var(--ease-out);
+}
+.syntax-chip {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transition:
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.syntax-hint.open .syntax-chip {
+  color: var(--accent-1);
+  border-color: var(--accent-1);
+}
+.syntax-card {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 272px;
+  padding: 10px 12px 11px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  animation: menu-in var(--dur-fast) var(--ease-out);
+}
+.syntax-hint.flip .syntax-card {
+  left: auto;
+  right: 0;
+}
+.syntax-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.syntax-token {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--accent-1);
+  background: var(--accent-soft);
+  padding: 1px 6px;
+  border-radius: 5px;
+}
+.syntax-name {
+  font-size: 12px;
+  color: var(--text);
+}
+.syntax-detail {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--text-2);
+}
+.syntax-sample {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-2);
+}
+.syntax-in {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+.syntax-arrow {
+  color: var(--text-3);
+}
+.syntax-out {
+  color: var(--text);
+}
+.syntax-out mark {
+  background: var(--accent-soft);
+  color: var(--text);
+  padding: 0 2px;
+  border-radius: 3px;
+}
+.syntax-out code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  background: var(--surface-hover);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+/* 示例那一半：让「效果」真的长成它该有的样子 */
+.sx-h1 {
+  font-size: 17px;
+  font-weight: 650;
+}
+.sx-h2 {
+  font-size: 15px;
+  font-weight: 650;
+}
+.sx-h3 {
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.sx-h4,
+.sx-h5,
+.sx-h6 {
+  font-size: 12.5px;
+  font-weight: 650;
+}
+.sx-quote {
+  padding-left: 8px;
+  border-left: 2px solid var(--accent-1);
+  color: var(--text-2);
+}
+.sx-li::before {
+  content: '·';
+  margin-right: 5px;
+  color: var(--accent-1);
+}
+.sx-todo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.sx-box {
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+}
+.sx-table {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  gap: 1px;
+}
+.sx-table span {
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+}
+.sx-hr {
+  display: block;
+  width: 90px;
+  height: 1px;
+  background: var(--border-strong);
 }
 /* AI 结果撞上长度上限时的提示条 */
 .ai-trunc {

@@ -201,8 +201,16 @@ export default function App() {
   const lastCharsRef = useRef(0)
   /** 当前编辑器实例（复制富文本等要用） */
   const editorRef = useRef<Editor | null>(null)
+  /**
+   * 同一份实例的 state 版本。
+   *
+   * ref 变了不会触发重渲染，而思维导图得在编辑器就绪后拿到它才能编辑 ——
+   * 所以额外存一份 state，仅为让它有机会重新渲染一次。
+   */
+  const [liveEditor, setLiveEditor] = useState<Editor | null>(null)
   const handleEditorReady = useCallback((ed: Editor) => {
     editorRef.current = ed
+    setLiveEditor(ed)
   }, [])
 
   /** 复制为富文本：粘到公众号 / Word 里格式还在 */
@@ -1279,47 +1287,53 @@ export default function App() {
                 ＋ 新建文档
               </button>
             </div>
-          ) : view === 'write' ? (
-            <div className="main-stack">
-              <EditorPane
-              key={sessionKey}
-              doc={doc}
-              saving={saving}
-              focusMode={focusMode}
-              typewriter={typewriter}
-              tags={doc.tags ?? []}
-              jumpPath={jumpPath}
-              onTitle={onTitle}
-              onChange={onChange}
-              onTags={(next) => void setTagsFor(doc.id, next)}
-              onJumpDone={() => setJumpPath(null)}
-              allDocs={docs.map((d) => d.title)}
-              aiEnabled={aiEnabled}
-              aiDelay={aiDelay}
-              onOpenDoc={(title) => {
-                const target = docs.find((d) => d.title === title)
-                if (target) void openDoc(target.id)
-                else toast.info('还没有这篇文档', title)
-              }}
-              onReady={handleEditorReady}
-              onComment={(text) => {
-                setCommentFocus(null)
-                setCommentDraft(text)
-                setCommentsOpen(true)
-              }}
-              />
-            </div>
           ) : (
-            <div className="pane">
-              <MindMap
-                content={mapSnap?.content}
-                title={mapSnap?.title ?? ''}
-                onJump={(path) => {
-                  setJumpPath(path)
-                  setView('write')
+            <>
+              {/* 编辑器一直挂着，切到导图只是把它藏起来。
+                  如果按视图卸载，editor 会被销毁，导图就没有可编辑的对象了。 */}
+              <div className={'main-stack' + (view === 'write' ? '' : ' is-hidden')}>
+                <EditorPane
+                key={sessionKey}
+                doc={doc}
+                saving={saving}
+                focusMode={focusMode}
+                typewriter={typewriter}
+                tags={doc.tags ?? []}
+                jumpPath={jumpPath}
+                onTitle={onTitle}
+                onChange={onChange}
+                onTags={(next) => void setTagsFor(doc.id, next)}
+                onJumpDone={() => setJumpPath(null)}
+                allDocs={docs.map((d) => d.title)}
+                aiEnabled={aiEnabled}
+                aiDelay={aiDelay}
+                onOpenDoc={(title) => {
+                  const target = docs.find((d) => d.title === title)
+                  if (target) void openDoc(target.id)
+                  else toast.info('还没有这篇文档', title)
                 }}
-              />
-            </div>
+                onReady={handleEditorReady}
+                onComment={(text) => {
+                  setCommentFocus(null)
+                  setCommentDraft(text)
+                  setCommentsOpen(true)
+                }}
+                />
+              </div>
+              {view === 'mindmap' && (
+                <div className="pane">
+                  <MindMap
+                    editor={liveEditor}
+                    content={mapSnap?.content}
+                    title={doc.title}
+                    onJump={(path) => {
+                      setJumpPath(path)
+                      setView('write')
+                    }}
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
 

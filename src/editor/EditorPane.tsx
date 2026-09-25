@@ -8,6 +8,8 @@ import { storage } from '../core/storage'
 import { toast } from '../ui/toast'
 import type { Doc } from '../core/types'
 import SlashMenu, { filterSlash, type SlashItem } from '../ui/SlashMenu'
+import SyntaxHint from '../ui/SyntaxHint'
+import { detectSyntax, type SyntaxItem } from './syntaxHints'
 import FindBar from '../ui/FindBar'
 import WikiMenu from '../ui/WikiMenu'
 import { useAiComplete } from './useAiComplete'
@@ -143,6 +145,13 @@ export default function EditorPane({
     setSwitching(true)
   }, [doc.id])
   const [slash, setSlash] = useState<SlashState | null>(null)
+  /** 光标前正在打的 Markdown 语法（认出来才显示，浮在光标后面） */
+  const [syntax, setSyntax] = useState<{
+    item: SyntaxItem
+    x: number
+    y: number
+    flipX: boolean
+  } | null>(null)
   const [findOpen, setFindOpen] = useState(false)
   const [wiki, setWiki] = useState<{ x: number; y: number; query: string; index: number } | null>(
     null,
@@ -249,6 +258,62 @@ export default function EditorPane({
     aiScheduleRef.current = ai.schedule
     aiCancelRef.current = ai.cancel
   }, [ai.schedule, ai.cancel])
+
+  /**
+   * 语法提示：看一眼光标前是不是正好停在某个 Markdown 写法上。
+   *
+   * 只在「光标空着、且刚把写法敲出来」的时候提示 —— 写了正文就收起来，
+   * 免得一整段话右边永远挂个标签挡视线。
+   */
+  const refreshSyntax = useCallback(() => {
+    if (!editor || editor.isDestroyed) return
+    const { state, view } = editor
+    const { $from, empty } = state.selection
+    if (import.meta.env.DEV) {
+      const w = window as unknown as Record<string, unknown>
+      const log = (w.__syntaxLog as string[]) ?? []
+      log.push(
+        `empty=${empty} host=${Boolean(hostRef.current)} before=${JSON.stringify(
+          $from.parent.textBetween(0, $from.parentOffset, undefined, '\ufffc'),
+        ).slice(0, 28)}`,
+      )
+      w.__syntaxLog = log.slice(-24)
+    }
+    if (!empty) {
+      setSyntax(null)
+      return
+    }
+    const before = $from.parent.textBetween(0, $from.parentOffset, undefined, '\ufffc')
+    const item = detectSyntax(before)
+    const host = hostRef.current
+    if (!item || !host) {
+      setSyntax(null)
+      return
+    }
+    try {
+      const coords = view.coordsAtPos(state.selection.from)
+      const rect = host.getBoundingClientRect()
+      // 右边放不下就翻到光标左侧，别让它顶出编辑区
+      const flipX = coords.right - rect.left > rect.width - 280
+      setSyntax({
+        item,
+        x: flipX ? coords.left - rect.left - 10 : coords.right - rect.left + 10,
+        y: coords.top - rect.top,
+        flipX,
+      })
+    } catch {
+      setSyntax(null)
+    }
+  }, [editor])
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+    // 打字时 ProseMirror 一定会走 selectionUpdate（光标动了），挂这一处就够
+    editor.on('selectionUpdate', refreshSyntax)
+    return () => {
+      editor.off('selectionUpdate', refreshSyntax)
+    }
+  }, [editor, refreshSyntax])
 
   /**
    * Tab / Esc 用「捕获阶段」的 DOM 监听来处理。
@@ -769,6 +834,9 @@ export default function EditorPane({
           />
         )}
         {wiki && <WikiMenu items={wikiItems} index={wiki.index} onPick={runWiki} />}
+        {syntax && (
+          <SyntaxHint item={syntax.item} x={syntax.x} y={syntax.y} flipX={syntax.flipX} />
+        )}
         <AiSelectionBar editor={editor} host={hostRef} onComment={onComment ? (text) => onComment(text) : undefined} />
       </div>
       {dropping && (

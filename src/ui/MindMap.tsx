@@ -1,170 +1,84 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { hierarchy, tree } from 'd3-hierarchy'
-import type { JSONContent } from '@tiptap/core'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { Editor, JSONContent } from '@tiptap/core'
+import {
+  computeMap,
+  extractOutline,
+  fitText,
+  LAYOUTS,
+  type MapLayout,
+} from '../core/mindmap'
+import { addChild, deleteNode, moveNode, renameNode } from '../core/mindmapEdit'
 import { toast } from './toast'
 
-interface OutlineNode {
-  id: string
-  text: string
-  children: OutlineNode[]
-  /** 从 doc 根算起的 child index 链，用于点回正文定位 */
-  path: number[]
-  /** 节点来源：标题 / 列表项 / 正文段落 */
-  kind?: 'heading' | 'item' | 'para'
-  /** 标题级别 1~3 */
-  level?: number
-}
-
-const PAD_X = 76
-const PAD_Y = 44
-const V_GAP = 38
-const H_GAP = 236
-
-function textOf(node: JSONContent | undefined): string {
-  if (!node) return ''
-  if (node.type === 'text') return node.text ?? ''
-  return (node.content ?? []).map(textOf).join('')
-}
-
-function liToNode(li: JSONContent, id: string, path: number[]): OutlineNode {
-  const kids = li.content ?? []
-  const head = kids.find((k) => k.type === 'paragraph' || k.type === 'heading')
-  const node: OutlineNode = {
-    id,
-    text: textOf(head).trim() || '(空)',
-    children: [],
-    path,
-    kind: 'item',
-  }
-  const marker = li.attrs?.checked === true ? '☑ ' : li.attrs?.checked === false ? '☐ ' : ''
-  kids.forEach((k, i) => {
-    if (k.type !== 'bulletList' && k.type !== 'orderedList' && k.type !== 'taskList') return
-    ;(k.content ?? []).forEach((sub, j) => {
-      const child = liToNode(sub, `${id}-${i}-${j}`, [...path, i, j])
-      if (marker && child.text !== '(空)') child.text = marker + child.text
-      node.children.push(child)
-    })
-  })
-  return node
-}
-
-const LIST_TYPES = ['bulletList', 'orderedList', 'taskList']
-
-/**
- * 把文档摊成一棵树。
- *
- * 以前的逻辑是「只找第一个列表」，文档里第二节之后的内容整片从导图上消失；
- * 也没有用上标题层级。现在按文档顺序走一遍：
- *   · 标题 → 按 1/2/3 级嵌套成分支
- *   · 列表 → 挂到当前标题下（列表项之间保持缩进层级）
- *   · 整篇既没标题也没列表时，才退回「段落平铺」的老办法
- * 每个节点都记着自己的物理 path，所以点节点照样能跳回正文。
- */
-function extractOutline(content: JSONContent | undefined, title: string): OutlineNode {
-  const root: OutlineNode = { id: 'root', text: title || '未命名', children: [], path: [] }
-  const nodes = content?.content ?? []
-  const hasHeading = nodes.some((n) => n.type === 'heading')
-  const hasList = nodes.some((n) => LIST_TYPES.includes(n.type ?? ''))
-
-  // 纯段落文章：保持原来的平铺（最多 24 条），至少还能看一眼结构
-  if (!hasHeading && !hasList) {
-    root.children = nodes
-      .map((n, i) => ({ n, i }))
-      .filter(({ n }) => n.type === 'paragraph')
-      .slice(0, 24)
-      .map(({ n, i }) => ({
-        id: `p${i}`,
-        text: textOf(n).trim() || '(空)',
-        children: [],
-        path: [i],
-        kind: 'para' as const,
-      }))
-    return root
-  }
-
-  /** 当前的挂载栈：标题级别越小越靠上 */
-  const stack: { level: number; node: OutlineNode }[] = []
-  const mount = () => (stack.length ? stack[stack.length - 1].node : root)
-
-  nodes.forEach((n, i) => {
-    if (n.type === 'heading') {
-      const level = Math.min(3, Math.max(1, Number(n.attrs?.level ?? 1)))
-      const node: OutlineNode = {
-        id: `h${i}`,
-        text: textOf(n).trim() || '(空标题)',
-        children: [],
-        path: [i],
-        kind: 'heading',
-        level,
-      }
-      while (stack.length && stack[stack.length - 1].level >= level) stack.pop()
-      mount().children.push(node)
-      stack.push({ level, node })
-      return
-    }
-
-    if (LIST_TYPES.includes(n.type ?? '')) {
-      const items = (n.content ?? []).map((li, k) => liToNode(li, `n${i}-${k}`, [i, k]))
-      mount().children.push(...items)
-      return
-    }
-
-    // 段落：只在「这一节还没有任何列表」时，作为该节的说明挂上去，免得导图被正文淹没
-    if (n.type === 'paragraph') {
-      const text = textOf(n).trim()
-      if (!text) return
-      const parent = mount()
-      const alreadyHasItems = parent.children.some((c) => c.kind === 'item')
-      if (alreadyHasItems || text.length > 60) return
-      parent.children.push({
-        id: `t${i}`,
-        text,
-        children: [],
-        path: [i],
-        kind: 'para',
-      })
-    }
-  })
-
-  return root
-}
-
-function charW(ch: string): number {
-  return ch.charCodeAt(0) > 0x2e80 ? 13 : 7.2
-}
-
-function boxWidth(text: string): number {
-  let w = 0
-  for (const ch of text) w += charW(ch)
-  return Math.min(232, Math.max(68, w + 26))
-}
-
-function fitText(text: string, width: number): string {
-  const max = width - 24
-  let acc = 0
-  let out = ''
-  for (const ch of text) {
-    const w = charW(ch)
-    if (acc + w > max) return out + '…'
-    acc += w
-    out += ch
-  }
-  return out
-}
+const LAYOUT_KEY = 'quill-map-layout'
+const PAD = 60
 
 interface Props {
   content: JSONContent | undefined
   title: string
+  /** 点节点跳回正文 */
   onJump?: (path: number[]) => void
+  /** 传了才可编辑；不传就是纯只读视图 */
+  editor?: Editor | null
 }
 
-export default function MindMap({ content, title, onJump }: Props) {
+function readLayout(): MapLayout {
+  try {
+    const v = localStorage.getItem(LAYOUT_KEY)
+    if (v && LAYOUTS.some((l) => l.id === v)) return v as MapLayout
+  } catch {
+    /* 读不到就用默认 */
+  }
+  return 'logic'
+}
+
+/**
+ * 思维导图。
+ *
+ * 视图这一层只做三件事：把布局引擎算好的坐标画出来、把鼠标键盘的意图翻译成
+ * 「改哪个节点、怎么改」、把意图交给 mindmapEdit 落到文档上。
+ * 它自己**不持有大纲数据** —— 唯一的真相源永远是文档。
+ */
+export default function MindMap({ content, title, onJump, editor }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
-  const [view, setView] = useState({ x: PAD_X, y: 0, k: 1 })
-  const fittedRef = useRef(false)
-  const dragRef = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null)
+  const [view, setView] = useState({ x: 0, y: 0, k: 1 })
+  const [layout, setLayout] = useState<MapLayout>(readLayout)
+  const [live, setLive] = useState<JSONContent | undefined>(content)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [editing, setEditing] = useState<{ id: string; path: number[]; value: string } | null>(null)
+  const [dragPath, setDragPath] = useState<number[] | null>(null)
+  const [hoverId, setHoverId] = useState<string | null>(null)
+  const fittedRef = useRef('')
+  const panRef = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null)
+  const movedRef = useRef(false)
+
+  const editable = Boolean(editor)
+
+  /* ---------- 数据 ---------- */
+
+  /**
+   * 内容从哪来：有编辑器就以它为准 —— 文档是唯一真相源，编辑完能立刻反映，
+   * 不用等外层那次 1.4 秒的防抖保存。没有编辑器（只读场景）才用传进来的快照。
+   */
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) {
+      setLive(content)
+      return
+    }
+    setLive(editor.getJSON())
+    const onUpdate = () => setLive(editor.getJSON())
+    editor.on('update', onUpdate)
+    return () => {
+      editor.off('update', onUpdate)
+    }
+  }, [editor, content])
+
+  const outline = useMemo(() => extractOutline(live, title), [live, title])
+  const map = useMemo(() => computeMap(outline, layout), [outline, layout])
+
+  /* ---------- 尺寸与自动适配 ---------- */
 
   useEffect(() => {
     const el = wrapRef.current
@@ -176,33 +90,25 @@ export default function MindMap({ content, title, onJump }: Props) {
     return () => ro.disconnect()
   }, [])
 
-  const layout = useMemo(() => {
-    const outline = extractOutline(content, title)
-    // tree() 原地写入 x/y 并返回 HierarchyPointNode，坐标类型才是 number
-    const root = tree<OutlineNode>().nodeSize([V_GAP, H_GAP])(hierarchy(outline))
-    const nodes = root.descendants()
-    const links = root.links()
-    const min = nodes.length ? Math.min(...nodes.map((n) => n.x)) : 0
-    const max = nodes.length ? Math.max(...nodes.map((n) => n.x)) : 0
-    const depth = nodes.length ? Math.max(...nodes.map((n) => n.y)) : 0
-    return { nodes, links, min, max, depth }
-  }, [content, title])
-
-  // 首次布局完成后自动适配大小并垂直居中
+  // 换了布局、换了文档就重新适配一次；之后交给用户自己缩放
+  const fitKey = `${layout}|${title}|${map.nodes.length}`
   useEffect(() => {
-    if (fittedRef.current) return
-    if (!size.h || !layout.nodes.length) return
-    fittedRef.current = true
-    const contentH = layout.max - layout.min
-    const k = Math.min(1.05, Math.max(0.4, (size.h - PAD_Y * 2) / Math.max(contentH, V_GAP)))
+    if (!size.w || !size.h || !map.nodes.length) return
+    if (fittedRef.current === fitKey) return
+    fittedRef.current = fitKey
+    const b = map.bounds
+    const w = Math.max(b.maxX - b.minX, 1)
+    const h = Math.max(b.maxY - b.minY, 1)
+    const k = Math.min(1.05, Math.max(0.3, Math.min((size.w - PAD * 2) / w, (size.h - PAD * 2) / h)))
     setView({
-      x: PAD_X,
-      y: size.h / 2 - ((layout.min + layout.max) / 2) * k,
+      x: (size.w - w * k) / 2 - b.minX * k,
+      y: (size.h - h * k) / 2 - b.minY * k,
       k,
     })
-  }, [layout, size.h])
+  }, [fitKey, size.w, size.h, map])
 
-  // 滚轮缩放（跟随鼠标），需要 passive:false 才能 preventDefault
+  /* ---------- 缩放与平移 ---------- */
+
   useEffect(() => {
     const el = wrapRef.current
     if (!el) return
@@ -213,7 +119,7 @@ export default function MindMap({ content, title, onJump }: Props) {
       const my = e.clientY - rect.top
       const factor = Math.exp(-e.deltaY * 0.0015)
       setView((v) => {
-        const k = Math.min(2.6, Math.max(0.28, v.k * factor))
+        const k = Math.min(2.6, Math.max(0.2, v.k * factor))
         const ratio = k / v.k
         return { k, x: mx - (mx - v.x) * ratio, y: my - (my - v.y) * ratio }
       })
@@ -224,12 +130,13 @@ export default function MindMap({ content, title, onJump }: Props) {
 
   useEffect(() => {
     const move = (e: MouseEvent) => {
-      const d = dragRef.current
+      const d = panRef.current
       if (!d) return
+      if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 3) movedRef.current = true
       setView((v) => ({ ...v, x: d.vx + (e.clientX - d.x), y: d.vy + (e.clientY - d.y) }))
     }
     const up = () => {
-      dragRef.current = null
+      panRef.current = null
     }
     window.addEventListener('mousemove', move)
     window.addEventListener('mouseup', up)
@@ -239,9 +146,125 @@ export default function MindMap({ content, title, onJump }: Props) {
     }
   }, [])
 
-  const empty = layout.nodes.length <= 1
+  /* ---------- 编辑 ---------- */
 
-  /** 把 SVG 连同内联样式一起导出 —— 外层 CSS 不会跟着序列化，必须自己塞进去 */
+  const commitEdit = useCallback(() => {
+    if (!editing) return
+    const { path, value, id } = editing
+    setEditing(null)
+    if (!editor) return
+    const node = map.nodes.find((n) => n.id === id)
+    if (node && node.text === value.trim()) return
+    if (renameNode(editor, path, value)) {
+      setSelected(null)
+    } else {
+      toast.error('改不了这个名字', '这一块可能不是标题或条目')
+    }
+  }, [editing, editor, map.nodes])
+
+  const doAddChild = useCallback(() => {
+    if (!editor || !selected) return
+    const node = map.nodes.find((n) => n.id === selected)
+    if (!node) return
+    const next = addChild(editor, node.path)
+    if (!next) {
+      toast.error('这里加不了子节点', '标题、段落和条目下面才可以加')
+      return
+    }
+    setEditing({ id: '', path: next, value: '' })
+    setSelected(null)
+  }, [editor, selected, map.nodes])
+
+  const doDelete = useCallback(() => {
+    if (!editor || !selected) return
+    const node = map.nodes.find((n) => n.id === selected)
+    if (!node) return
+    if (!node.path.length) {
+      toast.info('根节点删不掉', '它就是这篇文档的标题')
+      return
+    }
+    if (deleteNode(editor, node.path)) {
+      setSelected(null)
+      toast.success('已删除', 'Ctrl+Z 可以撤销')
+    }
+  }, [editor, selected, map.nodes])
+
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (editing) return // 编辑框自己处理按键
+      if (!editable) return
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        doAddChild()
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        doDelete()
+      } else if (e.key === 'Enter' && selected) {
+        e.preventDefault()
+        const node = map.nodes.find((n) => n.id === selected)
+        if (node?.path.length && onJump) onJump(node.path)
+      } else if (e.key === 'Escape') {
+        setSelected(null)
+      }
+    },
+    [editing, editable, doAddChild, doDelete, selected, map.nodes, onJump],
+  )
+
+  /* ---------- 拖动调层级 ---------- */
+
+  const pickNodeAt = (clientX: number, clientY: number): string | null => {
+    const el = wrapRef.current
+    if (!el) return null
+    const rect = el.getBoundingClientRect()
+    const px = (clientX - rect.left - view.x) / view.k
+    const py = (clientY - rect.top - view.y) / view.k
+    for (const n of map.nodes) {
+      if (px >= n.x && px <= n.x + n.w && py >= n.y && py <= n.y + n.h) return n.id
+    }
+    return null
+  }
+
+  const onNodePointerDown = (e: React.PointerEvent, n: (typeof map.nodes)[number]) => {
+    if (!editable) return
+    e.stopPropagation()
+    const startX = e.clientX
+    const startY = e.clientY
+    const path = n.path
+    let dragging = false
+
+    const move = (ev: PointerEvent) => {
+      if (!dragging && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) > 6) {
+        dragging = true
+        setDragPath(path)
+      }
+      if (dragging) setHoverId(pickNodeAt(ev.clientX, ev.clientY))
+    }
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      setDragPath(null)
+      const hit = pickNodeAt(ev.clientX, ev.clientY)
+      setHoverId(null)
+      if (dragging) {
+        if (hit && hit !== n.id) {
+          const target = map.nodes.find((x) => x.id === hit)
+          if (target && editor && moveNode(editor, path, target.path)) {
+            toast.success('已移动', `挂到「${target.text}」下面 · Ctrl+Z 可撤销`)
+            setSelected(null)
+          } else {
+            toast.error('移不过去', '不能把节点拖进它自己的子节点里')
+          }
+        }
+      } else {
+        setSelected(n.id)
+      }
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  /* ---------- 导出 ---------- */
+
   const exportImage = async (format: 'png' | 'svg') => {
     const svg = svgRef.current
     if (!svg) return
@@ -250,6 +273,8 @@ export default function MindMap({ content, title, onJump }: Props) {
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
     clone.setAttribute('width', String(Math.round(rect.width)))
     clone.setAttribute('height', String(Math.round(rect.height)))
+    // 编辑框是 HTML，不进导出
+    clone.querySelectorAll('.mm-edit').forEach((el) => el.remove())
 
     const dark = document.documentElement.dataset.theme !== 'light'
     const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
@@ -257,7 +282,8 @@ export default function MindMap({ content, title, onJump }: Props) {
       .mm-node text { font-family: "HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",sans-serif; font-size: 12.5px; fill: ${dark ? '#e8e4dc' : '#221f1b'}; }
       .mm-node .box { fill: ${dark ? '#171614' : '#fffdf9'}; stroke: ${dark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.18)'}; stroke-width: 1; }
       .mm-node.root .box { stroke: #cba56b; stroke-width: 1.6; }
-      .mm-link { fill: none; stroke: ${dark ? 'rgba(180,170,155,0.4)' : 'rgba(120,112,100,0.5)'}; stroke-width: 1.4; stroke-dasharray: none !important; stroke-dashoffset: 0 !important; }
+      .mm-node.sel .box { stroke: #cba56b; stroke-width: 1.8; }
+      .mm-link { fill: none; stroke: ${dark ? 'rgba(180,170,155,0.4)' : 'rgba(120,112,100,0.5)'}; stroke-width: 1.4; }
       .mm-node rect, .mm-node text { opacity: 1 !important; animation: none !important; }
     `
     const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
@@ -266,7 +292,6 @@ export default function MindMap({ content, title, onJump }: Props) {
     bg.setAttribute('width', '100%')
     bg.setAttribute('height', '100%')
     bg.setAttribute('fill', dark ? '#0f0e0d' : '#faf7f2')
-
     clone.insertBefore(style, clone.firstChild)
     clone.insertBefore(bg, clone.firstChild)
 
@@ -311,81 +336,141 @@ export default function MindMap({ content, title, onJump }: Props) {
     }
   }
 
+  const empty = map.nodes.length <= 1
+  const editingNode = editing ? map.nodes.find((n) => n.id === editing.id) : null
+  // 新增节点时还没有 id，用路径反查它落在哪
+  const editingPos =
+    editing && !editingNode
+      ? map.nodes.find((n) => n.path.join() === editing.path.join())
+      : editingNode
+
   return (
-    <div className="mindmap" ref={wrapRef}>
+    <div className="mindmap" ref={wrapRef} tabIndex={0} onKeyDown={onKeyDown}>
       <svg
         ref={svgRef}
         onMouseDown={(e) => {
-          dragRef.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }
+          movedRef.current = false
+          panRef.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }
+        }}
+        onClick={() => {
+          if (!movedRef.current) setSelected(null)
         }}
       >
-        <defs>
-          <linearGradient id="mm-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#d3ae74" />
-            <stop offset="100%" stopColor="#a8843f" />
-            
-          </linearGradient>
-        </defs>
         <g transform={`translate(${view.x}, ${view.y}) scale(${view.k})`}>
-          {layout.links.map((l, i) => {
-            const sx = l.source.y + boxWidth(l.source.data.text)
-            const sy = l.source.x
-            const tx = l.target.y
-            const ty = l.target.x
-            const mx = (sx + tx) / 2
-            return (
-              <path
-                key={`l${i}`}
-                className={'mm-link' + (l.source.depth === 0 ? ' root' : '')}
-                d={`M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}`}
-                pathLength={1}
-              />
-            )
-          })}
+          {map.links.map((l) => (
+            <path
+              key={l.id}
+              className={'mm-link' + (l.depth === 0 ? ' root' : '')}
+              d={l.d}
+              pathLength={1}
+            />
+          ))}
 
-          {layout.nodes.map((n) => {
-            const w = boxWidth(n.data.text)
-            const kind = n.data.kind ?? (n.depth === 0 ? 'root' : 'item')
+          {map.nodes.map((n) => {
+            const cls =
+              'mm-node' +
+              (n.kind === 'root' ? ' root' : '') +
+              (n.kind === 'heading' ? ` heading lv${n.level ?? 1}` : '') +
+              (n.kind === 'para' ? ' para' : '') +
+              (selected === n.id ? ' sel' : '') +
+              (dragPath && dragPath.join() === n.path.join() ? ' dragging' : '') +
+              (hoverId === n.id ? ' droptarget' : '') +
+              (layout === 'outline' ? ' flat' : '')
             return (
               <g
-                key={n.data.id}
-                className={
-                  'mm-node' +
-                  (n.depth === 0 ? ' root' : '') +
-                  (kind === 'heading' ? ` heading lv${n.data.level ?? 1}` : '') +
-                  (kind === 'para' ? ' para' : '')
-                }
-                transform={`translate(${n.y}, ${n.x})`}
-                onClick={() => {
-                  if (n.data.path.length && onJump) onJump(n.data.path)
+                key={n.id || n.path.join('-')}
+                className={cls}
+                transform={`translate(${n.x}, ${n.y})`}
+                onPointerDown={(e) => onNodePointerDown(e, n)}
+                onDoubleClick={(e) => {
+                  e.stopPropagation()
+                  if (editable) setEditing({ id: n.id, path: n.path, value: n.text })
                 }}
               >
-                <rect className="box" x={0} y={-13} width={w} height={26} rx={8} />
-                <text x={12} y={0}>
-                  {fitText(n.data.text, w)}
+                <rect className="box" x={0} y={0} width={n.w} height={n.h} rx={8} />
+                <text x={12} y={n.h / 2}>
+                  {fitText(n.text, n.w)}
                 </text>
               </g>
             )
           })}
         </g>
       </svg>
-      {!empty && (
-        <div className="mm-tools">
-          <button className="btn" onClick={() => void exportImage('png')} title="导出为 PNG · 2 倍图">
-            导出 PNG
-          </button>
-          <button className="btn" onClick={() => void exportImage('svg')} title="导出为矢量 SVG">
-            导出 SVG
-          </button>
-        </div>
+
+      {/* 改名输入框浮在节点上（HTML 层，不进导出） */}
+      {editing && editingPos && (
+        <input
+          className="mm-edit"
+          autoFocus
+          spellCheck={false}
+          value={editing.value}
+          placeholder={editing.value ? '' : '写点什么…'}
+          style={{
+            left: `${editingPos.x * view.k + view.x}px`,
+            top: `${editingPos.y * view.k + view.y}px`,
+            width: `${Math.max(110, editingPos.w * view.k)}px`,
+            height: `${Math.max(24, editingPos.h * view.k)}px`,
+            fontSize: `${Math.max(11, 12.5 * view.k)}px`,
+          }}
+          onChange={(e) => setEditing({ ...editing, value: e.target.value })}
+          onBlur={commitEdit}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              commitEdit()
+            } else if (e.key === 'Escape') {
+              e.preventDefault()
+              setEditing(null)
+            }
+          }}
+        />
       )}
-      {empty ? (
-        <div className="mm-hint">还没有大纲结构 —— 回写作页，用 - 加空格开始列条目</div>
-      ) : (
-        <div className="mm-hint">
-          {layout.nodes.length - 1} 个分支 · 滚轮缩放 · 拖动平移
+
+      <div className="mm-tools">
+        <div className="mm-layouts">
+          {LAYOUTS.map((l) => (
+            <button
+              key={l.id}
+              className={'mm-lay' + (l.id === layout ? ' on' : '')}
+              title={l.hint}
+              onClick={() => {
+                setLayout(l.id)
+                try {
+                  localStorage.setItem(LAYOUT_KEY, l.id)
+                } catch {
+                  /* 存不进去只是记不住偏好 */
+                }
+              }}
+            >
+              {l.label}
+            </button>
+          ))}
         </div>
-      )}
+        {!empty && (
+          <>
+            <span className="grow" />
+            <button className="btn" onClick={() => void exportImage('png')} title="导出为 PNG · 2 倍图">
+              导出 PNG
+            </button>
+            <button className="btn" onClick={() => void exportImage('svg')} title="导出为矢量 SVG">
+              导出 SVG
+            </button>
+          </>
+        )}
+      </div>
+
+      <div className="mm-hint">
+        {empty ? (
+          '还没有大纲结构 —— 回写作页，用 - 加空格开始列条目'
+        ) : editable ? (
+          <>
+            {map.nodes.length - 1} 个分支 · 双击改字 · Tab 加子节点 · Delete 删 · 拖动调层级 · 回车跳正文
+          </>
+        ) : (
+          `${map.nodes.length - 1} 个分支 · 滚轮缩放 · 拖动平移`
+        )}
+      </div>
     </div>
   )
 }
