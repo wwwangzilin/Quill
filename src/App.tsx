@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSONContent, Editor } from '@tiptap/core'
 import EditorPane from './editor/EditorPane'
 import Sidebar from './ui/Sidebar'
@@ -21,6 +21,7 @@ import { locate, type Comment } from './core/comments'
 import { checkUpdate } from './core/update'
 import { applyTheme, readTheme, type Theme } from './core/theme'
 import { applyComments, onCommentPick } from './editor/commentMark'
+import { goalProgress } from './core/stats'
 import { TEMPLATES } from './core/templates'
 import { openQuickNote, openSticky } from './core/windows'
 import {
@@ -174,6 +175,8 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false)
   /** 每日写作目标（0 = 不设目标） */
   const [dailyGoal, setDailyGoal] = useSetting('daily-goal', 500)
+  // 底部状态栏要用：今日写了多少、离目标还差多少
+  const progress = useMemo(() => goalProgress(stats, dailyGoal), [stats, dailyGoal])
   /** 编辑器实例的重建键：只在新开文档时递增，改名导致的 id 变化不重建（否则光标会飞） */
   const [sessionKey, setSessionKey] = useState(0)
   /** 阅读模式：只读、收起干扰，用来回头通读 */
@@ -1183,22 +1186,6 @@ export default function App() {
           </button>
         )}
         <div className="grow" />
-        {/* 正文栏宽度：常驻在这里才叫「快速调节」——拖一下立刻见效，不必进设置翻 */}
-        <label className="width-slider" title="拖动调节正文栏宽度">
-          <span className="ws-icon" aria-hidden="true">
-            ⇔
-          </span>
-          <input
-            type="range"
-            min={PROSE_RANGE.minWidth}
-            max={PROSE_RANGE.maxWidth}
-            step={PROSE_RANGE.stepWidth}
-            value={prose.width}
-            aria-label="正文栏宽度"
-            onChange={(e) => setProse((p) => ({ ...p, width: clampWidth(Number(e.target.value)) }))}
-          />
-          <em className="ws-val">{prose.width}</em>
-        </label>
         <div className="seg">
           <button className={view === 'write' ? 'on' : ''} onClick={() => switchView('write')}>
             写作
@@ -1359,6 +1346,53 @@ export default function App() {
             focusId={commentFocus}
           />
         )}
+      </div>
+
+      {/*
+        底部状态栏：放「操作级」的信息 —— 保存状态、今日进度、正文栏宽度。
+        顶部那行是「文档级」的（修改时间、总字数、段数、阅读时长），两边分工不重复。
+      */}
+      <div className="statusbar">
+        <span
+          className={
+            'sb-save' + (saving === 'saving' ? ' saving' : saving === 'saved' ? ' saved' : '')
+          }
+        >
+          {saving === 'saving' ? '保存中…' : saving === 'saved' ? '✓ 已保存' : ''}
+        </span>
+
+        <span className="sb-item">
+          今天 <b>{progress.today}</b> 字
+        </span>
+
+        {progress.goal > 0 && (
+          <>
+            <span className="sb-goal" title={`目标 ${progress.goal} 字`}>
+              <span style={{ width: `${Math.round(progress.ratio * 100)}%` }} />
+            </span>
+            <span className={'sb-item' + (progress.done ? ' done' : '')}>
+              {progress.done ? '已达标 ✓' : `还差 ${progress.remain}`}
+            </span>
+          </>
+        )}
+
+        <span className="grow" />
+
+        <label className="width-slider" title="拖动调节正文栏宽度">
+          <span className="ws-icon" aria-hidden="true">
+            ⇔
+          </span>
+          <input
+            type="range"
+            min={PROSE_RANGE.minWidth}
+            max={PROSE_RANGE.maxWidth}
+            step={PROSE_RANGE.stepWidth}
+            value={prose.width}
+            aria-label="正文栏宽度"
+            onChange={(e) => setProse((p) => ({ ...p, width: clampWidth(Number(e.target.value)) }))}
+          />
+          <em className="ws-val">{prose.width}</em>
+        </label>
       </div>
     </div>
   )

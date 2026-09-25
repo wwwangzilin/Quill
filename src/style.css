@@ -3586,6 +3586,81 @@ body.quill-dragging * {
   display: none;
 }
 
+/* ---------- 底部状态栏 ---------- */
+/*
+ * 放「操作级」信息：保存状态、今日进度、正文栏宽度。
+ * 顶部那行 .doc-meta 是文档级的（修改时间 / 总字数 / 段数 / 阅读时长），两边不重复。
+ * 整条通栏，跟 Word 的底栏一个意思。
+ */
+.statusbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 28px;
+  padding: 0 14px;
+  border-top: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 11.5px;
+  color: var(--text-3);
+  user-select: none;
+}
+
+/* 保存提示平时不占视觉，只有真的在存/刚存完才亮一下 */
+.sb-save {
+  min-width: 56px;
+  opacity: 0;
+  transition: opacity 0.25s var(--ease-out, ease);
+}
+.sb-save.saving,
+.sb-save.saved {
+  opacity: 1;
+}
+.sb-save.saving {
+  color: #e8c46a;
+}
+
+.sb-item b {
+  color: var(--text-2, var(--text));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.sb-item.done {
+  color: #7ec98f;
+}
+
+.sb-goal {
+  display: block;
+  width: 54px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+.sb-goal > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--grad, linear-gradient(90deg, #7c6cff, #ff6ec7));
+  transition: width 0.3s var(--ease-out, ease);
+}
+
+/* 落到底栏后滑块比在标题栏时紧凑一点 */
+.statusbar .width-slider {
+  height: 22px;
+  padding: 0 6px;
+  margin-right: 0;
+}
+.statusbar .width-slider input[type='range'] {
+  width: 76px;
+}
+
+/* 阅读与禅模式要的是全屏沉浸，状态栏一并收掉 */
+.app.zen .statusbar,
+.app.reading .statusbar {
+  display: none;
+}
+
 /* ---------- `[[` 文档选择面板 ---------- */
 /*
  * 从贴光标的小浮层改成居中大面板：卡片网格，一眼扫到更多文档。
