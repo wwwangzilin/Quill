@@ -54,6 +54,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['⋯ 更多 → 导出 PDF', '走系统打印，打印机选「Microsoft Print to PDF」'],
       ['⋯ 更多 → 导出 HTML', '单文件、样式内联，发出去别人直接能看'],
       ['⋯ 更多 → 导入文件夹', '把一整个 .md 文件夹搬进来（Obsidian / Notion 导出）'],
+      ['⋯ 更多 → 导入文本文件', '.txt 自动认编码（UTF-8 / GBK）并转成 Markdown'],
     ],
   },
 ]

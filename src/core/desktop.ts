@@ -3,6 +3,7 @@
  * 浏览器调试模式下全部是安全空操作 —— 调用方先看 isDesktop()。
  */
 import { invoke } from '@tauri-apps/api/core'
+import { isImportable, readImportFile, type ImportedDoc } from './txtToMd'
 
 export interface DesktopPrefs {
   /** 点 × 收进托盘（这样 Ctrl+Space 快速便签才一直可用） */
@@ -68,22 +69,23 @@ export async function importAssetFile(path: string): Promise<string> {
   return await invoke<string>('import_asset_file', { path })
 }
 
-export interface ImportedDoc {
-  title: string
-  content: string
-}
+export type { ImportedDoc } from './txtToMd'
 
 /**
- * 从一个 `<input type="file" webkitdirectory>` 选出来的 FileList 里抽出所有 Markdown。
- * Obsidian / Notion / Typora 导出的都是一个塞满 .md 的文件夹，所以这一条路就够通吃。
+ * 从一个文件选择框拿到的 FileList 里抽出所有能导入的文本。
+ *
+ * 两个来源都走这里：整个文件夹（Obsidian / Notion / Typora 导出的就是一堆 .md），
+ * 以及零散挑的几个文件（.txt 自动转成 Markdown）。
+ *
+ * 注意**不要**用 `file.text()` —— 它一律按 UTF-8 解码，而中文 txt 十有八九是
+ * GBK，那样读出来整篇都是乱码。走 readImportFile，它会先认编码。
  */
 export async function readMarkdownFolder(files: FileList | File[]): Promise<ImportedDoc[]> {
-  const list = Array.from(files).filter((f) => /\.(md|markdown|txt)$/i.test(f.name))
+  const list = Array.from(files).filter((f) => isImportable(f.name))
   const out: ImportedDoc[] = []
   for (const f of list) {
     try {
-      const content = await f.text()
-      out.push({ title: f.name.replace(/\.(md|markdown|txt)$/i, ''), content })
+      out.push(await readImportFile(f))
     } catch {
       /* 读不了就跳过，别让一个坏文件毁掉整次导入 */
     }

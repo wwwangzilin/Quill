@@ -1100,37 +1100,56 @@ export default function App() {
     window.setTimeout(() => window.print(), 120)
   }, [])
 
-  /** 选一个文件夹，把里面的 Markdown 全搬进来（Obsidian / Notion 导出的就是这种） */
-  const importFolder = useCallback(async () => {
-    if (!isDesktop()) {
-      toast.info('批量导入只在桌面版可用')
-      return
-    }
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.setAttribute('webkitdirectory', '')
-    input.setAttribute('directory', '')
-    input.multiple = true
-    input.onchange = () => {
-      const files = input.files
+  /** 把选出来的文件真正导进去 —— .txt 在读的时候就已经转成 Markdown 了 */
+  const runImport = useCallback(
+    async (files: FileList | null) => {
       if (!files || !files.length) return
-      void (async () => {
-        try {
-          const items = await readMarkdownFolder(files)
-          if (!items.length) {
-            toast.info('这个文件夹里没有 Markdown 文件')
-            return
-          }
-          const n = await importMarkdown(items)
-          await refreshDocs()
-          toast.success(`已导入 ${n} 篇文档`, '同名文件会自动加序号，不会覆盖')
-        } catch (err) {
-          toast.error('导入失败', String(err).slice(0, 120))
+      try {
+        const items = await readMarkdownFolder(files)
+        if (!items.length) {
+          toast.info('没找到能导入的文本', '支持 .md / .markdown / .txt')
+          return
         }
-      })()
-    }
-    input.click()
-  }, [refreshDocs])
+        const n = await importMarkdown(items)
+        await refreshDocs()
+        toast.success(`已导入 ${n} 篇文档`, '同名文件会自动加序号，不会覆盖')
+      } catch (err) {
+        toast.error('导入失败', String(err).slice(0, 120))
+      }
+    },
+    [refreshDocs],
+  )
+
+  /**
+   * 打开系统的文件选择框。
+   * dir = true 选整个文件夹（搬 Obsidian / Notion 的库），false 挑几个文件。
+   */
+  const pickFiles = useCallback(
+    (dir: boolean) => {
+      if (!isDesktop()) {
+        toast.info('导入只在桌面版可用')
+        return
+      }
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.multiple = true
+      if (dir) {
+        input.setAttribute('webkitdirectory', '')
+        input.setAttribute('directory', '')
+      } else {
+        input.accept = '.txt,.text,.md,.markdown,text/plain'
+      }
+      input.onchange = () => void runImport(input.files)
+      input.click()
+    },
+    [runImport],
+  )
+
+  /** 选一个文件夹，把里面的 Markdown 全搬进来（Obsidian / Notion 导出的就是这种） */
+  const importFolder = useCallback(() => pickFiles(true), [pickFiles])
+
+  /** 挑几个文本文件导进来；.txt 会自动识别编码并转成 Markdown */
+  const importFiles = useCallback(() => pickFiles(false), [pickFiles])
 
   /* ---------------- 标题栏的「⋯ 更多」 ---------------- */
 
@@ -1165,6 +1184,14 @@ export default function App() {
       hint: 'Markdown',
       disabled: !vaultMode,
       onSelect: () => void importFolder(),
+    },
+    {
+      key: 'import-files',
+      icon: '⇧',
+      label: '导入文本文件',
+      hint: '.txt / .md',
+      disabled: !vaultMode,
+      onSelect: () => void importFiles(),
     },
     {
       key: 'reading',
@@ -1277,6 +1304,13 @@ export default function App() {
     { id: 'export-pdf', title: '导出 PDF', hint: '系统打印', icon: '⎙', run: exportPdf },
     { id: 'export-json', title: '导出 JSON', hint: '.json', icon: '⇩', run: exportJson },
     { id: 'import', title: '从文件夹导入 Markdown', icon: '⇧', run: () => void importFolder() },
+    {
+      id: 'import-files',
+      title: '导入文本文件',
+      hint: '.txt 自动转 Markdown',
+      icon: '⇧',
+      run: () => void importFiles(),
+    },
     { id: 'daily', title: '今天的日记', hint: 'Ctrl+D', icon: '☀', run: () => void dailyNote() },
     { id: 'reading', title: '阅读模式', hint: 'F9', icon: '▤', run: toggleReading },
     { id: 'zen', title: '禅模式', hint: 'F11', icon: '⛶', run: toggleZen },
