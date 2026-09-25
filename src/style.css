@@ -1069,7 +1069,7 @@ body,
     color 0.34s var(--ease), opacity var(--dur) var(--ease);
 }
 
-/* ---------- 视图切换 ---------- */
+/* ---------- 视图切换与页面切换 ---------- */
 .editor-scroll,
 .pane {
   animation: view-in 0.18s var(--ease-out) both;
@@ -1081,6 +1081,35 @@ body,
   to {
     opacity: 1;
   }
+}
+
+/* 整页切换（文档库 / 设置 / 回收站）：从下方轻轻浮入 */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 标题栏要能随禅模式滑出去，所以它的 transform / opacity 也得可过渡 */
+.titlebar {
+  transition: transform var(--dur) var(--ease), opacity var(--dur) var(--ease),
+    background var(--dur) var(--ease);
+}
+
+/* 正文栏宽度会变（阅读模式放宽、拖底栏的宽度滑块），别硬跳 */
+.editor-inner {
+  transition: max-width var(--dur) var(--ease);
+}
+
+/* 独立页面（文档库 / 设置）打开时从下方浮入 */
+.library-view,
+.settings-view {
+  animation: page-in 0.24s var(--ease-out) both;
 }
 
 /* ---------- 侧栏收放 ---------- */
@@ -2868,9 +2897,18 @@ body.quill-dragging * {
 /* ---------- 阅读模式（F9） ---------- */
 /* 写完回头看一遍用的：收起侧栏、工具栏淡出、正文放宽。
    编辑器本身转只读是 JS 那边做的（editor.setEditable(false)）。 */
-.app.reading .sidebar,
+/*
+ * 用位移 + 淡出代替 display: none。
+ * display 是离散属性，没有可过渡的中间状态 —— 那样进出阅读模式时界面会「啪」地消失。
+ */
+.app.reading .sidebar {
+  margin-left: calc(var(--sidebar-w) * -1);
+  opacity: 0;
+  pointer-events: none;
+}
 .app.reading .backlinks {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
 }
 .app.reading .titlebar {
   opacity: 0.22;
@@ -3312,12 +3350,22 @@ body.quill-dragging * {
 
 /* ============================ 禅模式（F11） ============================ */
 
-/* 藏掉整个界面，只剩正文；窗口本身由 Tauri 切成真全屏 */
-.app.zen .titlebar,
-.app.zen .sidebar,
+/* 藏掉整个界面，只剩正文；窗口本身由 Tauri 切成真全屏。
+   同样是「滑出去 + 淡掉」而不是 display: none，切换才有过渡。 */
+.app.zen .titlebar {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.app.zen .sidebar {
+  margin-left: calc(var(--sidebar-w) * -1);
+  opacity: 0;
+  pointer-events: none;
+}
 .app.zen .backlinks,
 .app.zen .reading-badge {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
 }
 .app.zen .editor-scroll {
   padding-top: 9vh;
