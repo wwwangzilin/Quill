@@ -19,7 +19,7 @@ import QuickCapture from './ui/QuickCapture'
 import CommentsPanel from './ui/CommentsPanel'
 import { locate, type Comment } from './core/comments'
 import { checkUpdate } from './core/update'
-import { applyTheme, readTheme, type Theme } from './core/theme'
+import { applyTheme, nextTheme, readTheme, themeInfo, type Theme } from './core/theme'
 import { applyComments, onCommentPick } from './editor/commentMark'
 import { goalProgress } from './core/stats'
 import { TEMPLATES } from './core/templates'
@@ -149,6 +149,8 @@ export default function App() {
   // ☰ 仍可随时唤出（热力图、每日目标那些还在里面）。
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(() => readTheme())
+  /** 换个主题：标题栏按钮和命令面板共用；按主题清单的顺序往下循环 */
+  const cycleTheme = useCallback(() => setTheme((t) => nextTheme(t)), [])
   const [saving, setSaving] = useState<Saving>('idle')
   const [ready, setReady] = useState(false)
   const [mapSnap, setMapSnap] = useState<{ content: JSONContent; title: string } | null>(null)
@@ -1039,11 +1041,11 @@ export default function App() {
     },
     {
       key: 'theme',
-      icon: theme === 'dark' ? '☾' : '☀',
-      label: '切换主题',
-      hint: theme === 'dark' ? '暗色' : '亮色',
+      icon: themeInfo(theme).icon,
+      label: '换个主题',
+      hint: `${themeInfo(theme).label} · 共 6 套`,
       divider: true,
-      onSelect: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
+      onSelect: cycleTheme,
     },
     {
       key: 'library',
@@ -1101,9 +1103,10 @@ export default function App() {
     { id: 'richcopy', title: '复制为富文本', icon: '⧉', run: () => void copyRichText() },
     {
       id: 'theme',
-      title: '切换亮色 / 暗色主题',
-      icon: '☾',
-      run: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
+      title: '换个主题',
+      hint: `${themeInfo(theme).label} · 下一个：${themeInfo(nextTheme(theme)).label}`,
+      icon: themeInfo(theme).icon,
+      run: cycleTheme,
     },
     { id: 'sidebar', title: '收起 / 展开侧栏', hint: 'Ctrl+\\', icon: '▤', run: () => setSidebarOpen((v) => !v) },
     { id: 'focus', title: '专注模式', icon: '◉', run: toggleFocus },
@@ -1264,6 +1267,8 @@ export default function App() {
           ) : settingsOpen ? (
             <SettingsView
               onClose={() => setSettingsOpen(false)}
+              theme={theme}
+              onTheme={setTheme}
               prose={prose}
               onProse={setProse}
               aiEnabled={aiEnabled}

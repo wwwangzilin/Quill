@@ -59,6 +59,106 @@
   --shadow-sm: 0 4px 16px rgba(40, 30, 15, 0.08);
 }
 
+/* ---------- 墨水：宣纸底 + 朱红点缀，圆角收到最小 ---------- */
+[data-theme="ink"] {
+  color-scheme: light;
+  --bg: #f7f6f2;
+  --surface: rgba(252, 251, 248, 0.86);
+  --surface-solid: #fcfbf8;
+  --surface-hover: rgba(20, 18, 14, 0.035);
+  --surface-active: rgba(20, 18, 14, 0.06);
+  --border: rgba(20, 18, 14, 0.09);
+  --border-strong: rgba(20, 18, 14, 0.17);
+  --text: #1a1a18;
+  --text-2: #4a4844;
+  --text-3: #8a8782;
+  --accent-1: #a33a2a;
+  --accent-2: #4a5a52;
+  --accent-3: #8b5a3c;
+  --accent-soft: rgba(163, 58, 42, 0.1);
+  --grad: linear-gradient(135deg, #b8442f, #8e2f21);
+  --radius-sm: 3px;
+  --radius: 4px;
+  --radius-lg: 6px;
+  --shadow: 0 10px 34px rgba(30, 25, 20, 0.1);
+  --shadow-sm: 0 3px 12px rgba(30, 25, 20, 0.07);
+}
+
+/* ---------- 羊皮纸：暖黄纸感，久读不累 ---------- */
+[data-theme="paper"] {
+  color-scheme: light;
+  --bg: #f4ecd8;
+  --surface: rgba(250, 244, 228, 0.86);
+  --surface-solid: #faf4e4;
+  --surface-hover: rgba(90, 70, 40, 0.05);
+  --surface-active: rgba(90, 70, 40, 0.085);
+  --border: rgba(90, 70, 40, 0.14);
+  --border-strong: rgba(90, 70, 40, 0.22);
+  --text: #3a2f1e;
+  --text-2: #6b5a40;
+  --text-3: #9c8b6e;
+  --accent-1: #96662a;
+  --accent-2: #6b7a52;
+  --accent-3: #a04f36;
+  --accent-soft: rgba(150, 102, 42, 0.13);
+  --grad: linear-gradient(135deg, #b07d3a, #855a22);
+  --radius-sm: 5px;
+  --radius: 7px;
+  --radius-lg: 10px;
+  --shadow: 0 10px 32px rgba(80, 60, 30, 0.14);
+  --shadow-sm: 0 3px 10px rgba(80, 60, 30, 0.1);
+}
+
+/* ---------- 夜蓝：深蓝低对比，比纯黑柔和 ---------- */
+[data-theme="night"] {
+  color-scheme: dark;
+  --bg: #0e1620;
+  --surface: rgba(20, 30, 42, 0.72);
+  --surface-solid: #131d28;
+  --surface-hover: rgba(190, 215, 245, 0.05);
+  --surface-active: rgba(190, 215, 245, 0.085);
+  --border: rgba(190, 215, 245, 0.09);
+  --border-strong: rgba(190, 215, 245, 0.16);
+  --text: #dae4ef;
+  --text-2: #93a4b8;
+  --text-3: #64748b;
+  --accent-1: #6ea8d8;
+  --accent-2: #7fc4b0;
+  --accent-3: #d98b7a;
+  --accent-soft: rgba(110, 168, 216, 0.14);
+  --grad: linear-gradient(135deg, #7db4e0, #4a7fae);
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --shadow: 0 12px 44px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* ---------- 樱花：浅粉配紫，轻快一点 ---------- */
+[data-theme="sakura"] {
+  color-scheme: light;
+  --bg: #fdf6f8;
+  --surface: rgba(255, 251, 252, 0.86);
+  --surface-solid: #fffbfc;
+  --surface-hover: rgba(120, 60, 90, 0.04);
+  --surface-active: rgba(120, 60, 90, 0.07);
+  --border: rgba(120, 60, 90, 0.1);
+  --border-strong: rgba(120, 60, 90, 0.18);
+  --text: #33222c;
+  --text-2: #6d5563;
+  --text-3: #a08a97;
+  --accent-1: #c2547f;
+  --accent-2: #8a6bb0;
+  --accent-3: #d4776a;
+  --accent-soft: rgba(194, 84, 127, 0.11);
+  --grad: linear-gradient(135deg, #e0739b, #b04570);
+  --radius-sm: 9px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --shadow: 0 12px 40px rgba(120, 60, 90, 0.13);
+  --shadow-sm: 0 4px 14px rgba(120, 60, 90, 0.09);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -2145,6 +2245,59 @@ body.quill-dragging * {
   border-color: var(--accent-1);
 }
 .field textarea::placeholder {
+  color: var(--text-3);
+}
+/* ---- 主题选择器：色块 + 名字 + 一句话风格说明 ---- */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+  gap: 8px;
+}
+.theme-card {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 11px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text-2);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+.theme-card:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-active);
+}
+.theme-card.on {
+  border-color: var(--accent-1);
+  background: var(--accent-soft);
+}
+.theme-dots {
+  display: flex;
+  gap: 4px;
+}
+.theme-dots span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+}
+.theme-name {
+  font-size: 12.5px;
+  color: var(--text);
+}
+.theme-card.on .theme-name {
+  color: var(--accent-1);
+}
+.theme-hint {
+  font-size: 11px;
+  line-height: 1.5;
   color: var(--text-3);
 }
 /* ---- 模型选择：输入框照旧手打，右侧箭头拉出候选 ---- */

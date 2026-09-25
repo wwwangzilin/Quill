@@ -21,6 +21,7 @@ import {
 } from '../core/ai'
 import { AI_TUNING_RANGE, resetAiTuning, useAiTuning } from '../core/aiPrefs'
 import { applyRespectMotion, readRespectMotion } from '../core/motion'
+import { THEMES, type Theme } from '../core/theme'
 import { isDesktop, type DesktopPrefs } from '../core/desktop'
 import { checkUpdate, currentVersion, installUpdate, type UpdateInfo } from '../core/update'
 import { toast } from './toast'
@@ -29,6 +30,8 @@ type SectionId = 'appearance' | 'writing' | 'ai' | 'backup' | 'desktop' | 'about
 
 interface Props {
   onClose: () => void
+  theme: Theme
+  onTheme: (next: Theme) => void
   prose: ProseStyle
   onProse: (next: ProseStyle) => void
   aiEnabled: boolean
@@ -60,6 +63,8 @@ const SECTIONS: { id: SectionId; label: string; hint: string; desktopOnly?: bool
  */
 export default function SettingsView({
   onClose,
+  theme,
+  onTheme,
   prose,
   onProse,
   aiEnabled,
@@ -295,7 +300,31 @@ export default function SettingsView({
 
   const appearance = (
     <>
-      <label className="field">
+      <p className="desc">
+        主题决定配色、圆角与阴影；正文用哪套字体字号，在下面单独调。
+      </p>
+
+      <div className="theme-grid">
+        {THEMES.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={'theme-card' + (t.id === theme ? ' on' : '')}
+            onClick={() => onTheme(t.id)}
+          >
+            <span className="theme-dots">
+              <span style={{ background: t.swatch[0] }} />
+              <span style={{ background: t.swatch[1] }} />
+            </span>
+            <span className="theme-name">
+              {t.icon} {t.label}
+            </span>
+            <span className="theme-hint">{t.hint}</span>
+          </button>
+        ))}
+      </div>
+
+      <label className="field" style={{ marginTop: 14 }}>
         <span>正文字体</span>
         <select value={prose.font} onChange={(e) => onProse({ ...prose, font: e.target.value })}>
           {FONTS.map((f) => (

@@ -8,6 +8,7 @@ import {
   type MapLayout,
 } from '../core/mindmap'
 import { addChild, deleteNode, moveNode, renameNode } from '../core/mindmapEdit'
+import { isDarkTheme } from '../core/theme'
 import { toast } from './toast'
 
 const LAYOUT_KEY = 'quill-map-layout'
@@ -276,7 +277,8 @@ export default function MindMap({ content, title, onJump, editor }: Props) {
     // 编辑框是 HTML，不进导出
     clone.querySelectorAll('.mm-edit').forEach((el) => el.remove())
 
-    const dark = document.documentElement.dataset.theme !== 'light'
+    // 用主题自己声明的深浅，别去猜 dataset 的值 —— 现在不止暗/亮两套了
+    const dark = isDarkTheme()
     const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
     style.textContent = `
       .mm-node text { font-family: "HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",sans-serif; font-size: 12.5px; fill: ${dark ? '#e8e4dc' : '#221f1b'}; }
