@@ -1,7 +1,7 @@
 // 核心逻辑自检：Markdown 序列化 + 文件名安全化（node 原生跑 TS，无需构建）
 import { docToMarkdown, safeFileName } from './src/core/markdown.ts'
 import { markdownToDoc, splitTitle } from './src/core/md-parse.ts'
-import { findIn, flatText, nodeText } from './src/core/comments.ts'
+import { blockOffsets, findIn, flatText, nodeText } from './src/core/comments.ts'
 
 /**
  * 序列化用的测试夹具。
@@ -133,6 +133,7 @@ const flat = flatText(ANNOT)
 const hit1 = findIn(flat, '有这句话')
 const hit2 = findIn(flat, '第二段\n换行') // 精确匹配不到（flat 里没有换行符）→ 走「忽略空白」那条路
 const hit3 = findIn(flat, '标题')
+const offs = blockOffsets(ANNOT)
 
 cases.push(
   ['批注：拍平后不含任何分隔符', flat === '第一段有这句话。第二段换行接着写标题'],
@@ -142,6 +143,13 @@ cases.push(
   ['批注：落在文末也能定位', hit3?.from === 16 && hit3?.to === 18],
   ['批注：改没了的引文返回 null', findIn(flat, '这句根本不存在') === null],
   ['批注：空白引文不算数', findIn(flat, '   ') === null && findIn('', 'x') === null],
+  /*
+   * 每个块的起始偏移必须累加。
+   * 这里是「差一点就全废」的那种错：最早写成「本块裁掉几行就从几开始」，
+   * 于是第二块之后全从 0 重数，正文里第二段往后的批注一条都显示不出来。
+   */
+  ['批注：各块起始偏移要累加', JSON.stringify(offs) === JSON.stringify([0, 8, 16])],
+  ['批注：末块的偏移 + 长度 = 全文长度', offs[2] + nodeText(ANNOT[2]).length === flat.length],
 )
 
 let failed = 0

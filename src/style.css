@@ -3125,14 +3125,14 @@ body.quill-dragging * {
   z-index: 88;
   display: flex;
   background: var(--bg);
-  animation: reader-in 0.26s var(--ease-out) both;
+  animation: reader-in 0.36s var(--ease-out) both;
 }
 /* 用独立的 scale / translate 属性做动效，不碰 transform ——
    正文那条 track 的位移是 inline transform，两者叠加互不打架。 */
 @keyframes reader-in {
   from {
     opacity: 0;
-    scale: 0.994;
+    scale: 1.012;
   }
   to {
     opacity: 1;
@@ -3142,7 +3142,7 @@ body.quill-dragging * {
 /* 退出时先让这段播完再卸（ReaderView 里延迟 200ms 才调 onClose）。
    全屏覆盖层直接消失是一帧硬切，观感上像闪了一下。 */
 .reader.leaving {
-  animation: reader-out 0.2s var(--ease) both;
+  animation: reader-out 0.24s var(--ease) both;
   pointer-events: none;
 }
 @keyframes reader-out {
@@ -3152,8 +3152,24 @@ body.quill-dragging * {
   }
   to {
     opacity: 0;
-    scale: 0.994;
+    scale: 0.99;
   }
+}
+
+/* ---------- 正常模式 ⇄ 小说模式 ----------
+   只让阅读层淡入的话，看起来是「盖上去」；让底下那一层同时往后缩一点、
+   暗下去，才像「切过去」。两边时长错开一档（0.34 / 0.36），层次更清楚。 */
+.app > *:not(.reader) {
+  transition: opacity 0.34s var(--ease-out), scale 0.34s var(--ease-out);
+}
+.app.reader-on > *:not(.reader) {
+  opacity: 0.26;
+  scale: 0.986;
+}
+/* 退出时底下要先回来 —— 不然两层同时在淡，会糊成一团 */
+.app:has(.reader.leaving) > *:not(.reader) {
+  opacity: 1;
+  scale: 1;
 }
 .reader-toc {
   flex: 0 0 236px;

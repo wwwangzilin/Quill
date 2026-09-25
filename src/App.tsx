@@ -1484,6 +1484,8 @@ export default function App() {
         'app' +
         (reading ? ' reading' : '') +
         (zen ? ' zen' : '') +
+        /* 阅读视图盖上来的时候，底下这一层要跟着往后缩 —— 见 style.css 的 .reader-on */
+        (readerOpen && doc ? ' reader-on' : '') +
         (barsHidden && canAutoHide ? ' bars-hidden' : '') +
         (barHidden ? ' bar-hidden' : '')
       }

@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { guessNovel, splitChapters } from '../core/chapters'
-import { MAX_QUOTE, findIn, flatText, nodeText, type Comment } from '../core/comments'
+import {
+  MAX_QUOTE,
+  blockOffsets,
+  findIn,
+  flatText,
+  nodeText,
+  type Comment,
+} from '../core/comments'
 import CommentsPanel from './CommentsPanel'
 import { toast } from './toast'
 
@@ -14,7 +21,10 @@ interface Props {
   onClose: () => void
 }
 
-/** 一条批注在本章正文里的落点：字符区间，坐标就是 flatText 的下标 */
+/**
+ * 一条批注在本章正文里的落点：字符区间。
+ * 坐标就是 `flatText(chapter.blocks)` 的下标 —— 渲染时靠 `blockOffsets` 对齐。
+ */
 interface Mark {
   id: string
   note: string
@@ -285,6 +295,8 @@ export default function ReaderView({
   /* ---------------- 批注 ---------------- */
 
   const text = useMemo(() => flatText(chapter.blocks), [chapter])
+  /** 每个顶层块的起始下标 —— 少了这个，第二块之后的批注全都切不准 */
+  const offsets = useMemo(() => blockOffsets(chapter.blocks), [chapter])
   const marks = useMemo<Mark[]>(
     () =>
       comments.flatMap((c) => {
@@ -562,7 +574,13 @@ export default function ReaderView({
               // 首块可能要裁掉属于上一章的那几行
               const cut = i === 0 ? cutLeadingLines(b, chapter.line) : { node: b, skipped: 0 }
               return cut.node ? (
-                <Block key={i} node={cut.node} at={cut.skipped} marks={marks} onPick={pickMark} />
+                <Block
+                  key={i}
+                  node={cut.node}
+                  at={(offsets[i] ?? 0) + cut.skipped}
+                  marks={marks}
+                  onPick={pickMark}
+                />
               ) : null
             })}
           </div>

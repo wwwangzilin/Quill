@@ -131,3 +131,21 @@ export function flatText(blocks: JSONContent[]): string {
   for (const b of blocks) out += nodeText(b)
   return out
 }
+
+/**
+ * 每个顶层块在拍平文字里的起始下标。
+ *
+ * 渲染时靠它给每个块标出「我从第几个字开始」，批注底纹才切得准。
+ * **块与块之间必须把前面的长度累加进去** —— 一开始是拿「本块裁掉了几行」
+ * 当偏移用的，结果第二块之后全都从 0 开始重数，那些批注一条也显示不出来
+ * （实装机上踩过一次）。
+ */
+export function blockOffsets(blocks: JSONContent[]): number[] {
+  const out: number[] = []
+  let at = 0
+  for (const b of blocks) {
+    out.push(at)
+    at += nodeText(b).length
+  }
+  return out
+}
