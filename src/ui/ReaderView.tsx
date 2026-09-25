@@ -137,12 +137,17 @@ export default function ReaderView({ title, doc, onClose }: Props) {
 
   const chapter = chapters[Math.min(ci, chapters.length - 1)]
 
-  /** 量一次：内容条总宽 / 视口宽 = 有多少屏 */
+  /**
+   * 量一次：内容条总宽 ÷ 它的自身宽 = 有多少屏。
+   *
+   * **必须用 track 自己的 clientWidth**，不能用外层 .reader-pages 的 ——
+   * 外层带着左右各 44px 的 padding，拿它当一屏会每页多挪 88px，
+   * 翻着翻着就偏出去了（这坑实装过一次）。
+   */
   const measure = useCallback(() => {
-    const view = viewRef.current
     const track = trackRef.current
-    if (!view || !track) return
-    const w = view.clientWidth
+    if (!track) return
+    const w = track.clientWidth
     if (!w) return
     const total = Math.max(1, Math.ceil(track.scrollWidth / w))
     setPages(total)
@@ -277,10 +282,13 @@ export default function ReaderView({ title, doc, onClose }: Props) {
         )}
 
         <div className="reader-pages" ref={viewRef}>
+          {/* 位移用**自身宽度的百分比**：track 的宽正好是一屏可见的内容宽，
+              所以 -100% 就是一页。不再去读 clientWidth 现算 —— 那个值含 padding，
+              而且渲染时读到的是上一轮布局（目录展开前后宽度还不一样）。 */}
           <div
             className="reader-track"
             ref={trackRef}
-            style={{ transform: `translateX(-${page * (viewRef.current?.clientWidth ?? 0)}px)` }}
+            style={{ transform: `translateX(-${page * 100}%)` }}
           >
             {chapter.blocks.map((b, i) => (
               <Block key={i} node={b} />
