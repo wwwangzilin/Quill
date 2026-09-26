@@ -54,6 +54,7 @@ import { initStorage, storage } from './core/storage'
 import { splitTitle } from './core/md-parse'
 import type { RawChapter } from './core/rawChapters'
 import { docToMarkdown, safeFileName } from './core/markdown'
+import { parseDocument } from './core/md-parse'
 import type { Doc, DocMeta, ViewMode } from './core/types'
 import { WELCOME } from './core/welcome'
 import { setAssetResolver } from './core/asset'
@@ -771,6 +772,38 @@ export default function App() {
       setView('write')
       setSaving('idle')
       toast.success('已新建', tpl.name)
+    },
+    [flush],
+  )
+
+  /**
+   * 阅读视图里「摘出来改」：把超大文档的某一章复制成一篇普通文档。
+   *
+   * 为什么不直接编辑原文件：那篇 709 万字的进不了 ProseMirror，
+   * 硬塞进去、保存时没加载的那部分会被当成删除（真丢字，不是卡一下）。
+   * 所以走「摘一章出来改」，原书保持只读、一个字不动。
+   */
+  const editChapterFromReader = useCallback(
+    async (title: string, markdown: string) => {
+      try {
+        await flush()
+        const fresh = await storage.create(title)
+        const withBody = { ...fresh, content: parseDocument(markdown).doc }
+        await storage.put(withBody)
+        docRef.current = withBody
+        liveRef.current = { title: withBody.title, content: withBody.content }
+        lastCharsRef.current = countChars(withBody.content)
+        setDoc(withBody)
+        setDocs((prev) => sortDocs([toMeta(withBody), ...prev]))
+        setSessionKey((k) => k + 1)
+        setReaderOpen(false)
+        setHeavyOutline(null)
+        setView('write')
+        setSaving('idle')
+        toast.success('这一章摘出来了', '改它就行 · 原书一个字没动')
+      } catch (err) {
+        toast.error('摘出来失败', String(err).slice(0, 120))
+      }
     },
     [flush],
   )
@@ -1592,6 +1625,7 @@ export default function App() {
           comments={heavyOutline ? [] : comments}
           onSaveComment={saveComment}
           onRemoveComment={removeComment}
+          onEditChapter={editChapterFromReader}
           onClose={() => {
             setReaderOpen(false)
             setHeavyOutline(null)

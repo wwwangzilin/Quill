@@ -31,6 +31,14 @@ interface Props {
   onSaveComment: (c: Comment) => void
   onRemoveComment: (id: string) => void
   onClose: () => void
+  /**
+   * 「把这一章摘出来改」。
+   *
+   * 超大文档**进不了编辑器** —— ProseMirror 装不下，硬塞的话保存时
+   * 没加载的那部分会被当成删除（真实的数据丢失，不是卡一下）。
+   * 所以编辑入口按章来：把这一章原样复制成一篇普通文档，随便改，原书一个字不动。
+   */
+  onEditChapter?: (title: string, markdown: string) => void
 }
 
 /**
@@ -282,6 +290,7 @@ export default function ReaderView({
   onSaveComment,
   onRemoveComment,
   onClose,
+  onEditChapter,
 }: Props) {
   /** 超大文档：只有目录，正文按章现取 */
   const heavy = Boolean(outline?.length)
@@ -377,6 +386,8 @@ export default function ReaderView({
    */
   const [heavyBlocks, setHeavyBlocks] = useState<JSONContent[]>([])
   const [loadingBlocks, setLoadingBlocks] = useState(false)
+  /** 这一章的**原始 Markdown** —— 「摘出来改」直接拿它，不用再反向转一遍 */
+  const [heavyRaw, setHeavyRaw] = useState('')
 
   useEffect(() => {
     if (!heavy || !outline) return
@@ -384,11 +395,18 @@ export default function ReaderView({
     if (!seg) return
     let alive = true
     setLoadingBlocks(true)
+    /*
+     * 换章先清掉上一章的原文。
+     * 不清的话，这一章还在路上时点「摘出来改」，摘出来的是**上一章**
+     * —— 主人会拿着一篇标题对不上的文档改半天。
+     */
+    setHeavyRaw('')
     void storage
       .readSlice?.(docId, seg.from, seg.to)
       .then((raw) => {
         if (!alive) return
         // 扒来的小说是单换行分段，Markdown 不认 —— 不补就是一个巨型段落
+        setHeavyRaw(raw ?? '')
         setHeavyBlocks(parseDocument(softWrapToParagraphs(raw ?? '')).doc.content ?? [])
       })
       .catch(() => {
@@ -723,6 +741,17 @@ export default function ReaderView({
               title={slicing ? '不按章节，整篇连着读' : '按章节切开，用目录跳章'}
             >
               {slicing ? '整篇读' : '按章节读'}
+            </button>
+          )}
+          {/* 超大文档的编辑入口：把这一章复制成一篇能改的文档，原书一个字不动 */}
+          {heavy && onEditChapter && (
+            <button
+              className="btn ghost"
+              disabled={!heavyRaw}
+              onClick={() => onEditChapter(`${title} · ${chapter.title}`, heavyRaw)}
+              title="把这一章摘成一篇独立文档来改 —— 原书不动"
+            >
+              摘出来改
             </button>
           )}
           <span className="reader-now">{chapter.title}</span>
