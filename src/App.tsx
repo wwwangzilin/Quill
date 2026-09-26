@@ -52,7 +52,7 @@ import {
 } from './core/fonts'
 import { initStorage, storage } from './core/storage'
 import { splitTitle } from './core/md-parse'
-import LightReader from './ui/LightReader'
+import type { RawChapter } from './core/rawChapters'
 import { docToMarkdown, safeFileName } from './core/markdown'
 import type { Doc, DocMeta, ViewMode } from './core/types'
 import { WELCOME } from './core/welcome'
@@ -197,13 +197,16 @@ export default function App() {
   const [jumpPath, setJumpPath] = useState<number[] | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   /**
-   * 超大文档的轻量阅读通道。
+   * 超大文档：只揣一份章节目录，正文交给 ReaderView 按章现取。
    *
-   * 几百万字的文档不进编辑器 —— 解析成 JSONContent 是二十多万个块，
-   * ProseMirror 撑不住；而且编辑器一旦「只加载一半」，保存时会把另一半截掉。
-   * 这里收的是**原文**，只读、按章现解析。
+   * 刻意**不复用 `doc`** —— 那篇根本解析不成 JSONContent（二十多万个块）。
+   * 但渲染走的还是同一个 ReaderView，所以界面跟普通小说一模一样。
    */
-  const [light, setLight] = useState<{ id: string; title: string } | null>(null)
+  const [heavyOutline, setHeavyOutline] = useState<{
+    id: string
+    title: string
+    marks: RawChapter[]
+  } | null>(null)
   /** 小说阅读视图：左边章节目录，右边正文按栏排（跟编辑模式完全分开，只读） */
   const [readerOpen, setReaderOpen] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
@@ -728,17 +731,19 @@ export default function App() {
       const o = storage.outline ? await storage.outline(id).catch(() => null) : null
       if (o && o.bytes > HEAVY_BYTES) {
         const head = storage.readSlice ? await storage.readSlice(id, 0, 600).catch(() => '') : ''
-        setLight({ id, title: splitTitle(head).title || '未命名' })
+        setHeavyOutline({ id, title: splitTitle(head).title || '未命名', marks: o.marks })
+        // 直接开分栏阅读 —— 超大文档的正文只有它能渲染得动
+        setReaderOpen(true)
         toast.info(
-          `这篇太长了，已经用轻量模式打开 · 约 ${Math.round(o.bytes / 3 / 10000)} 万字`,
-          '只读 · 想编辑请先把文档拆开',
+          `这篇太长了，直接用分栏阅读打开 · 约 ${Math.round(o.bytes / 3 / 10000)} 万字`,
+          '只读 · 想编辑可以把它拆成几篇',
         )
         return
       }
+      setHeavyOutline(null)
 
       const next = await storage.get(id)
       if (!next) return
-      setLight(null)
       docRef.current = next
       liveRef.current = { title: next.title, content: next.content }
       lastCharsRef.current = countChars(next.content)
@@ -1573,19 +1578,24 @@ export default function App() {
       />
       <CommandPalette docs={docs} commands={paletteCommands} onPickDoc={(id) => void openDoc(id)} />
       <SearchPanel onPick={jumpToHit} />
-      {/* 超大文档走轻量阅读：不进 ProseMirror，只读、按章现解析 */}
-      {light && (
-        <LightReader docId={light.id} title={light.title} onClose={() => setLight(null)} />
-      )}
-      {readerOpen && doc && (
+      {/*
+        阅读视图只有这一个入口。普通文档给 doc，超大文档给 outline ——
+        两条数据来源、**同一个组件**，所以界面完全一致。
+        （上一版给超大文档另写了个 LightReader，界面跟这儿对不上。）
+      */}
+      {readerOpen && (doc || heavyOutline) && (
         <ReaderView
-          docId={doc.id}
-          title={doc.title}
-          doc={doc.content}
-          comments={comments}
+          docId={heavyOutline?.id ?? doc!.id}
+          title={heavyOutline?.title ?? doc!.title}
+          doc={heavyOutline ? undefined : doc!.content}
+          outline={heavyOutline?.marks}
+          comments={heavyOutline ? [] : comments}
           onSaveComment={saveComment}
           onRemoveComment={removeComment}
-          onClose={() => setReaderOpen(false)}
+          onClose={() => {
+            setReaderOpen(false)
+            setHeavyOutline(null)
+          }}
         />
       )}
       <AiChatPanel

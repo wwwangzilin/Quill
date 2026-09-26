@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
-import { guessNovel, splitChapters } from '../core/chapters'
+import { guessNovel, splitChapters, type NovelGuess } from '../core/chapters'
 import { MAX_QUOTE, blockOffsets, findIn, flatText, nodeText, type Comment } from '../core/comments'
 import { posLabel, readPos, writePos } from '../core/lastPos'
+import type { RawChapter } from '../core/rawChapters'
+import { parseDocument } from '../core/md-parse'
+import { storage } from '../core/storage'
 import CommentsPanel from './CommentsPanel'
 import { toast } from './toast'
 
@@ -10,7 +13,20 @@ interface Props {
   /** 用到哪篇 —— 上次读到哪一屏是按文档记的 */
   docId: string
   title: string
-  doc: JSONContent
+  /**
+   * 正常文档：解析好的内容。
+   * 超大文档**不给这个**，只给下面的 `outline` —— 那篇根本解析不起。
+   */
+  doc?: JSONContent
+  /**
+   * 超大文档的章节目录（Rust 侧流式扫出来的）。
+   *
+   * 给了它就**不解析全文**：目录从这儿来，正文翻到哪章现取哪一段。
+   * 关键是 —— 它走的还是**这一个组件**，所以左边目录、双栏排版、翻页、
+   * 批注底纹、进出动画全都跟普通小说一模一样。
+   * （上一版我另写了个 LightReader，界面跟这儿对不上，主人一眼就看出来了。）
+   */
+  outline?: RawChapter[]
   comments: Comment[]
   onSaveComment: (c: Comment) => void
   onRemoveComment: (id: string) => void
@@ -246,16 +262,44 @@ function Block({
  * `CommentsPanel` 抽屉、`.ai-sel` 浮条、`.has-comment` 底纹。
  * 手感不一致通常不是审美问题，是「另起了一套」。
  */
+/**
+ * 把「单换行分段」补齐成空行。
+ *
+ * 从网页扒来的小说几乎都是单换行分段，而 Markdown 要空行才认段落 ——
+ * 不补的话整章会挤成一个巨型段落（实测 700 万字那篇，一章 6 万字出来只有一个块）。
+ * 只对当前这一章跑，几万字符，很快。
+ */
+function softWrapToParagraphs(md: string): string {
+  return md.replace(/([^\n])\n(?!\n)/g, '$1\n\n')
+}
+
 export default function ReaderView({
   docId,
   title,
   doc,
+  outline,
   comments,
   onSaveComment,
   onRemoveComment,
   onClose,
 }: Props) {
-  const guess = useMemo(() => guessNovel(doc), [doc])
+  /** 超大文档：只有目录，正文按章现取 */
+  const heavy = Boolean(outline?.length)
+
+  const guess = useMemo<NovelGuess>(
+    () =>
+      doc
+        ? guessNovel(doc)
+        : {
+            likely: false,
+            score: 0,
+            chars: 0,
+            chapters: outline?.length ?? 0,
+            dialogue: 0,
+            reasons: [],
+          },
+    [doc, outline],
+  )
   /**
    * 是小说就**直接分章**，不做选择题。
    *
@@ -264,36 +308,46 @@ export default function ReaderView({
    * 以前那版要人先点一下「按章节读」才算数 —— 识别都识别出来了，
    * 还把决定权推回来，等于白识别。
    */
-  const [slicedOn, setSlicedOn] = useState(guess.likely)
+  const [slicedOn, setSlicedOn] = useState(heavy || guess.likely)
   const slicing = slicedOn
   /** 知会只发一次：进来时判成什么就说什么，别每次重渲染又弹一条 */
   const announced = useRef(false)
 
   useEffect(() => {
-    if (announced.current || !guess.likely) return
+    if (announced.current || heavy || !guess.likely) return
     announced.current = true
     toast.info(
       `已按章节识别 · ${guess.chapters} 章`,
       `${guess.reasons.join(' · ')} · 工具条上可以切回整篇读`,
     )
-  }, [guess.likely, guess.chapters, guess.reasons])
+  }, [heavy, guess.likely, guess.chapters, guess.reasons])
 
-  const chapters = useMemo(
-    () =>
-      slicing
-        ? splitChapters(doc, title)
-        : [
-            {
-              title,
-              level: 1,
-              start: 0,
-              line: 0,
-              inferred: false,
-              blocks: doc.content ?? [],
-            },
-          ],
-    [doc, title, slicing],
-  )
+  const chapters = useMemo(() => {
+    // 超大文档：目录是 Rust 给的，这里不再碰正文
+    if (heavy && outline) {
+      return outline.map((c, i) => ({
+        title: c.title || `第 ${i + 1} 节`,
+        level: 2,
+        start: i,
+        line: 0,
+        inferred: true,
+        blocks: [] as JSONContent[],
+      }))
+    }
+    if (!doc) return []
+    return slicing
+      ? splitChapters(doc, title)
+      : [
+          {
+            title,
+            level: 1,
+            start: 0,
+            line: 0,
+            inferred: false,
+            blocks: doc.content ?? [],
+          },
+        ]
+  }, [heavy, outline, doc, title, slicing])
   const [ci, setCi] = useState(0)
   const [page, setPage] = useState(0)
   const [pages, setPages] = useState(1)
@@ -315,11 +369,46 @@ export default function ReaderView({
 
   const chapter = chapters[Math.min(ci, chapters.length - 1)]
 
+  /**
+   * 这一章要显示的内容。
+   *
+   * 普通文档用解析好的；超大文档只把**当前这一章**取回来再解析 ——
+   * 一章中位几千字，不到 1ms。全文一个字都不搬。
+   */
+  const [heavyBlocks, setHeavyBlocks] = useState<JSONContent[]>([])
+  const [loadingBlocks, setLoadingBlocks] = useState(false)
+
+  useEffect(() => {
+    if (!heavy || !outline) return
+    const seg = outline[Math.min(ci, outline.length - 1)]
+    if (!seg) return
+    let alive = true
+    setLoadingBlocks(true)
+    void storage
+      .readSlice?.(docId, seg.from, seg.to)
+      .then((raw) => {
+        if (!alive) return
+        // 扒来的小说是单换行分段，Markdown 不认 —— 不补就是一个巨型段落
+        setHeavyBlocks(parseDocument(softWrapToParagraphs(raw ?? '')).doc.content ?? [])
+      })
+      .catch(() => {
+        if (alive) setHeavyBlocks([])
+      })
+      .finally(() => {
+        if (alive) setLoadingBlocks(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [heavy, outline, docId, ci])
+
+  const blocks = heavy ? heavyBlocks : (chapter?.blocks ?? [])
+
   /* ---------------- 批注 ---------------- */
 
-  const text = useMemo(() => flatText(chapter.blocks), [chapter])
+  const text = useMemo(() => flatText(blocks), [blocks])
   /** 每个顶层块的起始下标 —— 少了这个，第二块之后的批注全都切不准 */
-  const offsets = useMemo(() => blockOffsets(chapter.blocks), [chapter])
+  const offsets = useMemo(() => blockOffsets(blocks), [blocks])
   const marks = useMemo<Mark[]>(
     () =>
       comments.flatMap((c) => {
@@ -412,15 +501,31 @@ export default function ReaderView({
     }
   }, [])
 
-  // 换章、窗口缩放、字体变化都要重新量 —— 栏宽一变，页数就变了
+  /*
+   * 换章、窗口缩放、字体变化都要重新量 —— 栏宽一变，页数就变了。
+   *
+   * ⚠️ 依赖里必须带上 blockCount：超大文档的正文是**异步**取回来的
+   * （先挂空壳、正文随后到），只认 ci 的话第一次打开量的是一具空壳 ——
+   * 页数锁死在「1 / 1」，这一章后面几万字压根翻不到（实装机上踩过）。
+   * 用 length 而不是 blocks 本身：非重载分支的 `?? []` 每次渲染都是新数组，
+   * 直接把 blocks 放进依赖会转成死循环。
+   */
+  const blockCount = blocks.length
   useEffect(() => {
     measure()
+    // 落定后再补一次：content-visibility 的占位尺寸要等一帧才准
+    const t = window.setTimeout(measure, 160)
     const view = viewRef.current
-    if (!view || typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(measure)
-    ro.observe(view)
-    return () => ro.disconnect()
-  }, [measure, ci])
+    let ro: ResizeObserver | null = null
+    if (view && typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(measure)
+      ro.observe(view)
+    }
+    return () => {
+      window.clearTimeout(t)
+      ro?.disconnect()
+    }
+  }, [measure, ci, blockCount])
 
   /*
    * 换章回到第一屏。
@@ -638,6 +743,10 @@ export default function ReaderView({
         </header>
 
         <div className="reader-pages" ref={viewRef} onMouseUp={pickSelection}>
+          {/* 超大文档：这一章还在取的路上 */}
+          {heavy && loadingBlocks && !blocks.length && (
+            <div className="reader-loading">正在取这一章…</div>
+          )}
           {/* 浮条直接用编辑器那一套 .ai-sel：同样的结构、同样的定位、
               同样的出现动画。手感不一致往往就是「另起了一套」造成的。 */}
           {sel && (
@@ -660,11 +769,11 @@ export default function ReaderView({
               「换了一章」这件事说清楚。翻页不换 ci，所以不会误播。 */}
           <div
             key={ci}
-            className="reader-track"
+            className={'reader-track' + (heavy ? ' is-heavy' : '')}
             ref={trackRef}
             style={{ transform: `translateX(-${page * step}px)` }}
           >
-            {chapter.blocks.map((b, i) => {
+            {blocks.map((b, i) => {
               // 首块可能要裁掉属于上一章的那几行
               const cut = i === 0 ? cutLeadingLines(b, chapter.line) : { node: b, skipped: 0 }
               return cut.node ? (
