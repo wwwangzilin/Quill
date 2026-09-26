@@ -201,17 +201,13 @@ export default function App() {
   /**
    * 右侧栏：外观这类「边看边调」的设置放这儿，调的时候不用离开正文。
    *
-   * **默认展开** —— 这是被主人连着说两句才定下来的：第一版做成默认收起，
-   * 结果他连这东西存不存在都不知道，先报「没在右边啊」、再报「不会自动展开啊」。
-   * 新做的东西藏起来等于没做。只有**手动关过**才记成收起。
+   * **每次打开都展开，不记「上次关过」**。
+   * 它是「边看边调」的东西，藏起来就等于没有 —— 主人报过两次
+   * （先是「没在右边啊」，后是「右栏怎么没有自动展开」）。
+   * 点 ✕ 收起来是个**临时动作**，不该变成永久状态：
+   * 之前记进 localStorage，结果点过一次就再也见不到它了。
    */
-  const [asideShown, setAsideShown] = useState(() => {
-    try {
-      return localStorage.getItem('quill:aside') !== '0'
-    } catch {
-      return true
-    }
-  })
+  const [asideShown, setAsideShown] = useState(true)
   /**
    * 超大文档：只揣一份章节目录，正文交给 ReaderView 按章现取。
    *
@@ -787,14 +783,9 @@ export default function App() {
     onAutostart: applyAutostart,
   }
 
-  /** 收起右栏（右栏自带的 ✕ 用它）—— 状态记本地，和顶栏那个开关共用一套约定 */
+  /** 收起右栏（右栏自带的 ✕ 用它）—— 只改这一会儿的状态，不往本地记 */
   const closeAside = useCallback(() => {
     setAsideShown(false)
-    try {
-      localStorage.setItem('quill:aside', '0')
-    } catch {
-      // 存不下也不影响这次使用
-    }
   }, [])
 
   /* ---------------- 文档操作 ---------------- */
@@ -1848,17 +1839,13 @@ export default function App() {
           className={'btn ghost icon' + (asideShown ? ' on' : '')}
           onClick={() => {
             /*
-             * 副作用（写 localStorage）放在 setState **外面**。
-             * 塞进 updater 里的话，React 在 StrictMode 下会把 updater 跑两遍 ——
-             * 第二遍拿到的已经是最新值，翻回去又变回原样，表现就是「点了没反应」。
+             * 只翻这一会儿的状态，**不往 localStorage 记**。
+             * 记了的话：点一次 ✕，以后每次打开都见不到右栏，还以为功能没了
+             * （主人报过「右栏怎么没有自动展开」）。
+             * 也别把副作用塞进 setState 的 updater —— StrictMode 会把 updater
+             * 跑两遍，第二遍拿到的已经是最新值，翻回去等于没点。
              */
-            const next = !asideShown
-            setAsideShown(next)
-            try {
-              localStorage.setItem('quill:aside', next ? '1' : '0')
-            } catch {
-              // 存不下也不影响这次使用
-            }
+            setAsideShown((v) => !v)
           }}
           title={asideShown ? '收起外观栏' : '展开外观栏 · 主题、字体、排版'}
         >
