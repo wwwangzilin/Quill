@@ -32,13 +32,24 @@ interface Props {
   onRemoveComment: (id: string) => void
   onClose: () => void
   /**
-   * 「把这一章摘出来改」。
+   * 「把这一章摘出来改」—— 按章编辑，改完能合并回去。
    *
-   * 超大文档**进不了编辑器** —— ProseMirror 装不下，硬塞的话保存时
-   * 没加载的那部分会被当成删除（真实的数据丢失，不是卡一下）。
-   * 所以编辑入口按章来：把这一章原样复制成一篇普通文档，随便改，原书一个字不动。
+   * 整篇塞进编辑器是二十多万个块，会卡；按章取只有几千字，随手就能改。
+   * 摘出来的是一篇独立文档，改完由主人决定要不要并回原书。
    */
-  onEditChapter?: (title: string, markdown: string) => void
+  onEditChapter?: (
+    title: string,
+    markdown: string,
+    range: { from: number; to: number },
+  ) => void
+  /**
+   * 「去编辑」—— 切回编辑器。
+   *
+   * 分栏阅读再顺也只有一个「看」字：标签、批注面板、导图、AI、导出
+   * 全都待在编辑器里。超大文档进编辑器是卡，但功能是全的，
+   * 所以这条路得留着 —— 不能因为「卡」就把人关在只读里。
+   */
+  onSwitchToEditor?: () => void
 }
 
 /**
@@ -291,6 +302,7 @@ export default function ReaderView({
   onRemoveComment,
   onClose,
   onEditChapter,
+  onSwitchToEditor,
 }: Props) {
   /** 超大文档：只有目录，正文按章现取 */
   const heavy = Boolean(outline?.length)
@@ -421,6 +433,8 @@ export default function ReaderView({
   }, [heavy, outline, docId, ci])
 
   const blocks = heavy ? heavyBlocks : (chapter?.blocks ?? [])
+  /** 当前这一章在原文件里的**字节区间** —— 摘出去改、合并回来，全靠它定位 */
+  const segRange = heavy && outline ? outline[Math.min(ci, outline.length - 1)] : null
 
   /* ---------------- 批注 ---------------- */
 
@@ -743,12 +757,27 @@ export default function ReaderView({
               {slicing ? '整篇读' : '按章节读'}
             </button>
           )}
+          {/* 出去的路。阅读视图功能少，别把人关在只读里 */}
+          {heavy && onSwitchToEditor && (
+            <button
+              className="btn ghost"
+              onClick={onSwitchToEditor}
+              title="进编辑器 —— 标签、导图、AI 都在那边；但这篇很大，会卡"
+            >
+              去编辑
+            </button>
+          )}
           {/* 超大文档的编辑入口：把这一章复制成一篇能改的文档，原书一个字不动 */}
           {heavy && onEditChapter && (
             <button
               className="btn ghost"
               disabled={!heavyRaw}
-              onClick={() => onEditChapter(`${title} · ${chapter.title}`, heavyRaw)}
+              onClick={() =>
+                onEditChapter(`${title} · ${chapter.title}`, heavyRaw, {
+                  from: segRange?.from ?? 0,
+                  to: segRange?.to ?? 0,
+                })
+              }
               title="把这一章摘成一篇独立文档来改 —— 原书不动"
             >
               摘出来改

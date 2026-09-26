@@ -55,6 +55,7 @@ import { splitTitle } from './core/md-parse'
 import type { RawChapter } from './core/rawChapters'
 import { docToMarkdown, safeFileName } from './core/markdown'
 import { parseDocument } from './core/md-parse'
+import { clearOrigin, fnv1a32, readOrigin, writeOrigin } from './core/chapterOrigin'
 import type { Doc, DocMeta, ViewMode } from './core/types'
 import { WELCOME } from './core/welcome'
 import { setAssetResolver } from './core/asset'
@@ -720,6 +721,74 @@ export default function App() {
    */
   const HEAVY_BYTES = 1_200_000
 
+  /**
+   * 把「摘出来改」的那一章并回原书。
+   *
+   * 覆盖前先核对：Rust 侧拿 `[from, to)` 的实际长度和摘走时比，对不上就拒绝 ——
+   * 免得在一本已经变过的书上按老坐标覆盖，把别处的改动一起抹掉。
+   */
+  const mergeBack = useCallback(
+    async (id: string) => {
+      const o = readOrigin(id)
+      const me = docRef.current
+      if (!o) return
+      if (!me || me.id !== id) {
+        toast.error('合并失败', '先打开这一篇再合并')
+        return
+      }
+      try {
+        await flush() // 先把这一篇存好，下面序列化的才是刚存下去的内容
+        if (!storage.writeSlice) throw new Error('这个版本不支持合并')
+        /*
+         * **不传 title**：docToMarkdown 一旦拿到标题就会在最前面塞一行 `# 书名`，
+         * 并回原书就变成章节里凭空多出个大标题。
+         */
+        const md = docToMarkdown(me.content)
+        const size = await storage.writeSlice(o.srcId, o.from, o.to, md, o.digest)
+        clearOrigin(id)
+        toast.success('合并回去了', `《${o.srcTitle}》${o.chapterTitle} · 全书现在 ${size} 字节`)
+      } catch (err) {
+        toast.error('合并失败', String(err).slice(0, 160))
+      }
+    },
+    [flush],
+  )
+
+  /**
+   * 真的把正文搬进编辑器。
+   *
+   * 超大文档走这条路会卡（二十多万个块），但**功能是齐的** ——
+   * 标签、批注、导图、AI、导出全在。要功能就得认这份卡，所以由主人自己选。
+   */
+  const openInEditor = useCallback(async (id: string) => {
+    const next = await storage.get(id)
+    if (!next) return
+    docRef.current = next
+    liveRef.current = { title: next.title, content: next.content }
+    lastCharsRef.current = countChars(next.content)
+    setDoc(next)
+    setSessionKey((k) => k + 1)
+    setSaving('idle')
+    setView('write')
+    setHeavyOutline(null)
+    setReaderOpen(false)
+    /*
+     * 这一篇要是「摘出来改」出来的，就告诉主人它的来路，顺手留一个合并入口。
+     * 放在打开**之后**问：人还没改呢，一进门就问「要不要合并」没道理。
+     */
+    const origin = readOrigin(id)
+    if (origin) {
+      toast.ask(
+        `这篇是从《${origin.srcTitle}》摘出来的`,
+        `${origin.chapterTitle} · 改完能并回原书，也能就当独立的一篇留着`,
+        [
+          { label: '合并回原书', primary: true, run: () => void mergeBack(id) },
+          { label: '先不改', run: () => {} },
+        ],
+      )
+    }
+  }, [mergeBack])
+
   const openDoc = useCallback(
     async (id: string) => {
       await flush()
@@ -732,28 +801,35 @@ export default function App() {
       const o = storage.outline ? await storage.outline(id).catch(() => null) : null
       if (o && o.bytes > HEAVY_BYTES) {
         const head = storage.readSlice ? await storage.readSlice(id, 0, 600).catch(() => '') : ''
-        setHeavyOutline({ id, title: splitTitle(head).title || '未命名', marks: o.marks })
-        // 直接开分栏阅读 —— 超大文档的正文只有它能渲染得动
-        setReaderOpen(true)
-        toast.info(
-          `这篇太长了，直接用分栏阅读打开 · 约 ${Math.round(o.bytes / 3 / 10000)} 万字`,
-          '只读 · 想编辑可以把它拆成几篇',
+        const heavyTitle = splitTitle(head).title || '未命名'
+        const wan = Math.round(o.bytes / 3 / 10000)
+        /*
+         * 超大文档**不替主人做决定**。
+         *
+         * 上一版我直接把人塞进分栏阅读，理由是编辑器会卡。理由没错，**结论错了** ——
+         * 主人一句「那些 tag 什么的功能全都用不了」就把问题戳穿了：能看不等于能用。
+         * 所以两条路都摆出来，各自的代价写清楚，让他自己挑。
+         */
+        toast.ask(
+          `这篇约 ${wan} 万字，要编辑还是只看？`,
+          '进编辑器：标签/导图/AI 全在，但会卡　·　分栏阅读：很顺，但只能看',
+          [
+            { label: '进编辑器', primary: true, run: () => void openInEditor(id) },
+            {
+              label: '分栏阅读',
+              run: () => {
+                setHeavyOutline({ id, title: heavyTitle, marks: o.marks })
+                setReaderOpen(true)
+                toast.info(`分栏阅读 · 约 ${wan} 万字`, '按章现取 · 想编辑随时切过去')
+              },
+            },
+          ],
         )
         return
       }
-      setHeavyOutline(null)
-
-      const next = await storage.get(id)
-      if (!next) return
-      docRef.current = next
-      liveRef.current = { title: next.title, content: next.content }
-      lastCharsRef.current = countChars(next.content)
-      setDoc(next)
-      setSessionKey((k) => k + 1)
-      setSaving('idle')
-      setView('write')
+      await openInEditor(id)
     },
-    [flush],
+    [flush, openInEditor],
   )
 
   const createNew = useCallback(
@@ -784,12 +860,26 @@ export default function App() {
    * 所以走「摘一章出来改」，原书保持只读、一个字不动。
    */
   const editChapterFromReader = useCallback(
-    async (title: string, markdown: string) => {
+    async (title: string, markdown: string, range: { from: number; to: number }) => {
       try {
         await flush()
         const fresh = await storage.create(title)
         const withBody = { ...fresh, content: parseDocument(markdown).doc }
         await storage.put(withBody)
+        /*
+         * 记下这一篇的来路，改完才能并回去。
+         * 只有区间成立时才记 —— 坏坐标比没有坐标危险得多。
+         */
+        writeOrigin(withBody.id, {
+          srcId: heavyOutline?.id ?? '',
+          srcTitle: heavyOutline?.title ?? '',
+          from: range.from,
+          to: range.to,
+          // 摘走时那一段的摘要 —— 合并前拿它认「还是不是原来那一章」
+          digest: fnv1a32(markdown),
+          chapterTitle: title.split(' · ').slice(1).join(' · ') || title,
+          at: Date.now(),
+        })
         docRef.current = withBody
         liveRef.current = { title: withBody.title, content: withBody.content }
         lastCharsRef.current = countChars(withBody.content)
@@ -805,7 +895,7 @@ export default function App() {
         toast.error('摘出来失败', String(err).slice(0, 120))
       }
     },
-    [flush],
+    [flush, heavyOutline],
   )
 
   /** Ctrl+D：跳到今天的日记，没有就按「日记」模板建一篇 */
@@ -1626,6 +1716,7 @@ export default function App() {
           onSaveComment={saveComment}
           onRemoveComment={removeComment}
           onEditChapter={editChapterFromReader}
+          onSwitchToEditor={heavyOutline ? () => void openInEditor(heavyOutline.id) : undefined}
           onClose={() => {
             setReaderOpen(false)
             setHeavyOutline(null)

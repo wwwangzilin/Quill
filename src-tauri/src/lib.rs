@@ -77,6 +77,23 @@ async fn read_doc_slice(
 }
 
 #[tauri::command]
+async fn write_doc_slice(
+    app: tauri::AppHandle,
+    file: String,
+    from: u64,
+    to: u64,
+    text: String,
+    expect_digest: u32,
+) -> Result<u64, String> {
+    let dir = prepare(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        vault::write_slice(&dir, &file, from, to, &text, expect_digest)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 fn create_doc(app: tauri::AppHandle, title: String) -> Result<DocEntry, String> {
     let dir = prepare(&app)?;
     vault::create(&dir, &title)
@@ -550,6 +567,7 @@ pub fn run() {
             read_doc,
             doc_outline,
             read_doc_slice,
+            write_doc_slice,
             create_doc,
             save_doc,
             delete_doc,

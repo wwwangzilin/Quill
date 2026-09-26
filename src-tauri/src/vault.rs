@@ -651,6 +651,132 @@ pub fn read_slice(dir: &Path, file: &str, from: u64, to: u64) -> Result<String, 
     }))
 }
 
+/// FNV-1a 32 —— 手写的，只为「这一章还是不是原来那一章」这一个判断。
+///
+/// 不是密码学哈希。它防的是**坐标错位**（原书前面被人插了几行，摘出去时记的
+/// from/to 就全偏了，照原样覆盖会写错地方），不是防恶意构造。
+fn fnv1a32(bytes: &[u8]) -> u32 {
+    let mut h: u32 = 0x811c_9dc5;
+    for b in bytes {
+        h ^= *b as u32;
+        h = h.wrapping_mul(0x0100_0193);
+    }
+    h
+}
+
+/// 把 `[from, to)` 这一段换成新正文 —— 「摘出来改」改完之后合并回原书用。
+///
+/// **整篇读、整篇写**：先把文件读进来、拼接、再整体写回。
+/// 700 万字的原稿约 21MB，读+写大约一秒 —— 按一次「合并」等一下就好，
+/// 换来的是不必处理「文件变长变短、后面的数据要挪」这类麻烦，
+/// 也不会留一个「写到一半被打断、只剩半篇」的窗口。
+///
+/// `expect_digest` 是**摘走时那一段**的 FNV-1a 32，用来确认它没被动过。
+/// 传 0 表示不校验。
+///
+/// ⚠️ 别拿「区间长度」当校验：`to - from` 和摘走时的长度是**恒等**的，
+/// 比了等于没比 —— 原书在别处被改过时它照样通过，然后写到错的位置上去。
+/// （这条是单元测试逼出来的，第一版就是这么写的。）
+pub fn write_slice(
+    dir: &Path,
+    file: &str,
+    from: u64,
+    to: u64,
+    text: &str,
+    expect_digest: u32,
+) -> Result<u64, String> {
+    let name = safe_name(file)?;
+    let path = dir.join(&name);
+    let raw = std::fs::read(&path).map_err(|e| format!("读取失败: {e}"))?;
+    let n = raw.len() as u64;
+    if from > to || to > n {
+        return Err(format!("区间越界：{from}..{to}，文件只有 {n} 字节"));
+    }
+    if expect_digest != 0 {
+        let got = fnv1a32(&raw[from as usize..to as usize]);
+        if got != expect_digest {
+            return Err(format!(
+                "这一章已经变过了（认出 {got:08x}，摘出去时是 {expect_digest:08x}）—— 先对一眼再合并"
+            ));
+        }
+    }
+    let mut out = Vec::with_capacity(raw.len() + text.len());
+    out.extend_from_slice(&raw[..from as usize]);
+    out.extend_from_slice(text.as_bytes());
+    out.extend_from_slice(&raw[to as usize..]);
+    std::fs::write(&path, &out).map_err(|e| format!("写入失败: {e}"))?;
+    let _ = commit(
+        dir,
+        &format!("合并《{}》的一章", name.trim_end_matches(".md")),
+    );
+    Ok(out.len() as u64)
+}
+
+#[cfg(test)]
+mod slice_tests {
+    use super::*;
+
+    /**
+     * 合并回写是**破坏性**操作（直接改主人那本书），所以单独钉一遍：
+     * ①只动指定的那一段，前后都得原样在；
+     * ②新内容更长时文件要跟着变长，不能把后面的章挤没；
+     * ③长度对不上（说明那一段已经变过）时必须**拒绝**，不能硬盖。
+     */
+    #[test]
+    fn write_slice_only_touches_that_range() {
+        let dir = std::env::temp_dir().join(format!("quill-slice-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = "book.md";
+        let body = "第一章 甲\n甲甲甲\n第二章 乙\n乙乙乙\n第三章 丙\n丙丙丙\n";
+        std::fs::write(dir.join(file), body).unwrap();
+
+        let o = outline(&dir, file).unwrap();
+        let seg = o
+            .marks
+            .iter()
+            .find(|m| m.title.contains("第二章"))
+            .expect("切章没切出第二章");
+        let seg_from = seg.from;
+        let seg_to = seg.to;
+        let digest = fnv1a32(&std::fs::read(dir.join(file)).unwrap()[seg_from as usize..seg_to as usize]);
+
+        // 换成更长的一段：文件要变长，第一章和第三章一个都不能少
+        let n = write_slice(
+            &dir,
+            file,
+            seg_from,
+            seg_to,
+            "第二章 乙\n改过了改过了改过了\n",
+            digest,
+        )
+        .unwrap();
+        let after = std::fs::read_to_string(dir.join(file)).unwrap();
+        assert!(after.contains("第一章 甲"), "第一章被弄丢了：{after}");
+        assert!(after.contains("第三章 丙"), "第三章被挤掉了：{after}");
+        assert!(after.contains("改过了改过了"), "新内容没写进去：{after}");
+        assert!(!after.contains("乙乙乙"), "旧内容还留着：{after}");
+        assert_eq!(n as usize, after.len(), "返回的长度和文件实际长度对不上");
+
+        // 拿**过期的摘要**再合一次：这一段已经换过内容了，必须拒绝。
+        // 这正是「原书在别处被改过、坐标已经偏了」的模型 ——
+        // 光比区间长度是拦不住的（from/to 没变，长度就没变）。
+        let err = write_slice(&dir, file, seg_from, seg_to, "乱写", digest).unwrap_err();
+        assert!(err.contains("已经变过"), "校验失败时的提示不对：{err}");
+
+        // 摘出去时的那一章原样还在时，应当放行
+        let dir2 = std::env::temp_dir().join(format!("quill-slice-test2-{}", std::process::id()));
+        std::fs::create_dir_all(&dir2).unwrap();
+        std::fs::write(dir2.join(file), body).unwrap();
+        let o2 = outline(&dir2, file).unwrap();
+        let s2 = o2.marks.iter().find(|m| m.title.contains("第二章")).unwrap();
+        let d2 = fnv1a32(&std::fs::read(dir2.join(file)).unwrap()[s2.from as usize..s2.to as usize]);
+        assert!(write_slice(&dir2, file, s2.from, s2.to, "第二章 乙\n新的\n", d2).is_ok());
+
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&dir2).ok();
+    }
+}
+
 pub fn record_writing(dir: &Path, date: &str, chars: u64) -> Result<(), String> {
     if chars == 0 {
         return Ok(());

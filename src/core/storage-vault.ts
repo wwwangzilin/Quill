@@ -106,6 +106,16 @@ export const vaultStorage: DocStorage = {
     return await invoke<string>('read_doc_slice', { file: id, from, to })
   },
 
+  /**
+   * 把改好的一章写回原书（替换 `[from, to)` 这一段）。
+   *
+   * `expectDigest` 是摘走时那一段的 FNV-1a 32：Rust 侧先核对，
+   * 对不上就拒绝 —— 免得在一本已经变过的书上按老坐标覆盖，把别处的改动抹掉。
+   */
+  async writeSlice(id, from, to, text, expectDigest) {
+    return await invoke<number>('write_doc_slice', { file: id, from, to, text, expectDigest })
+  },
+
   async create(title) {
     const entry = await invoke<DocEntry>('create_doc', { title })
     return { ...metaOf(entry), content: emptyContent() }

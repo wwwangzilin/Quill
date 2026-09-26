@@ -57,6 +57,11 @@ export interface DocStorage {
   outline?(id: string): Promise<{ marks: RawChapter[]; bytes: number }>
   /** 超大文档：只读 `[from, to)` 这一段（**字节**偏移） */
   readSlice?(id: string, from: number, to: number): Promise<string>
+  /**
+   * 把改好的一章写回原书（替换 `[from, to)` 那一段）。
+   * `expectDigest` = 摘走时那一段的 FNV-1a 32，对不上就拒绝覆盖。
+   */
+  writeSlice?(id: string, from: number, to: number, text: string, expectDigest: number): Promise<number>
   create(title: string): Promise<Doc>
   /** 保存；返回可能变化的新 id（文件模式按标题改名后会换文件名） */
   put(doc: Doc): Promise<{ id: string }>
