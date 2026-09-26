@@ -4387,6 +4387,21 @@ body.quill-dragging * {
   height: 100%;
   pointer-events: auto;
 }
+/*
+ * 左上角对称的一块。
+ * 没有它的话：☰ / 🎛 展开后落在 y≈13~33，而那儿的元素是正文、不算热区 ——
+ * 鼠标一跟过去顶栏就收，按钮又缩回顶部，来回追永远点不到。
+ * 宽 96 只盖这两个按钮那一小片，正文是居中排的，那片基本是空白。
+ * 顶栏展开时它被 .titlebar（z-index 30）盖住，不会挡按钮。
+ */
+.titlebar-hot .hot-left {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 96px;
+  height: 40px;
+  pointer-events: auto;
+}
 
 /* ---- 无边框窗口右上角的三个窗口按钮 ---- */
 /* 系统标题栏没了，最小化 / 最大化 / 关闭就只剩这三个。但它们不该长成

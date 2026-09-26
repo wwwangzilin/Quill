@@ -334,7 +334,7 @@ export default function App() {
     let rise = 0
     const onMove = (e: MouseEvent) => {
       const hit = document.elementFromPoint(e.clientX, e.clientY)
-      const hot = Boolean(hit?.closest('.titlebar, .hot-corner, .hot-strip'))
+      const hot = Boolean(hit?.closest('.titlebar, .hot-corner, .hot-strip, .hot-left'))
       if (hot) {
         if (leave) {
           window.clearTimeout(leave)
@@ -346,8 +346,11 @@ export default function App() {
           // 这里不能省着调。打字会把顶栏收掉，可鼠标一点没动 ——
           // 要是记着「已经开过了」就不再置位，鼠标明明还停在上沿，
           // 顶栏却再也不出来了。（这个坑实装过一次。）
+          // 60ms：原来 110ms，鼠标稍快一点就划过去了 ——
+          // 顶栏还没出来，鼠标已经停在按钮该在的位置上，那儿的元素是正文，
+          // 于是被判成「离开热区」，展开的计时器当场取消。快一点才追得上手。
           setBarShown(true)
-        }, 110)
+        }, 60)
         return
       }
       // 又划走了 —— 那一下不算数
@@ -356,11 +359,12 @@ export default function App() {
         rise = 0
       }
       if (leave) return
-      // 留 420ms 缓冲：手从顶栏往编辑器里划的时候，别让它一路跟着闪
+      // 留 600ms 缓冲：既防「手从顶栏往编辑器里划」时一路跟着闪，
+      // 也给「鼠标从热区挪到按钮上」留够时间（原来 420ms 太紧）。
       leave = window.setTimeout(() => {
         leave = 0
         setBarShown(false)
-      }, 420)
+      }, 600)
     }
     window.addEventListener('mousemove', onMove)
     return () => {
@@ -1819,6 +1823,15 @@ export default function App() {
             onMouseDown={() => setBarShown(true)}
           />
           <span className="hot-corner" />
+          {/*
+            左上角也要一块常驻热区。
+            顶栏藏起来时 ☰ / 🎛 就在这儿，可它们展开后落在 y≈13~33 ——
+            而顶上那条细边只有 12px 高，鼠标一往下就跟丢了热区、顶栏又收回去，
+            按钮重新缩回顶部，来回追永远点不到（主人报的「一直点不到」就是这个）。
+            右上角早就有一块 300×46 的 hot-corner 兜着窗口按钮，左边一直缺这一块。
+            只盖左上角 96×40 —— 正文是居中排的，那片基本是空白。
+          */}
+          <span className="hot-left" />
         </div>
       )}
       <div className="titlebar" data-tauri-drag-region>
