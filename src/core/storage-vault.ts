@@ -79,6 +79,15 @@ export const vaultStorage: DocStorage = {
       createdAt: entry?.created ?? Date.now(),
       updatedAt: entry?.updated ?? Date.now(),
       starred: entry?.starred ?? false,
+      /*
+       * ⚠️ tags 一个都不能漏。
+       *
+       * 漏了的后果很隐蔽：打标签走 setTagsFor，那里是**乐观更新**，当场看得见；
+       * 可**重新打开这一篇**走的是这儿 —— tags 变 undefined，标签栏就空了。
+       * 表现正是「打了 tag 重新打开会掉」，而磁盘上的 .quill-meta.json 其实是好的、
+       * git 里也躺着一串「标签《…》」的提交。查的时候先看 meta，别急着怀疑写盘。
+       */
+      tags: entry?.tags ?? [],
       content: doc,
     }
   },
