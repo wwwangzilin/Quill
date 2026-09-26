@@ -169,20 +169,24 @@ export default function App() {
   const [docs, setDocs] = useState<DocMeta[]>([])
   const [doc, setDoc] = useState<Doc | null>(null)
   const [view, setView] = useState<ViewMode>('write')
-  // 默认收起：平时写作就是全宽的，跟 Word 一样干净；选文档走文档库。
-  // ☰ 仍可随时唤出（热力图、每日目标那些还在里面）。
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  /** 鼠标贴到左边缘临时唤出的侧栏 —— 看一眼就够，不改 ☰ 的开关状态 */
-  const [sidebarPeek, setSidebarPeek] = useState(false)
+  /*
+   * 左栏：**默认开着**，和上、下两个栏一起走「鼠标一动就展开、写作时自动收起」。
+   * （早先默认收起、靠 ☰ 或贴左边缘唤出，主人后来把规则统一成上面那条。）
+   * ☰ 仍然能手动收掉它 —— 那是「我这一会儿不想看见它」，和打字让位是两回事。
+   */
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [theme, setTheme] = useState<Theme>(() => readTheme())
   /** 换个主题：标题栏按钮和命令面板共用；按主题清单的顺序往下循环 */
   const cycleTheme = useCallback(() => setTheme((t) => nextTheme(t)), [])
 
-  /** 打字时把底栏与侧栏收起来（鼠标一动就回来） */
+  /**
+   * 打字时把**上、下、左**三个栏一起收起来，鼠标一动就都回来（让位给正文）。
+   * 右栏不在这组里 —— 它走「鼠标靠近才打开」，见下面的 asidePeek。
+   */
   const [autoHide, setAutoHide] = useState(readAutoHide)
   const [barsHidden, setBarsHidden] = useState(false)
-  /** 无边框窗口的顶栏：默认藏着，鼠标够到右上角才滑出来 */
-  const [barShown, setBarShown] = useState(false)
+  /** 右栏：鼠标靠近右边缘临时唤出 —— 看一眼就够，不改 🎛 的开关状态 */
+  const [asidePeek, setAsidePeek] = useState(false)
   const [saving, setSaving] = useState<Saving>('idle')
   const [ready, setReady] = useState(false)
   const [mapSnap, setMapSnap] = useState<{ content: JSONContent; title: string } | null>(null)
@@ -201,13 +205,13 @@ export default function App() {
   /**
    * 右侧栏：外观这类「边看边调」的设置放这儿，调的时候不用离开正文。
    *
-   * **每次打开都展开，不记「上次关过」**。
-   * 它是「边看边调」的东西，藏起来就等于没有 —— 主人报过两次
-   * （先是「没在右边啊」，后是「右栏怎么没有自动展开」）。
-   * 点 ✕ 收起来是个**临时动作**，不该变成永久状态：
-   * 之前记进 localStorage，结果点过一次就再也见不到它了。
+   * **鼠标靠近右边缘才打开**（asidePeek），默认不占地方 ——
+   * 它常驻的话会把正文挤窄 320px，写作时很亏。
+   * 🎛 按钮和栏里自带的 ✕ 是手动开关，管的是 asideOpen；
+   * 临时摸一下右边缘不开这个开关，走开就还回去（和左栏当年的 peek 一个路子）。
    */
-  const [asideShown, setAsideShown] = useState(true)
+  const [asideOpen, setAsideOpen] = useState(false)
+  const asideShown = asideOpen || asidePeek
   /**
    * 超大文档：只揣一份章节目录，正文交给 ReaderView 按章现取。
    *
@@ -246,24 +250,20 @@ export default function App() {
   /** 只在写作视图、且不在阅读/禅模式下才自动收 —— 那几个模式自己管界面 */
   const canAutoHide = autoHide && view === 'write' && !reading && !zen && Boolean(doc)
 
-  /**
-   * 顶栏和底栏是两套规则，别混在一起：
-   * - 底栏 / 侧栏（canAutoHide）：在写作视图里打字才收，鼠标一动就回来；
-   * - 顶栏（canHideBar）：窗口已经没有系统标题栏了，它本身变成「备用」的 ——
-   *   除了阅读与禅模式，任何时候都默认藏着，只有鼠标够到右上角才滑出来
-   *   （窗口按钮在那儿）。这样顶上那条跟界面不搭的边框就彻底消失了。
-   */
-  const canHideBar = autoHide && !zen && !reading
-  const barHidden = canHideBar && !barShown
-
-  /**
-   * 侧栏此刻在不在场。
+  /*
+   * 四周这四个栏，规则只有两条（主人定的）：
    *
-   * 顶栏既然要够到右上角才出来，☰ 就不再是个顺手的入口了 —— 所以侧栏改成
-   * 「鼠标贴左边缘自己出来」：靠过去看一眼，走开就还回去，不改变 ☰ 的开关心意。
-   * 手动开着（☰）当然也算数，只是在打字收起时同样让位给正文。
+   *   · 上 / 下 / 左 —— 鼠标一动就展开，**写作时自动收起**。三个栏共用
+   *     `barsHidden` 一个状态：一敲字全收（让位给正文），鼠标一动全回来。
+   *     `canAutoHide` 限定「只在写作视图、且不在阅读/禅模式」—— 别的视图
+   *     本来就不写作，没必要收。
+   *   · 右栏 —— **鼠标靠近才打开**（贴右边缘，见下面的 asidePeek）。
+   *     它是「边看边调」的外观设置，常驻会把正文挤窄。
+   *
+   * 早先顶栏走的是另一套（够到上沿才滑出来），结果鼠标往上挪它才下来、
+   * 按钮跟着往下跑，追不上 —— 主人报了七八遍。现在没有特例，四个栏两条规则。
    */
-  const sidebarShown = sidebarPeek || (sidebarOpen && !barsHidden)
+  const sidebarShown = sidebarOpen && !barsHidden
 
   /**
    * 鼠标够到状态栏上就把它钉住。
@@ -292,13 +292,11 @@ export default function App() {
   // 会把「打中文」这一整条路漏掉（表现就是打英文能收、打中文不收）。
   useEffect(() => {
     if (!canAutoHide) setBarsHidden(false)
-    if (!canHideBar) setBarShown(false)
-    if (!canAutoHide && !canHideBar) return
+    if (!canAutoHide) return
 
     const hide = () => {
       // 鼠标正搭在状态栏上就不收 —— 那儿有可拖的滑块，收走等于把东西从手里抽掉
-      if (canAutoHide && !barsPinned) setBarsHidden(true)
-      if (canHideBar) setBarShown(false)
+      if (!barsPinned) setBarsHidden(true)
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.altKey || e.metaKey) return
@@ -314,110 +312,42 @@ export default function App() {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('compositionstart', hide)
     }
-  }, [canAutoHide, canHideBar, barsPinned])
+  }, [canAutoHide, barsPinned])
 
-  // 顶栏的进出场：鼠标够到窗口上沿（或右上角）就放出来，离开一会儿再收回去。
-  // 判据是「够不够得着顶栏」，两条并用 —— 见下面 isHot。
+  /*
+   * 右栏：**鼠标靠近右边缘才打开**。
+   *
+   * 它是「边看边调」的外观设置，常驻会把正文挤窄，所以不进「鼠标一动就出」那一组。
+   * 判据用坐标而不是元素 —— 无边框窗口最右边那几像素归系统的缩放边框管
+   * （WM_NCHITTEST 直接吃掉，WebView 压根收不到事件），所以留 16px 余量。
+   * 鼠标一旦进了右栏就留着（closest('.aside')），不会点着点着自己收走。
+   */
   useEffect(() => {
-    if (!canHideBar) return
-    let leave = 0
-    /** 最后看到的鼠标位置 —— 收起定时器到期时靠它重新判一次 */
-    let lastX = -1
-    let lastY = -1
-    /**
-     * 这个位置算不算「够着顶栏了」。
-     *
-     * ① 坐标（学左栏的 e.clientX <= 16）：顶栏是滑下来的，展开途中按钮在往下走，
-     *    鼠标停在按钮该在的位置时那儿底下还是正文 —— 只看 elementFromPoint
-     *    就会判成「离开了」，顶栏刚出来又收回去，来回追。
-     *    ⚠️ 这条带子只能 **12px**，和 .hot-strip / .hot-corner 一样高。
-     *    早先写成 46px，那一带正好压住右侧栏（外观设置）的顶部 ——
-     *    鼠标挪到右栏的按钮上就被判成「够着顶栏」，顶栏展开、.body 连同右栏
-     *    被推下 46px，按钮跑了，追过去又掉出热区……来回抖，永远点不中。
-     * ② 元素：顶栏展开后 .titlebar 自己盖住 0~46，鼠标停在按钮上就靠这条留住；
-     *    顶栏里的下拉菜单（⋯ 更多 / 导出）也是它的后代，鼠标挪上去不会把它收走。
-     */
-    const isHot = (x: number, y: number) => {
-      if (y <= 12) return true
-      const el = document.elementFromPoint(x, y)
-      return Boolean(el?.closest('.titlebar, .hot-corner, .hot-strip, .hot-left'))
-    }
-    const onMove = (e: MouseEvent) => {
-      lastX = e.clientX
-      lastY = e.clientY
-      if (isHot(e.clientX, e.clientY)) {
-        if (leave) {
-          window.clearTimeout(leave)
-          leave = 0
-        }
-        /*
-         * ⚠️ **一碰到就展开，不许加延迟**。
-         *
-         * 这里原来有个「停 110ms 才展开」的防抖（怕手从正文往上甩时顶栏一路闪）。
-         * 结果主人连着报「一直点不到」：鼠标从正文冲到上沿，只在热区里停**一帧**，
-         * 定时器刚设上就被下一次 move 判成「离开」取消了 —— 顶栏永远不出来；
-         * 而按钮该在的位置（展开后 y≈13~33）那会儿底下是正文、不算热区，来回追。
-         *
-         * 左栏早就是「贴到边缘立刻出来」（见下面 sidebarPeek 的 e.clientX <= 16），
-         * 顶栏照抄这个手感就对了 —— 防闪交给收起时的 600ms 缓冲去做。
-         */
-        setBarShown(true)
-        return
-      }
-      if (leave) return
-      /*
-       * 留 600ms 缓冲，而且**到期时重新判一次当前位置**，别盲目收起。
-       *
-       * 鼠标停住不动是不会有 mousemove 的，onMove 不跑 —— 定时器一到就收的话，
-       * 会出现「手明明还搭在按钮上，顶栏自己缩回去」（实测 top 从 0 掉到 -10）。
-       * 所以记下最后的位置，到期时拿它再算一遍：还在热区就接着等。
-       */
-      leave = window.setTimeout(() => {
-        leave = 0
-        if (isHot(lastX, lastY)) return
-        setBarShown(false)
-      }, 600)
-    }
-    window.addEventListener('mousemove', onMove)
-    return () => {
-      window.removeEventListener('mousemove', onMove)
-      if (leave) window.clearTimeout(leave)
-    }
-  }, [canHideBar])
-
-  // 鼠标贴到窗口左边缘就把侧栏放出来，走开再还回去。
-  // 判据用坐标而不是元素：无边框窗口最左边那几像素归系统的缩放边框管
-  // （WM_NCHITTEST 直接吃掉，WebView 压根收不到鼠标事件），
-  // 所以留 16px 余量 —— 等事件递到手里时，鼠标早就够得着了。
-  useEffect(() => {
-    if (!canHideBar) {
-      setSidebarPeek(false)
-      return
-    }
     let leave = 0
     const onMove = (e: MouseEvent) => {
-      const hit = document.elementFromPoint(e.clientX, e.clientY)
-      const on = e.clientX <= 16 || Boolean(hit?.closest('.sidebar'))
+      const near = e.clientX >= window.innerWidth - 16
+      const on =
+        near || Boolean(document.elementFromPoint(e.clientX, e.clientY)?.closest('.aside'))
       if (on) {
         if (leave) {
           window.clearTimeout(leave)
           leave = 0
         }
-        setSidebarPeek(true)
+        setAsidePeek(true)
         return
       }
       if (leave) return
       leave = window.setTimeout(() => {
         leave = 0
-        setSidebarPeek(false)
-      }, 420)
+        setAsidePeek(false)
+      }, 500)
     }
     window.addEventListener('mousemove', onMove)
     return () => {
       window.removeEventListener('mousemove', onMove)
       if (leave) window.clearTimeout(leave)
     }
-  }, [canHideBar])
+  }, [])
 
   // 鼠标一动就放回来。收起之后留 400ms 冷静期 ——
   // 否则手搭在鼠标上轻微一抖，界面就自己弹回去了。
@@ -790,9 +720,9 @@ export default function App() {
     onAutostart: applyAutostart,
   }
 
-  /** 收起右栏（右栏自带的 ✕ 用它）—— 只改这一会儿的状态，不往本地记 */
+  /** 收起右栏（右栏里自带的 ✕ 用它）—— 只管手动开关，不往本地记 */
   const closeAside = useCallback(() => {
-    setAsideShown(false)
+    setAsideOpen(false)
   }, [])
 
   /* ---------------- 文档操作 ---------------- */
@@ -1763,8 +1693,7 @@ export default function App() {
         /* 阅读视图盖上来的时候，底下这一层要跟着往后缩 —— 见 style.css 的 .reader-on */
         (readerOpen && doc ? ' reader-on' : '') +
         (barsHidden && canAutoHide ? ' bars-hidden' : '') +
-        (barsPinned ? ' bars-pinned' : '') +
-        (barHidden ? ' bar-hidden' : '')
+        (barsPinned ? ' bars-pinned' : '')
       }
     >
       <ToastHost />
@@ -1821,25 +1750,12 @@ export default function App() {
           无边框窗口只能拖标题栏，没有它就没法用鼠标搬动窗口。
           特别注意：细边只认「按下去」，鼠标扫过不算 ——
           不然手从正文往上划一下就闪一条顶栏出来。 */}
-      {canHideBar && (
-        <div className="titlebar-hot" aria-hidden="true">
-          <span
-            className="hot-strip"
-            data-tauri-drag-region
-            onMouseDown={() => setBarShown(true)}
-          />
-          <span className="hot-corner" />
-          {/*
-            左上角也要一块常驻热区。
-            顶栏藏起来时 ☰ / 🎛 就在这儿，可它们展开后落在 y≈13~33 ——
-            而顶上那条细边只有 12px 高，鼠标一往下就跟丢了热区、顶栏又收回去，
-            按钮重新缩回顶部，来回追永远点不到（主人报的「一直点不到」就是这个）。
-            右上角早就有一块 300×46 的 hot-corner 兜着窗口按钮，左边一直缺这一块。
-            只盖左上角 96×40 —— 正文是居中排的，那片基本是空白。
-          */}
-          <span className="hot-left" />
-        </div>
-      )}
+      {/*
+        顶栏不再有自己的「热区」那一套了。
+        以前它平时藏着、要鼠标够到上沿才滑出来，于是在它上面的按钮永远点不到
+        （滑出来的过程中按钮在往下走，鼠标追过去就掉出热区，来回抖）。
+        现在上/下/左三个栏共用一套：**鼠标一动就出来，敲字才收**（见 barsHidden）。
+      */}
       <div className="titlebar" data-tauri-drag-region>
         {/* 右侧栏开关。它和左栏的 ☰ 是一对：左边是「哪些文档」，右边是「长什么样」 */}
         <button
@@ -1852,7 +1768,7 @@ export default function App() {
              * 也别把副作用塞进 setState 的 updater —— StrictMode 会把 updater
              * 跑两遍，第二遍拿到的已经是最新值，翻回去等于没点。
              */
-            setAsideShown((v) => !v)
+            setAsideOpen((v) => !v)
           }}
           title={asideShown ? '收起外观栏' : '展开外观栏 · 主题、字体、排版'}
         >

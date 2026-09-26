@@ -4358,62 +4358,11 @@ body.quill-dragging * {
   pointer-events: none;
 }
 
-/* 顶栏藏起来之后留在顶部的两块感应区。
-   顶上这条细边是主入口：鼠标靠近窗口上沿（任意横向位置）就能把顶栏唤出来 ——
-   只认右上角的话，窗口一挪到屏幕右边就够不着了。
-   右上角那块仍然保留：那里是窗口按钮区，移到那儿立刻出来，不用等。 */
-.titlebar-hot {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--titlebar-h);
-  z-index: 26;
-  pointer-events: none;
-}
-.titlebar-hot .hot-strip {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 12px;
-  pointer-events: auto;
-}
-/*
- * 右上角这块热区**只占顶上一条 12px**，不能铺满整条顶栏的高度。
- *
- * 原来它是 height: 100%（46px），一直伸到 .body 的顶端 ——
- * 而右侧栏（外观设置）就贴在那儿：鼠标一挪到右栏的标签/按钮上就被判成
- * 「够着顶栏了」，顶栏展开；顶栏一展开又把 .body 连同右栏一起推下 46px，
- * 按钮跑了，鼠标跟过去就掉出热区，顶栏又收回去 —— 来回抖，怎么也点不中。
- * （主人报了七八遍「一直点不到」，根子就在这一行。）
- *
- * 12px 只够「从上沿划进来」触发；顶栏一旦展开，.titlebar 自己盖住 0~46，
- * 鼠标停在按钮上时靠 closest('.titlebar') 判定，照样留得住。
- */
-.titlebar-hot .hot-corner {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 300px;
-  height: 12px;
-  pointer-events: auto;
-}
-/*
- * 左上角对称的一块。
- * 没有它的话：☰ / 🎛 展开后落在 y≈13~33，而那儿的元素是正文、不算热区 ——
- * 鼠标一跟过去顶栏就收，按钮又缩回顶部，来回追永远点不到。
- * 宽 96 只盖这两个按钮那一小片，正文是居中排的，那片基本是空白。
- * 顶栏展开时它被 .titlebar（z-index 30）盖住，不会挡按钮。
- */
-.titlebar-hot .hot-left {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 96px;
-  height: 40px;
-  pointer-events: auto;
-}
+/* 顶栏的热区那套（.titlebar-hot / .hot-strip / .hot-corner / .hot-left）整个删掉了。
+   它服务的是「顶栏常态藏着、够到上沿才滑出来」那套规则，而那套规则本身是错的：
+   顶栏一滑出来按钮就跟着往下走，鼠标追过去就掉出热区，来回抖，永远点不中。
+   现在上/下/左三个栏统一走 .app.bars-hidden（一敲字就收，鼠标一动就回来），
+   顶栏跟状态栏一样随时够得着，不需要什么热区。 */
 
 /* ---- 无边框窗口右上角的三个窗口按钮 ---- */
 /* 系统标题栏没了，最小化 / 最大化 / 关闭就只剩这三个。但它们不该长成
@@ -4464,9 +4413,18 @@ body.quill-dragging * {
   color: var(--accent-3);
 }
 
-/* ---- 打字时自动收起底栏与侧栏，鼠标一动就回来 ----
+/* ---- 打字时自动收起，鼠标一动就回来 ----
    和禅模式同一套手法：滑出去 + 淡掉，而不是 display: none。
-   顶栏不归这里管 —— 它连系统边框一起顶替掉了，常态本来就该是藏着的。 */
+   **上 / 下 / 左 三个栏归这里管**（主人定的规则：这三个鼠标一动就展开、
+   写作时自动收起）。右栏不在这里 —— 它走「鼠标靠近右边缘才打开」，
+   由 .aside.is-hidden 单独控。
+   顶栏以前不归这里管（它常态藏着、够到上沿才出来），结果是按钮永远追不到；
+   现在统一进来，四个栏两条规则，没有特例。 */
+.app.bars-hidden .titlebar {
+  margin-top: calc(var(--titlebar-h) * -1);
+  opacity: 0;
+  pointer-events: none;
+}
 .app.bars-hidden .statusbar {
   margin-bottom: calc(var(--statusbar-h) * -1);
   opacity: 0;
