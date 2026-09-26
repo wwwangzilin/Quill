@@ -902,18 +902,31 @@ export default function SettingsView({
   if (embedded) {
     return (
       <div className="settings-view is-embedded">
-        <nav className="settings-tabs">
-          {sections.map((s) => (
-            <button
-              key={s.id}
-              className={'settings-tab' + (s.id === section ? ' on' : '')}
-              onClick={() => setSection(s.id)}
-              title={s.hint}
-            >
-              {s.label}
+        {/*
+          自带一个收起按钮。
+          顶栏是会自动隐藏的（autoHide），藏起来之后标题栏上那个开关就点不到了 ——
+          展开右栏、鼠标一移开、顶栏收起，想关掉右栏就找不到门了。
+          所以出口长在自己身上，不依赖顶栏。
+        */}
+        <div className="settings-aside-head">
+          <nav className="settings-tabs">
+            {sections.map((s) => (
+              <button
+                key={s.id}
+                className={'settings-tab' + (s.id === section ? ' on' : '')}
+                onClick={() => setSection(s.id)}
+                title={s.hint}
+              >
+                {s.label}
+              </button>
+            ))}
+          </nav>
+          {onClose && (
+            <button className="settings-close" onClick={onClose} title="收起这一栏">
+              ✕
             </button>
-          ))}
-        </nav>
+          )}
+        </div>
         <div className="settings-content">
           <div className="settings-section">
             <h3>{current?.label}</h3>

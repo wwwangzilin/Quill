@@ -201,13 +201,15 @@ export default function App() {
   /**
    * 右侧栏：外观这类「边看边调」的设置放这儿，调的时候不用离开正文。
    *
-   * 默认关着 —— 写作时右栏纯占地，要调的时候才值得开。开关状态记在本地。
+   * **默认展开** —— 这是被主人连着说两句才定下来的：第一版做成默认收起，
+   * 结果他连这东西存不存在都不知道，先报「没在右边啊」、再报「不会自动展开啊」。
+   * 新做的东西藏起来等于没做。只有**手动关过**才记成收起。
    */
   const [asideShown, setAsideShown] = useState(() => {
     try {
-      return localStorage.getItem('quill:aside') === '1'
+      return localStorage.getItem('quill:aside') !== '0'
     } catch {
-      return false
+      return true
     }
   })
   /**
@@ -267,6 +269,27 @@ export default function App() {
    */
   const sidebarShown = sidebarPeek || (sidebarOpen && !barsHidden)
 
+  /**
+   * 鼠标够到状态栏上就把它钉住。
+   *
+   * 状态栏里有个「正文栏宽度」滑块，而这条栏是会自己收起/滑出的 ——
+   * 手伸过去的时候它正滑着，滑块跟着动，根本点不中（主人原话「它会动点不到」）。
+   * 钉住之后：鼠标在它上面时既不收、也不重播过渡，位置是死的。
+   */
+  const [barsPinned, setBarsPinned] = useState(false)
+  useEffect(() => {
+    if (!canAutoHide) {
+      setBarsPinned(false)
+      return
+    }
+    const onMove = (e: MouseEvent) => {
+      const hit = document.elementFromPoint(e.clientX, e.clientY)
+      setBarsPinned(Boolean(hit?.closest('.statusbar')))
+    }
+    window.addEventListener('mousemove', onMove)
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [canAutoHide])
+
   // 在正文里敲字就把顶栏底栏收起来。
   // 只排除两件事：带修饰键的快捷键、以及在真正的输入框里打字。
   // 这里**不**判断「焦点是不是在编辑器里」—— 中文输入法组词时那个判断不稳定，
@@ -277,7 +300,8 @@ export default function App() {
     if (!canAutoHide && !canHideBar) return
 
     const hide = () => {
-      if (canAutoHide) setBarsHidden(true)
+      // 鼠标正搭在状态栏上就不收 —— 那儿有可拖的滑块，收走等于把东西从手里抽掉
+      if (canAutoHide && !barsPinned) setBarsHidden(true)
       if (canHideBar) setBarShown(false)
     }
     const onKey = (e: KeyboardEvent) => {
@@ -294,7 +318,7 @@ export default function App() {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('compositionstart', hide)
     }
-  }, [canAutoHide, canHideBar])
+  }, [canAutoHide, canHideBar, barsPinned])
 
   // 顶栏的进出场：鼠标够到窗口上沿（或右上角）就放出来，离开一会儿再收回去。
   //
@@ -750,6 +774,16 @@ export default function App() {
     autostart,
     onAutostart: applyAutostart,
   }
+
+  /** 收起右栏（右栏自带的 ✕ 用它）—— 状态记本地，和顶栏那个开关共用一套约定 */
+  const closeAside = useCallback(() => {
+    setAsideShown(false)
+    try {
+      localStorage.setItem('quill:aside', '0')
+    } catch {
+      // 存不下也不影响这次使用
+    }
+  }, [])
 
   /* ---------------- 文档操作 ---------------- */
   /**
@@ -1719,6 +1753,7 @@ export default function App() {
         /* 阅读视图盖上来的时候，底下这一层要跟着往后缩 —— 见 style.css 的 .reader-on */
         (readerOpen && doc ? ' reader-on' : '') +
         (barsHidden && canAutoHide ? ' bars-hidden' : '') +
+        (barsPinned ? ' bars-pinned' : '') +
         (barHidden ? ' bar-hidden' : '')
       }
     >
@@ -1790,17 +1825,20 @@ export default function App() {
         {/* 右侧栏开关。它和左栏的 ☰ 是一对：左边是「哪些文档」，右边是「长什么样」 */}
         <button
           className={'btn ghost icon' + (asideShown ? ' on' : '')}
-          onClick={() =>
-            setAsideShown((v) => {
-              const next = !v
-              try {
-                localStorage.setItem('quill:aside', next ? '1' : '0')
-              } catch {
-                // 存不下也不影响这次使用
-              }
-              return next
-            })
-          }
+          onClick={() => {
+            /*
+             * 副作用（写 localStorage）放在 setState **外面**。
+             * 塞进 updater 里的话，React 在 StrictMode 下会把 updater 跑两遍 ——
+             * 第二遍拿到的已经是最新值，翻回去又变回原样，表现就是「点了没反应」。
+             */
+            const next = !asideShown
+            setAsideShown(next)
+            try {
+              localStorage.setItem('quill:aside', next ? '1' : '0')
+            } catch {
+              // 存不下也不影响这次使用
+            }
+          }}
           title={asideShown ? '收起外观栏' : '展开外观栏 · 主题、字体、排版'}
         >
           🎛
@@ -1989,7 +2027,7 @@ export default function App() {
           用 transform 的话右边会留一条空白把正文挤扁。
         */}
         <aside className={'aside' + (asideShown ? '' : ' is-hidden')}>
-          <SettingsView embedded {...settingsProps} />
+          <SettingsView embedded {...settingsProps} onClose={closeAside} />
         </aside>
       </div>
 

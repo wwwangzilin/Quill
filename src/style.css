@@ -4445,6 +4445,13 @@ body.quill-dragging * {
   opacity: 0;
   pointer-events: none;
 }
+/*
+ * 鼠标搭在状态栏上时，它的位置必须是**死的** —— 一点过渡都不许重播。
+ * 这条栏里有那个可拖的「正文栏宽度」滑块：条子在动的时候，滑块就是点不中的。
+ */
+.app.bars-pinned .statusbar {
+  transition: none;
+}
 /* 侧栏的收放不再由这里管 —— 它跟着「鼠标贴不贴左边缘」走，
    统一由 Sidebar 的 hidden 决定（负边距 + 淡出 + 模糊，见 .sidebar.hidden），
    这样只有一个真相源，不会出现「CSS 藏了但状态说开着」的拧巴。 */
@@ -4585,6 +4592,14 @@ body.quill-dragging * {
 .settings-view.is-embedded {
   background: var(--surface-solid);
 }
+.settings-aside-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 10px 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
 .settings-tabs {
   flex: 0 0 auto;
   display: flex;
@@ -4592,6 +4607,31 @@ body.quill-dragging * {
   gap: 4px;
   padding: 12px 12px 10px;
   border-bottom: 1px solid var(--border);
+}
+/* 嵌在右栏时，标签和「收起」按钮共用一行 */
+.settings-aside-head .settings-tabs {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border-bottom: none;
+}
+.settings-close {
+  flex: 0 0 auto;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.settings-close:hover {
+  color: var(--text);
+  background: var(--hover);
 }
 .settings-tab {
   appearance: none;
@@ -4776,6 +4816,11 @@ body.quill-dragging * {
  * 做得细而淡，平时不跟正文抢注意力，鼠标移上去才亮起来。
  */
 .width-slider {
+  /*
+   * flex: 0 0 auto 不能删 —— 状态栏是 flex，这一块要是被当成弹性项压，
+   * 里面的滑块就伸出容器外（实测 overflow 42px：看着偏位，也不好点）。
+   */
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -4806,18 +4851,31 @@ body.quill-dragging * {
 }
 
 .width-slider input[type='range'] {
-  width: 84px;
+  /*
+   * flex: 0 0 auto 不能删 —— 状态栏里东西一多，这个 input 会被当成弹性项压扁：
+   * 实测 CSS 写的 84px 被挤到 76px，还探出 .width-slider 右缘 42px。
+   * 主人报的「那个快速定位正文的滑块不好搞」就是这个。
+   */
+  flex: 0 0 auto;
+  width: 104px;
+  /*
+   * 轨道只有 3px 高，可点区域也就 3px —— 鼠标稍微偏一点就点不中。
+   * 用 padding 把元素撑到 15px，再让背景只画在 content-box 里（还是那条 3px 细线），
+   * 于是看起来没变、好按多了。
+   */
   height: 3px;
+  padding: 6px 0;
+  background-clip: content-box;
   margin: 0;
   appearance: none;
   border-radius: 2px;
   background: var(--grad, linear-gradient(90deg, #7c6cff, #ff6ec7));
-  opacity: 0.5;
+  opacity: 0.7;
   cursor: pointer;
   transition: opacity 0.15s var(--ease-out, ease);
 }
 .width-slider:hover input[type='range'] {
-  opacity: 0.95;
+  opacity: 1;
 }
 
 .width-slider input[type='range']::-webkit-slider-thumb {
@@ -4854,10 +4912,12 @@ body.quill-dragging * {
   color: var(--text-3);
   user-select: none;
   /* 收起时用负下边距把它推出视口，正文顺势铺到底 ——
-     和顶栏、和侧栏是同一套：让位就真让，不在底下留一条空白 */
+     和顶栏、和侧栏是同一套：让位就真让，不在底下留一条空白。
+     过渡比别处短：这条栏里有个可拖的宽度滑块，滑得越久、手伸过去越容易点空
+     （主人原话「它会动点不到」）。 */
   transition:
-    margin-bottom var(--dur) var(--ease),
-    opacity var(--dur) var(--ease);
+    margin-bottom 0.12s var(--ease),
+    opacity 0.12s var(--ease);
 }
 
 /* 保存提示平时不占视觉，只有真的在存/刚存完才亮一下 */
@@ -4899,14 +4959,19 @@ body.quill-dragging * {
   transition: width 0.3s var(--ease-out, ease);
 }
 
-/* 落到底栏后滑块比在标题栏时紧凑一点 */
+/* 落到底栏后滑块比在标题栏时紧凑一点。
+   ⚠️ 但 width 和 flex 这两个别往回缩：
+   这里原来写着 width: 76px，把通用规则里的 104px 覆盖掉了（选择器更具体），
+   结果滑块又短、又被当成弹性项压（实测溢出容器 42px），手伸过去根本点不中。
+   主人报的「快速定位正文的那个滑块会动、点不到」就是它。 */
 .statusbar .width-slider {
   height: 22px;
   padding: 0 6px;
   margin-right: 0;
 }
 .statusbar .width-slider input[type='range'] {
-  width: 76px;
+  flex: 0 0 auto;
+  width: 104px;
 }
 
 /* 阅读与禅模式要的是全屏沉浸，状态栏一并收掉 */
