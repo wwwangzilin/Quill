@@ -18,6 +18,23 @@ export interface RawChapter {
 const CN_HEAD = /^第\s*[0-9０-９一二三四五六七八九十百千零两]+\s*[章节回卷篇話话部]/
 /** Chapter 1 / CHAPTER IV */
 const EN_HEAD = /^chapter\s+([0-9]+|[ivxlcdm]+)\b/i
+/**
+ * 「1.标题」「2、标题」—— 扒下来的小说大量用这种编号分节。
+ *
+ * 实测某篇 7.4MB 的小说：「第X章」只有 20 个，而「1.…」「2.…」有 **1047** 个。
+ * 不认这种写法，目录里就剩几个「第X卷」，看着像章节整个丢了。
+ *
+ * 约束要紧，因为正文里也有数字开头的句子：
+ * · 1~4 位数字，而且分隔符**不含中文逗号** ——
+ *   「2012，2032，两者之间间隔了二十年之久。」这种年份并列就是这么挡掉的；
+ * · 分隔符后面必须是「非空白、非数字」，免得把「1.5 倍」当成一节。
+ */
+const NUM_HEAD = /^[0-9]{1,4}\s*[.．、]\s*(?=[^\s0-9])/
+/**
+ * 没有数字的固定标题词 —— 「第X章」那套认不到它们。
+ * 别往里加单字（「序」「幕」），正文里太容易撞上。
+ */
+const EXTRA_HEADS = ['楔子', '序章', '终章', '尾声', '后记', '番外', '间幕', '幕间', '外传', '作者的话']
 /** 章名后面常跟着的元信息 */
 const META_TAIL = /(作者|更新时间|字数|来源|本章|链接|简介|标签)\s*[:：]/
 
@@ -36,7 +53,8 @@ function headOf(line: string): string | null {
   if (!t) return null
   // 去掉 md 标题标记再判断（`#` 是 35）
   const bare = t.charCodeAt(0) === 35 ? t.replace(/^#{1,6}\s+/, '') : t
-  if (!CN_HEAD.test(bare) && !EN_HEAD.test(bare)) return null
+  const isExtra = EXTRA_HEADS.some((w) => bare.startsWith(w))
+  if (!CN_HEAD.test(bare) && !EN_HEAD.test(bare) && !NUM_HEAD.test(bare) && !isExtra) return null
   // 章名后面常跟着「作者：」「更新时间：」甚至正文第一句，裁掉
   const cut = bare.search(META_TAIL)
   return (cut > 0 ? bare.slice(0, cut) : bare).trim()

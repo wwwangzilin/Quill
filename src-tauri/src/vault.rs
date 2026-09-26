@@ -520,6 +520,49 @@ const MAX_HEAD_BYTES: usize = 200;
 /** 章名后面常跟着的元信息 */
 const META_KEYS: [&str; 8] = ["作者", "更新时间", "字数", "来源", "本章", "链接", "简介", "标签"];
 
+/**
+ * 光凭「第X章」认不全分节写法。
+ *
+ * 扒下来的小说很常见两种别的：
+ * ①「1.变成血族萝莉」「2.契约！」—— 纯数字编号（实测某篇 1047 节全是这个）；
+ * ②「楔子」「序章」「间幕」「后记」—— 没有数字的固定词。
+ * 只认「第X章」的话，这些文档的目录里就剩几个「第X卷」，看着像章节丢了。
+ */
+const EXTRA_HEADS: [&str; 10] = [
+    "楔子", "序章", "终章", "尾声", "后记", "番外", "间幕", "幕间", "外传", "作者的话",
+];
+
+/**
+ * 「1.标题」「2、标题」「12．标题」这种纯数字编号。
+ *
+ * 约束放得紧，因为正文里也有数字开头的句子：
+ * ①必须行首（调用方已 trim）；
+ * ②1~4 位数字，紧跟 `.` `．` `、` —— **故意不含中文逗号**：
+ *   「2012，2032，两者之间间隔了二十年之久。」这种年份并列的句子就是这么挡掉的
+ *   （实测在《半生出走》里踩到过）；
+ * ③分隔符后不能紧跟数字，免得把「1.5 倍」当成一节；
+ * ④整行不能太长（调用方按 MAX_HEAD_BYTES 卡）。
+ */
+fn is_num_head(s: &str) -> bool {
+    let b = s.as_bytes();
+    let mut i = 0;
+    while i < b.len() && b[i].is_ascii_digit() {
+        i += 1;
+    }
+    if i == 0 || i > 4 {
+        return false;
+    }
+    let mut ch = s[i..].chars();
+    match ch.next() {
+        Some('.') | Some('．') | Some('、') => {}
+        _ => return false,
+    }
+    match ch.as_str().trim_start().chars().next() {
+        Some(c) => !c.is_ascii_digit(),
+        None => false,
+    }
+}
+
 /** 「第…章/节/回/卷/篇/部」 */
 fn is_cn_head(s: &str) -> bool {
     let mut it = s.chars();
@@ -528,6 +571,11 @@ fn is_cn_head(s: &str) -> bool {
     }
     let mut n = 0;
     for c in it {
+        // 「第 1 章」也认 —— 前端那份规则（rawChapters.ts 的 CN_HEAD）本来就允许空格，
+        // 两边不一致的话，同一篇文档走编辑器和大文档会切出不同的目录。
+        if c == ' ' || c == '\u{3000}' {
+            continue;
+        }
         if c.is_ascii_digit() || "０１２３４５６７８９一二三四五六七八九十百千零两".contains(c) {
             n += 1;
             if n > 12 {
@@ -559,7 +607,8 @@ fn head_of_line(line: &str) -> Option<String> {
         return None;
     }
     let bare = t.trim_start_matches('#').trim_start();
-    if !is_cn_head(bare) && !is_en_head(bare) {
+    let is_extra = EXTRA_HEADS.iter().any(|w| bare.starts_with(w));
+    if !is_cn_head(bare) && !is_en_head(bare) && !is_num_head(bare) && !is_extra {
         return None;
     }
     let mut cut = bare.len();
@@ -710,6 +759,59 @@ pub fn write_slice(
         &format!("合并《{}》的一章", name.trim_end_matches(".md")),
     );
     Ok(out.len() as u64)
+}
+
+#[cfg(test)]
+mod head_tests {
+    use super::*;
+
+    /**
+     * 扒来的小说分节写法五花八门，只认「第X章」会让目录里只剩几个「第X卷」——
+     * 主人报的「分卷的只识别出卷、章节没识别出来」就是这种。
+     */
+    #[test]
+    fn recognizes_real_world_chapter_forms() {
+        let yes = [
+            "第一章 病人",
+            "第 12 节 收尾",
+            "第2卷 角斗场",
+            "Chapter 4",
+            "CHAPTER IV",
+            "1.变成血族萝莉",
+            "2、契约！",
+            "12．标题",
+            "楔子",
+            "序章：萝变",
+            "后记",
+            "作者的话",
+            "# 第三章 也是章的",
+        ];
+        for s in yes {
+            assert!(head_of_line(s).is_some(), "这条该认出来：{s:?}");
+        }
+
+        let no = [
+            "他说第一章很好看", // 不在行首
+            "2012，2032，两者之间间隔了二十年之久。", // 中文逗号不是编号分隔符
+            "1.5 倍于从前",     // 分隔符后紧跟数字
+            "1.",               // 光一个编号，没标题
+            "12345.编号太长了",
+            "今天天气不错",
+        ];
+        for s in no {
+            assert!(head_of_line(s).is_none(), "这条不该认：{s:?}");
+        }
+    }
+
+    /** 元信息尾巴要裁掉，章名才干净 */
+    #[test]
+    fn strips_meta_tail() {
+        assert_eq!(
+            head_of_line("第一章 病人作者：某某").as_deref(),
+            Some("第一章 病人")
+        );
+        assert_eq!(head_of_line("2、契约！").as_deref(), Some("2、契约！"));
+    }
 }
 
 #[cfg(test)]
