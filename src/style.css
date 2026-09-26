@@ -4379,12 +4379,24 @@ body.quill-dragging * {
   height: 12px;
   pointer-events: auto;
 }
+/*
+ * 右上角这块热区**只占顶上一条 12px**，不能铺满整条顶栏的高度。
+ *
+ * 原来它是 height: 100%（46px），一直伸到 .body 的顶端 ——
+ * 而右侧栏（外观设置）就贴在那儿：鼠标一挪到右栏的标签/按钮上就被判成
+ * 「够着顶栏了」，顶栏展开；顶栏一展开又把 .body 连同右栏一起推下 46px，
+ * 按钮跑了，鼠标跟过去就掉出热区，顶栏又收回去 —— 来回抖，怎么也点不中。
+ * （主人报了七八遍「一直点不到」，根子就在这一行。）
+ *
+ * 12px 只够「从上沿划进来」触发；顶栏一旦展开，.titlebar 自己盖住 0~46，
+ * 鼠标停在按钮上时靠 closest('.titlebar') 判定，照样留得住。
+ */
 .titlebar-hot .hot-corner {
   position: absolute;
   top: 0;
   right: 0;
   width: 300px;
-  height: 100%;
+  height: 12px;
   pointer-events: auto;
 }
 /*

@@ -331,32 +331,41 @@ export default function App() {
   useEffect(() => {
     if (!canHideBar) return
     let leave = 0
-    let rise = 0
     const onMove = (e: MouseEvent) => {
       const hit = document.elementFromPoint(e.clientX, e.clientY)
-      const hot = Boolean(hit?.closest('.titlebar, .hot-corner, .hot-strip, .hot-left'))
+      /*
+       * 判据要**两条并用**。
+       *
+       * ① 坐标（学左栏的 e.clientX <= 16）：顶栏是滑下来的，展开途中按钮在往下走，
+       *    鼠标停在按钮该在的位置时那儿底下还是正文 —— 只看 elementFromPoint
+       *    就会判成「离开了」，顶栏刚出来又收回去，来回追。
+       *    ⚠️ 这条带子只能 **12px**，和 .hot-strip / .hot-corner 一样高。
+       *    早先写成 46px，那一带正好压住右侧栏（外观设置）的顶部 ——
+       *    鼠标挪到右栏的按钮上就被判成「够着顶栏」，顶栏展开、.body 连同右栏
+       *    被推下 46px，按钮跑了，追过去又掉出热区……来回抖，永远点不中。
+       * ② 元素：顶栏展开后 .titlebar 自己盖住 0~46，鼠标停在按钮上就靠这条留住。
+       */
+      const hot =
+        e.clientY <= 12 ||
+        Boolean(hit?.closest('.titlebar, .hot-corner, .hot-strip, .hot-left'))
       if (hot) {
         if (leave) {
           window.clearTimeout(leave)
           leave = 0
         }
-        if (rise) return
-        rise = window.setTimeout(() => {
-          rise = 0
-          // 这里不能省着调。打字会把顶栏收掉，可鼠标一点没动 ——
-          // 要是记着「已经开过了」就不再置位，鼠标明明还停在上沿，
-          // 顶栏却再也不出来了。（这个坑实装过一次。）
-          // 60ms：原来 110ms，鼠标稍快一点就划过去了 ——
-          // 顶栏还没出来，鼠标已经停在按钮该在的位置上，那儿的元素是正文，
-          // 于是被判成「离开热区」，展开的计时器当场取消。快一点才追得上手。
-          setBarShown(true)
-        }, 60)
+        /*
+         * ⚠️ **一碰到就展开，不许加延迟**。
+         *
+         * 这里原来有个「停 110ms 才展开」的防抖（怕手从正文往上甩时顶栏一路闪）。
+         * 结果主人连着报「一直点不到」：鼠标从正文冲到上沿，只在热区里停**一帧**，
+         * 定时器刚设上就被下一次 move 判成「离开」取消了 —— 顶栏永远不出来；
+         * 而按钮该在的位置（展开后 y≈13~33）那会儿底下是正文、不算热区，来回追。
+         *
+         * 左栏早就是「贴到边缘立刻出来」（见下面 sidebarPeek 的 e.clientX <= 16），
+         * 顶栏照抄这个手感就对了 —— 防闪交给收起时的 600ms 缓冲去做。
+         */
+        setBarShown(true)
         return
-      }
-      // 又划走了 —— 那一下不算数
-      if (rise) {
-        window.clearTimeout(rise)
-        rise = 0
       }
       if (leave) return
       // 留 600ms 缓冲：既防「手从顶栏往编辑器里划」时一路跟着闪，
@@ -370,7 +379,6 @@ export default function App() {
     return () => {
       window.removeEventListener('mousemove', onMove)
       if (leave) window.clearTimeout(leave)
-      if (rise) window.clearTimeout(rise)
     }
   }, [canHideBar])
 
@@ -1900,6 +1908,13 @@ export default function App() {
         >
           📌
         </button>
+        {/*
+          右侧栏开关摆在**右上角**，不是左上角。
+          左上角那块只有 12px 高的热区：顶栏一展开按钮就跟着往下走，
+          鼠标追过去就掉出热区、顶栏又收回去 —— 来回追，永远点不到。
+          右上角这边有一块 300×46 的常驻热区（窗口按钮一直靠它），
+          摆在这儿就跟窗口按钮一样，够得着、点得中。
+        */}
         <MoreMenu items={moreItems} title="更多操作" />
         <WindowControls />
       </div>
