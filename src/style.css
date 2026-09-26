@@ -1389,9 +1389,24 @@ body,
  * 这类几何查询，纯展示。编辑器那边不敢这么放开，就是因为那些东西全依赖
  * DOM 真实存在。
  */
+/*
+ * ⚠️ 这里**故意不加** content-visibility，别再「优化」回来。
+ *
+ * 加过的，代价是左右翻页一直抽搐：视口外的块先按 contain-intrinsic-size 的
+ * 估算高度占位，翻过去真正渲染后高度变成实测值，多栏布局就跟着重排 ——
+ * 实测 scrollWidth 每翻一页都变一次（13548 → 14092），每一列的内容都挪位。
+ * 而且多栏是靠 translateX 平移的，平移**不改变布局视口**，浏览器判断
+ * 「哪些块进视野了」天生慢半拍，这个抖动躲不掉。
+ *
+ * 换回来的是什么？一章两千多个块一次性排版，打开时顿一下 ——
+ * 那一下已经被 .reader-track 的 reader-chap 淡入盖住了。
+ * 「打开顿一下」比「每次翻页都抽搐」划算得多。
+ *
+ * .is-heavy 这个类保留：它标的是「走的是超大文档的按章通道」，语义还有用。
+ */
 .reader-track.is-heavy > * {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 44px;
+  /* 只做一个不参与布局计算的隔离，别放 content-visibility */
+  contain: style;
 }
 
 /* ---------- Toast ---------- */
