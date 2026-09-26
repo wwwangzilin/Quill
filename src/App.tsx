@@ -199,6 +199,18 @@ export default function App() {
   const [jumpPath, setJumpPath] = useState<number[] | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   /**
+   * 右侧栏：外观这类「边看边调」的设置放这儿，调的时候不用离开正文。
+   *
+   * 默认关着 —— 写作时右栏纯占地，要调的时候才值得开。开关状态记在本地。
+   */
+  const [asideShown, setAsideShown] = useState(() => {
+    try {
+      return localStorage.getItem('quill:aside') === '1'
+    } catch {
+      return false
+    }
+  })
+  /**
    * 超大文档：只揣一份章节目录，正文交给 ReaderView 按章现取。
    *
    * 刻意**不复用 `doc`** —— 那篇根本解析不成 JSONContent（二十多万个块）。
@@ -709,6 +721,35 @@ export default function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [settingsOpen])
+
+  /*
+   * 设置面板只有这一份。
+   *
+   * 全屏「设置」页和右侧栏用的是**同一个组件、同一组 props** ——
+   * 复制一份的话，以后加个设置项就会漏掉一边（本项目在这上面栽过两次，
+   * 阅读视图和批注各一次，两次都是主人自己看出来的）。
+   */
+  const settingsProps = {
+    theme,
+    onTheme: setTheme,
+    autoHide,
+    onAutoHide: (v: boolean) => {
+      setAutoHide(v)
+      applyAutoHide(v)
+    },
+    prose,
+    onProse: setProse,
+    aiEnabled,
+    onAiEnabled: setAiEnabled,
+    aiDelay,
+    onAiDelay: setAiDelay,
+    goal: dailyGoal,
+    onGoal: setDailyGoal,
+    desk,
+    onDesk: applyDesk,
+    autostart,
+    onAutostart: applyAutostart,
+  }
 
   /* ---------------- 文档操作 ---------------- */
   /**
@@ -1746,6 +1787,24 @@ export default function App() {
         </div>
       )}
       <div className="titlebar" data-tauri-drag-region>
+        {/* 右侧栏开关。它和左栏的 ☰ 是一对：左边是「哪些文档」，右边是「长什么样」 */}
+        <button
+          className={'btn ghost icon' + (asideShown ? ' on' : '')}
+          onClick={() =>
+            setAsideShown((v) => {
+              const next = !v
+              try {
+                localStorage.setItem('quill:aside', next ? '1' : '0')
+              } catch {
+                // 存不下也不影响这次使用
+              }
+              return next
+            })
+          }
+          title={asideShown ? '收起外观栏' : '展开外观栏 · 主题、字体、排版'}
+        >
+          🎛
+        </button>
         <button
           className="btn ghost icon"
           onClick={() => setSidebarOpen((v) => !v)}
@@ -1834,26 +1893,8 @@ export default function App() {
             />
           ) : settingsOpen ? (
             <SettingsView
+              {...settingsProps}
               onClose={() => setSettingsOpen(false)}
-              theme={theme}
-              onTheme={setTheme}
-              autoHide={autoHide}
-              onAutoHide={(v) => {
-                setAutoHide(v)
-                applyAutoHide(v)
-              }}
-              prose={prose}
-              onProse={setProse}
-              aiEnabled={aiEnabled}
-              onAiEnabled={setAiEnabled}
-              aiDelay={aiDelay}
-              onAiDelay={setAiDelay}
-              goal={dailyGoal}
-              onGoal={setDailyGoal}
-              desk={desk}
-              onDesk={applyDesk}
-              autostart={autostart}
-              onAutostart={applyAutostart}
             />
           ) : !ready ? null : !doc ? (
             <div className="welcome">
@@ -1938,6 +1979,18 @@ export default function App() {
             focusId={commentFocus}
           />
         )}
+
+        {/*
+          右侧栏：外观这类设置，调的时候不用离开正文。
+          位置必须在这儿 —— `.body` 的**最后一个**子元素。
+          插在 <Sidebar> 前面的话 flex 会按 DOM 顺序排，它就跑到最左边去了
+          （实测踩过：宽度对、让位对、组件也对，就是「没在右边」）。
+          收起走负 margin（真让位），这是本项目的规矩 ——
+          用 transform 的话右边会留一条空白把正文挤扁。
+        */}
+        <aside className={'aside' + (asideShown ? '' : ' is-hidden')}>
+          <SettingsView embedded {...settingsProps} />
+        </aside>
       </div>
 
       {/*

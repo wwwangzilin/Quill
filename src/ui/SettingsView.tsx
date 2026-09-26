@@ -29,7 +29,17 @@ import { toast } from './toast'
 type SectionId = 'appearance' | 'writing' | 'ai' | 'backup' | 'desktop' | 'about'
 
 interface Props {
-  onClose: () => void
+  /** 嵌在右侧栏时不给 —— 那种形态没有「返回」 */
+  onClose?: () => void
+  /**
+   * 嵌在右侧栏里。
+   *
+   * ⚠️ 不是「另做一套侧栏设置」—— 就是这个组件换一种排布：去掉顶栏、
+   * 把左侧竖排导航拧成一行横向标签，内容区用**同一份**。
+   * 拆成两个组件的话，改了一边忘了另一边，两边迟早长得不一样
+   * （阅读视图和批注都在这上面栽过，主人两次都是自己看出来的）。
+   */
+  embedded?: boolean
   theme: Theme
   onTheme: (next: Theme) => void
   autoHide: boolean
@@ -65,6 +75,7 @@ const SECTIONS: { id: SectionId; label: string; hint: string; desktopOnly?: bool
  */
 export default function SettingsView({
   onClose,
+  embedded,
   theme,
   onTheme,
   autoHide,
@@ -883,6 +894,35 @@ export default function SettingsView({
   }[section]
 
   const current = sections.find((s) => s.id === section) ?? sections[0]
+
+  /*
+   * 嵌在右侧栏的形态：不要顶栏（那儿是主区域，没有「返回」可回），
+   * 竖排导航拧成一行横向标签，内容区跟全屏页**一模一样**。
+   */
+  if (embedded) {
+    return (
+      <div className="settings-view is-embedded">
+        <nav className="settings-tabs">
+          {sections.map((s) => (
+            <button
+              key={s.id}
+              className={'settings-tab' + (s.id === section ? ' on' : '')}
+              onClick={() => setSection(s.id)}
+              title={s.hint}
+            >
+              {s.label}
+            </button>
+          ))}
+        </nav>
+        <div className="settings-content">
+          <div className="settings-section">
+            <h3>{current?.label}</h3>
+            <div className="sc-group">{body}</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="settings-view">

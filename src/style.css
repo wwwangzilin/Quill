@@ -37,6 +37,8 @@
   --titlebar-h: 46px;
   --statusbar-h: 28px;
   --sidebar-w: 264px;
+  /* 右侧栏：外观这类「边看边调」的设置。比左栏宽一点，配置项一行放得下 */
+  --aside-w: 320px;
 }
 
 [data-theme="light"] {
@@ -4539,12 +4541,85 @@ body.quill-dragging * {
  * 独立占满主区域：左侧分类导航 + 右侧内容。
  * 不做成悬浮弹窗 —— 六组配置项挤一个小窗口里既难找也不像样。
  */
+/* ============================ 右侧栏 ============================ */
+
+/*
+ * 右侧栏：外观设置这类「边看边调」的东西放这儿，调的时候不用离开正文。
+ *
+ * 收起用的是**负 margin**，不是 transform —— 这是本项目的硬规矩：
+ * transform 不收占位，右边会留一条空白把正文挤扁；负 margin 是真让位，
+ * 正文会自己铺满。左栏、顶栏、底栏全是这么做的。
+ */
+.aside {
+  flex: 0 0 var(--aside-w);
+  width: var(--aside-w);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--surface-solid);
+  overflow: hidden;
+  transition: margin-right var(--dur) var(--ease);
+}
+.aside.is-hidden {
+  margin-right: calc(var(--aside-w) * -1);
+}
+/*
+ * 阅读模式与专注模式下右栏也得让位 —— 这两个模式是全屏沉浸的，
+ * 左栏让了、右栏还杵着就成了一个突兀的洞。和 .sidebar 的处理保持一致。
+ */
+.app.reading .aside,
+.app.zen .aside {
+  margin-right: calc(var(--aside-w) * -1);
+}
+
 .settings-view {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
   background: var(--bg);
+}
+
+/* 嵌在右栏里的形态：顶栏去掉，竖排导航变成一行横向标签 */
+.settings-view.is-embedded {
+  background: var(--surface-solid);
+}
+.settings-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-3);
+  background: transparent;
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.settings-tab:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+.settings-tab.on {
+  color: var(--text);
+  background: var(--accent-soft, var(--hover));
+  border-color: var(--border);
+}
+/* 右栏里内容区自己滚，别把标签条也滚走 */
+.settings-view.is-embedded .settings-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 14px 22px;
 }
 .settings-head {
   flex: 0 0 auto;
