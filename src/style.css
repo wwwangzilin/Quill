@@ -34,6 +34,11 @@
   --prose-size: 16.5px;
   --prose-leading: 1.85;
   --write-width: 720px;
+  /* 中文排版那几项，同样由 core/fonts.ts 覆盖。用 em 是为了跟着字号走 */
+  --prose-indent: 0em;
+  --prose-gap: 0.55em;
+  --prose-tracking: 0em;
+  --prose-align: start;
   --titlebar-h: 46px;
   --statusbar-h: 28px;
   --sidebar-w: 264px;
@@ -669,14 +674,46 @@ body::before {
   color: var(--text);
   caret-color: var(--accent-2);
   min-height: 40vh;
+  text-align: var(--prose-align);
+  /* 字间距：中文排得密时加一点点会松快很多；默认 0 不改变原样 */
+  letter-spacing: var(--prose-tracking);
 }
 
+/*
+ * 段间距走 --prose-gap（设置里可调），不再写死 0.65em。
+ * 用 em 而不是 px：主人把字号调大时，间距跟着长，不会突然显得挤。
+ */
 .ProseMirror > * + * {
-  margin-top: 0.65em;
+  margin-top: var(--prose-gap);
 }
 
+/*
+ * 首行缩进（设置里的「首行缩进」）。
+ *
+ * 只给**正文段落**加 —— 标题、列表、引用、代码块、表格都不该缩：
+ * 缩进是纸书里「另起一段」的标志，标题本来就跟正文不是一个层级，
+ * 列表更是一缩就串味。这些排除项一个都不能少，不然它们会一起歪。
+ */
 .ProseMirror p {
   margin: 0;
+}
+.ProseMirror > p {
+  text-indent: var(--prose-indent);
+}
+/* 列表项和引用里的段落不缩 —— 它们已经有自己的左缩进了，再加一层会挤成梯田 */
+.ProseMirror li p,
+.ProseMirror blockquote p,
+.ProseMirror td p,
+.ProseMirror th p {
+  text-indent: 0;
+}
+/*
+ * 图片、分割线这些不该因为 text-indent 被推一下（它们不是文字）。
+ * 顺手把「整段就是一个图片」那种段落的缩进也免掉。
+ */
+.ProseMirror > p:has(> img),
+.ProseMirror > p:has(> .reader-img) {
+  text-indent: 0;
 }
 
 .ProseMirror p.is-editor-empty:first-child::before {

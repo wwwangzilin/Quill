@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { storage, type RemoteInfo } from '../core/storage'
 import {
+  clampGap,
+  clampIndent,
+  clampTracking,
   clampWidth,
   FONTS,
   PROSE_DEFAULT,
@@ -422,15 +425,85 @@ export default function SettingsView({
         />
       </label>
 
+      {/*
+        中文排版这三项：首行缩进、段间距、字间距。
+        都是「一写就想调」的东西 —— 缩进两格是纸书的样子，段间距决定松紧，
+        字间距在中文排得密时能救一大截。都用 em，跟着字号走，调完字号不用重设。
+      */}
+      <label className="field">
+        <span>
+          首行缩进
+          <em className="val">{prose.indent === 0 ? '顶格' : `${prose.indent} 字`}</em>
+        </span>
+        <input
+          type="range"
+          min={0}
+          max={PROSE_RANGE.indents[PROSE_RANGE.indents.length - 1]}
+          step={1}
+          value={prose.indent}
+          onChange={(e) => onProse({ ...prose, indent: clampIndent(Number(e.target.value)) })}
+        />
+      </label>
+
+      <label className="field">
+        <span>
+          段落间距
+          <em className="val">{prose.gap.toFixed(2)} em</em>
+        </span>
+        <input
+          type="range"
+          min={PROSE_RANGE.minGap}
+          max={PROSE_RANGE.maxGap}
+          step={0.05}
+          value={prose.gap}
+          onChange={(e) => onProse({ ...prose, gap: clampGap(Number(e.target.value)) })}
+        />
+      </label>
+
+      <label className="field">
+        <span>
+          字间距
+          <em className="val">{prose.tracking.toFixed(3)} em</em>
+        </span>
+        <input
+          type="range"
+          min={PROSE_RANGE.minTracking}
+          max={PROSE_RANGE.maxTracking}
+          step={0.005}
+          value={prose.tracking}
+          onChange={(e) => onProse({ ...prose, tracking: clampTracking(Number(e.target.value)) })}
+        />
+      </label>
+
+      <label className="sc-row" style={{ cursor: 'pointer' }}>
+        <span>
+          两端对齐
+          <div className="hint">中文正文右边会齐平；英文长单词多的时候左对齐更好看</div>
+        </span>
+        <input
+          type="checkbox"
+          checked={prose.justify}
+          onChange={(e) => onProse({ ...prose, justify: e.target.checked })}
+        />
+      </label>
+
       <div
         className="font-preview"
         style={{
           fontFamily: option.stack,
           fontSize: `${prose.size}px`,
           lineHeight: prose.leading,
+          textAlign: prose.justify ? 'justify' : 'start',
+          letterSpacing: `${prose.tracking}em`,
         }}
       >
-        从前有座山，山里有座庙。The quick brown fox jumps over the lazy dog. 1234567890
+        {/* 预览也照着新设置排一遍 —— 不然拨了滑块得回头看正文才知道变没变 */}
+        <p style={{ margin: '0 0 ' + prose.gap + 'em', textIndent: `${prose.indent}em` }}>
+          从前有座山，山里有座庙。
+        </p>
+        <p style={{ margin: 0, textIndent: `${prose.indent}em` }}>
+          The quick brown fox jumps over the lazy dog. 1234567890
+        </p>
       </div>
 
       <div className="field-row">
