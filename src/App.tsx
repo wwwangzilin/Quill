@@ -317,34 +317,35 @@ export default function App() {
   }, [canAutoHide, canHideBar, barsPinned])
 
   // 顶栏的进出场：鼠标够到窗口上沿（或右上角）就放出来，离开一会儿再收回去。
-  //
-  // 判据不自己算坐标，直接问 elementFromPoint「鼠标底下现在是谁」——
-  // 顶栏里的下拉菜单（⋯ 更多 / 导出）本身就是顶栏的后代，
-  // 所以鼠标一挪到菜单上照样算「还在顶栏里」，不会点着点着顶栏自己收走。
-  //
-  // 上沿热区要**停一下才展开**：鼠标从正文往上甩是常事，
-  // 一碰就弹的话顶栏会跟着一路闪。110ms 足够滤掉「划过」，又感觉不到等待。
+  // 判据是「够不够得着顶栏」，两条并用 —— 见下面 isHot。
   useEffect(() => {
     if (!canHideBar) return
     let leave = 0
+    /** 最后看到的鼠标位置 —— 收起定时器到期时靠它重新判一次 */
+    let lastX = -1
+    let lastY = -1
+    /**
+     * 这个位置算不算「够着顶栏了」。
+     *
+     * ① 坐标（学左栏的 e.clientX <= 16）：顶栏是滑下来的，展开途中按钮在往下走，
+     *    鼠标停在按钮该在的位置时那儿底下还是正文 —— 只看 elementFromPoint
+     *    就会判成「离开了」，顶栏刚出来又收回去，来回追。
+     *    ⚠️ 这条带子只能 **12px**，和 .hot-strip / .hot-corner 一样高。
+     *    早先写成 46px，那一带正好压住右侧栏（外观设置）的顶部 ——
+     *    鼠标挪到右栏的按钮上就被判成「够着顶栏」，顶栏展开、.body 连同右栏
+     *    被推下 46px，按钮跑了，追过去又掉出热区……来回抖，永远点不中。
+     * ② 元素：顶栏展开后 .titlebar 自己盖住 0~46，鼠标停在按钮上就靠这条留住；
+     *    顶栏里的下拉菜单（⋯ 更多 / 导出）也是它的后代，鼠标挪上去不会把它收走。
+     */
+    const isHot = (x: number, y: number) => {
+      if (y <= 12) return true
+      const el = document.elementFromPoint(x, y)
+      return Boolean(el?.closest('.titlebar, .hot-corner, .hot-strip, .hot-left'))
+    }
     const onMove = (e: MouseEvent) => {
-      const hit = document.elementFromPoint(e.clientX, e.clientY)
-      /*
-       * 判据要**两条并用**。
-       *
-       * ① 坐标（学左栏的 e.clientX <= 16）：顶栏是滑下来的，展开途中按钮在往下走，
-       *    鼠标停在按钮该在的位置时那儿底下还是正文 —— 只看 elementFromPoint
-       *    就会判成「离开了」，顶栏刚出来又收回去，来回追。
-       *    ⚠️ 这条带子只能 **12px**，和 .hot-strip / .hot-corner 一样高。
-       *    早先写成 46px，那一带正好压住右侧栏（外观设置）的顶部 ——
-       *    鼠标挪到右栏的按钮上就被判成「够着顶栏」，顶栏展开、.body 连同右栏
-       *    被推下 46px，按钮跑了，追过去又掉出热区……来回抖，永远点不中。
-       * ② 元素：顶栏展开后 .titlebar 自己盖住 0~46，鼠标停在按钮上就靠这条留住。
-       */
-      const hot =
-        e.clientY <= 12 ||
-        Boolean(hit?.closest('.titlebar, .hot-corner, .hot-strip, .hot-left'))
-      if (hot) {
+      lastX = e.clientX
+      lastY = e.clientY
+      if (isHot(e.clientX, e.clientY)) {
         if (leave) {
           window.clearTimeout(leave)
           leave = 0
@@ -364,10 +365,16 @@ export default function App() {
         return
       }
       if (leave) return
-      // 留 600ms 缓冲：既防「手从顶栏往编辑器里划」时一路跟着闪，
-      // 也给「鼠标从热区挪到按钮上」留够时间（原来 420ms 太紧）。
+      /*
+       * 留 600ms 缓冲，而且**到期时重新判一次当前位置**，别盲目收起。
+       *
+       * 鼠标停住不动是不会有 mousemove 的，onMove 不跑 —— 定时器一到就收的话，
+       * 会出现「手明明还搭在按钮上，顶栏自己缩回去」（实测 top 从 0 掉到 -10）。
+       * 所以记下最后的位置，到期时拿它再算一遍：还在热区就接着等。
+       */
       leave = window.setTimeout(() => {
         leave = 0
+        if (isHot(lastX, lastY)) return
         setBarShown(false)
       }, 600)
     }
