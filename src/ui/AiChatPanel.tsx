@@ -74,7 +74,7 @@ export default function AiChatPanel({ open, title, content, onClose, onInsert }:
     async (q: string) => {
       const text = plainText(content ?? undefined).slice(0, 6000)
       if (!text.trim()) {
-        toast.info('这篇还是空的', '没什么可问的')
+        toast.info('文档内容为空', '无从提问')
         return
       }
       setBusy(true)
@@ -131,7 +131,7 @@ export default function AiChatPanel({ open, title, content, onClose, onInsert }:
             ))}
           </div>
         )}
-        {busy && !answer && <div className="aichat-wait">正在读这篇文档…</div>}
+        {busy && !answer && <div className="aichat-wait">正在阅读文档…</div>}
         {answer && <div className="aichat-answer">{answer}</div>}
         {cut && !busy && (
           <div className="ai-trunc">
@@ -143,7 +143,7 @@ export default function AiChatPanel({ open, title, content, onClose, onInsert }:
       {answer && !busy && (
         <div className="aichat-actions">
           <button className="btn" onClick={() => onInsert(answer)}>
-            插到文末
+            插入文末
           </button>
           <button
             className="btn"
@@ -166,7 +166,7 @@ export default function AiChatPanel({ open, title, content, onClose, onInsert }:
           ref={inputRef}
           className="aichat-input"
           value={question}
-          placeholder="问点什么…… 回车发送"
+          placeholder="向这篇文档提问 · 回车发送"
           spellCheck={false}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => {

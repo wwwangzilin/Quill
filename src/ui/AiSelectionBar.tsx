@@ -151,12 +151,12 @@ export default function AiSelectionBar({ editor, host, onComment }: Props) {
     // 期间文档被改过的话位置就不作数了，别乱插
     const now = state.doc.textBetween(target.from, target.to, '\n', '\ufffc').trim()
     if (now !== target.text) {
-      toast.error('文档已经改过了', '请重新选中那段文字')
+      toast.error('文档已改动', '请重新选中该段文字')
       close()
       return
     }
     view.dispatch(state.tr.insertText(result.trim(), target.from, target.to))
-    toast.success('已替换', '不满意可以 Ctrl+Z 撤销')
+    toast.success('已替换', '可按 Ctrl+Z 撤销')
     seq.current += 1
     setTarget(null)
     setResult('')

@@ -54,7 +54,7 @@ export const TEMPLATES: DocTemplate[] = [
   {
     id: 'daily',
     name: '日记',
-    hint: '今天发生了什么',
+    hint: '记录今天发生的事',
     glyph: '☀',
     build: () =>
       doc(today(), [
@@ -69,7 +69,7 @@ export const TEMPLATES: DocTemplate[] = [
   {
     id: 'outline',
     name: '大纲草稿',
-    hint: '先把骨架搭出来',
+    hint: '先搭出文章骨架',
     glyph: '≡',
     build: () =>
       doc('未命名草稿', [

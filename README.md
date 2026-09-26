@@ -302,6 +302,8 @@ node verify-light.mjs       # 超大文档分栏阅读（9 项）
 node verify-aside.mjs       # 右侧外观栏（13 项）
 node verify-appearance.mjs  # 外观参数与正文联动（12 项）
 node probe-titlebar.mjs     # 边栏收放规则（5 项）
+node verify-copy.mjs        # 界面文案（9 项，纯文本断言，与窗口尺寸无关）
+node probe-indent.mjs       # 只读排查：段落缩进与阅读分栏的实测状态
 ```
 
 截图输出至 `.verify/`。环境变量：`APP_URL`、`APP_THEME=light`、`SHOT_PREFIX`、`CDP_PORT`。

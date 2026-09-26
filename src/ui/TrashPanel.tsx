@@ -48,7 +48,7 @@ export default function TrashPanel({ open, onClose, onChanged }: Props) {
   const purge = async (item: TrashItem) => {
     try {
       await storage.purgeTrash(item.name)
-      toast.info('已彻底删除', item.original)
+      toast.info('已永久删除', item.original)
       setConfirm('none')
       await load()
     } catch (err) {

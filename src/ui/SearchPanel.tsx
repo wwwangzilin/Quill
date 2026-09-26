@@ -144,9 +144,9 @@ export default function SearchPanel({ onPick }: Props) {
         </div>
 
         <div className="palette-list" ref={listRef}>
-          {!q && <div className="palette-empty">输入关键词，翻遍仓库里每一篇的正文</div>}
+          {!q && <div className="palette-empty">输入关键词，检索全部文档的正文</div>}
           {q && !busy && hits.length === 0 && (
-            <div className="palette-empty">没有哪一篇里写过「{q}」</div>
+            <div className="palette-empty">没有文档包含「{q}」</div>
           )}
           {hits.map((hit, i) => {
             const first = i === 0 || hits[i - 1].file !== hit.file
@@ -173,7 +173,7 @@ export default function SearchPanel({ onPick }: Props) {
           {result?.truncated && <span className="hit-warn">只列了前 {hits.length} 处</span>}
           <span className="foot-gap" />
           <span>↑↓ 选择</span>
-          <span>Enter 跳过去</span>
+          <span>Enter 跳转</span>
           <span>Esc 关闭</span>
         </div>
       </div>

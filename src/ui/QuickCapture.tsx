@@ -37,7 +37,7 @@ export default function QuickCapture({ open, onClose, onSubmit }: Props) {
         <textarea
           ref={ref}
           value={text}
-          placeholder="记一笔…"
+          placeholder="快速记录…"
           spellCheck={false}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {

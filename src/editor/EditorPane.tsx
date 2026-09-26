@@ -1051,7 +1051,7 @@ export default function EditorPane({
       </div>
       {dropping && (
         <div className="drop-veil">
-          <div className="drop-card">松手就插进来 · 图片 / 视频</div>
+          <div className="drop-card">松开即可插入 · 图片 / 视频</div>
         </div>
       )}
       <FindBar open={findOpen} editor={editor} onClose={() => setFindOpen(false)} />

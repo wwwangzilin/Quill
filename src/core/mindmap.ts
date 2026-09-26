@@ -14,12 +14,12 @@ import type { JSONContent } from '@tiptap/core'
 export type MapLayout = 'logic' | 'logicLeft' | 'mind' | 'org' | 'outline' | 'fishbone'
 
 export const LAYOUTS: { id: MapLayout; label: string; hint: string }[] = [
-  { id: 'logic', label: '逻辑图', hint: '从左往右展开，最像大纲' },
+  { id: 'logic', label: '逻辑图', hint: '从左往右展开，最接近大纲形态' },
   { id: 'logicLeft', label: '左向逻辑图', hint: '从右往左，适合放在右侧栏' },
   { id: 'mind', label: '思维导图', hint: '根在中间，左右分叉' },
-  { id: 'org', label: '组织架构图', hint: '自上而下，层级一眼看清' },
-  { id: 'outline', label: '紧凑大纲', hint: '缩进排版，不画线，信息密度最高' },
-  { id: 'fishbone', label: '鱼骨图', hint: '主干加斜刺，适合找原因' },
+  { id: 'org', label: '组织架构图', hint: '自上而下，层级清晰' },
+  { id: 'outline', label: '紧凑大纲', hint: '缩进排版，不画连线，信息密度最高' },
+  { id: 'fishbone', label: '鱼骨图', hint: '主干加斜刺，适合归因分析' },
 ]
 
 export interface OutlineNode {

@@ -229,7 +229,7 @@ export default function SettingsView({
       setModels(list)
       setModelPulled(true)
       setModelOpen(true)
-      toast.success(`拿到 ${list.length} 个模型`, '点一个填进输入框')
+      toast.success(`已获取 ${list.length} 个模型`, '点击即可填入输入框')
     } catch (err) {
       toast.error('拉取模型列表失败', String(err).slice(0, 150))
     } finally {
@@ -272,12 +272,12 @@ export default function SettingsView({
         () => {},
       )
       setAiLog(`连接成功，模型回复：${out.trim() || '空'}`)
-      toast.success('AI 接口连通')
+      toast.success('接口连接正常')
       const s = await aiStatus()
       if (s) setAi(s)
     } catch (err) {
       setAiLog(`连接失败：${String(err)}`)
-      toast.error('AI 接口不通', String(err).slice(0, 120))
+      toast.error('接口连接失败', String(err).slice(0, 120))
     } finally {
       setAiBusy(false)
     }
@@ -290,8 +290,8 @@ export default function SettingsView({
     try {
       const found = await checkUpdate()
       setUpdate(found)
-      if (found) toast.info(`发现新版本 ${found.version}`, '可以下载安装')
-      else toast.success('已经是最新版', version ? `当前 ${version}` : '')
+      if (found) toast.info(`发现新版本 ${found.version}`, '可下载并安装')
+      else toast.success('已是最新版本', version ? `当前 ${version}` : '')
     } catch (err) {
       // 网络不通、代理拦截都会走到这里 —— 如实报错，不假装已经是最新
       toast.error('检查更新失败', String(err).slice(0, 140))
@@ -376,8 +376,8 @@ export default function SettingsView({
         <span className="sc-text">跟随系统的动画设置</span>
       </label>
       <p className="hint">
-        默认关闭：界面里的过渡是设计的一部分，系统关掉了动效这里也照常播放 ——
-        否则面板会直接跳出来、列表会硬切，看着像没做完。确有需要（例如对动效敏感）再打开它。
+        默认关闭：过渡动画是界面设计的一部分，系统关闭动效后这里仍照常播放 ——
+        否则面板会直接跳出、列表会硬切，观感如同未完成。确有需要（例如对动效敏感）时再开启。
       </p>
 
       <label className="field">
@@ -478,7 +478,7 @@ export default function SettingsView({
       <label className="sc-row" style={{ cursor: 'pointer' }}>
         <span>
           两端对齐
-          <div className="hint">中文正文右边会齐平；英文长单词多的时候左对齐更好看</div>
+          <div className="hint">中文正文右边缘将齐平；英文长词较多时，左对齐更易读</div>
         </span>
         <input
           type="checkbox"
@@ -511,7 +511,7 @@ export default function SettingsView({
           恢复默认
         </button>
         <span className="grow" />
-        <span className="note">正文、便签、磁贴三处同步生效；宽度也能直接拖标题栏上的滑块</span>
+        <span className="note">正文、便签与磁贴同步生效；宽度也可直接拖动标题栏上的滑块</span>
       </div>
     </>
   )
@@ -528,10 +528,10 @@ export default function SettingsView({
         <span className="sc-text">自动收起周边界面</span>
       </label>
       <p className="hint">
-        窗口没有系统边框，顶栏与侧栏也就不常驻了：鼠标够到右上角顶栏才滑出来
-        （窗口按钮在那儿），贴到左边缘侧栏才滑出来，状态栏则在正文里敲字时收起 ——
-        鼠标一动就都回来。关掉这一项，界面一直摆着不动。
-        阅读模式与禅模式本来就收界面，不受这里影响。
+        窗口没有系统边框，顶栏、侧栏与状态栏因此不常驻：在正文里敲字时它们自动让位，
+        鼠标一动即全部回来。右栏（外观设置）另属一类 —— 需将鼠标移到窗口右边缘才唤出，
+        且不参与「敲字收起」，以免常驻把正文挤窄。关掉这一项，界面一直摆着不动。
+        阅读模式与禅模式本就收起界面，不受此处影响。
       </p>
       <label className="field">
         <span>
@@ -639,7 +639,7 @@ export default function SettingsView({
               <div className="model-menu-body">
                 {models.length === 0 ? (
                   <p className="model-empty">
-                    这个地址猜不出常见模型，点上面的「从接口获取」拉一份真实列表。
+                    该地址无法推测常见模型，请点击上方「从接口获取」拉取真实列表。
                   </p>
                 ) : (
                   models.map((m) => (
@@ -740,7 +740,7 @@ export default function SettingsView({
           onChange={(e) => setTuning({ temperature: Number(e.target.value) })}
         />
       </label>
-      <p className="hint">越低越稳定保守，越高越灵活。改写与问答偏保守更准，续写可以高一些。</p>
+      <p className="hint">越低越稳定保守，越高越灵活。改写与问答宜偏保守，续写可适当调高。</p>
 
       <label className="field">
         <span>额外写作要求</span>

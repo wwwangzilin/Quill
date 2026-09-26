@@ -156,7 +156,7 @@ export default function Sidebar({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="搜标题或正文…"
+            placeholder="搜索标题或正文…"
             spellCheck={false}
           />
           {q && (
@@ -186,7 +186,7 @@ export default function Sidebar({
       <div className="doc-list">
         {total === 0 && (
           <div className="empty-hint">
-            {kw ? '没搜到东西，杂鱼～' : '还没有文档，点上面新建一篇吧'}
+            {kw ? '没搜到东西，杂鱼～' : '尚无文档 · 点上方「＋」新建一篇'}
           </div>
         )}
 
@@ -283,7 +283,7 @@ export default function Sidebar({
                 {progress.done ? '已达标 ✓' : `还差 ${progress.remain}`}
               </span>
             ) : (
-              <span className="goal-rest">没设目标</span>
+              <span className="goal-rest">未设目标</span>
             )}
           </div>
           {progress.goal > 0 && (

@@ -167,7 +167,7 @@ export default function DocLibrary({
         <div className="list-body">
           {rows.length === 0 ? (
             <div className="list-empty">
-              {docs.length === 0 ? '还没有文档，点右上角「＋ 新建」写第一篇' : '没有符合条件的文档'}
+              {docs.length === 0 ? '尚无文档 · 点右上角「＋ 新建」写第一篇' : '没有符合条件的文档'}
             </div>
           ) : (
             rows.map((d) => (

@@ -660,7 +660,7 @@ export default function ReaderView({
       const track = trackRef.current
       const el = track?.querySelector<HTMLElement>(`[data-comment="${id}"]`)
       if (!el) {
-        toast.info('这条批注不在这一章', '可能是引文改动了，或者它在别的章节里')
+        toast.info('该批注不在本章', '引文可能已改动，或它位于其他章节')
         return
       }
       if (!track || !step) return
@@ -803,7 +803,7 @@ export default function ReaderView({
         <div className="reader-pages" ref={viewRef} onMouseUp={pickSelection}>
           {/* 超大文档：这一章还在取的路上 */}
           {heavy && loadingBlocks && !blocks.length && (
-            <div className="reader-loading">正在取这一章…</div>
+            <div className="reader-loading">正在加载本章…</div>
           )}
           {/* 浮条直接用编辑器那一套 .ai-sel：同样的结构、同样的定位、
               同样的出现动画。手感不一致往往就是「另起了一套」造成的。 */}

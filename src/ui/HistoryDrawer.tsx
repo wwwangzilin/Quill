@@ -85,7 +85,7 @@ export default function HistoryDrawer({ file, onClose, onRestored }: Props) {
         {!loading && error && <div className="empty-hint" style={{ color: 'var(--accent-3)' }}>{error}</div>}
         {!loading && !error && !commits.length && (
           <div className="empty-hint">
-            还没有提交记录。
+            暂无提交记录。
             <br />
             每次保存都会自动 commit 一次。
           </div>
@@ -137,7 +137,7 @@ export default function HistoryDrawer({ file, onClose, onRestored }: Props) {
               </button>
             )}
           </div>
-          <pre className="preview">{preview || '该版本里还没有这个文件'}</pre>
+          <pre className="preview">{preview || '该版本中不存在此文件'}</pre>
         </div>
       )}
     </aside>

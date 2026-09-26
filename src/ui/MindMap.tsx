@@ -159,7 +159,7 @@ export default function MindMap({ content, title, onJump, editor }: Props) {
     if (renameNode(editor, path, value)) {
       setSelected(null)
     } else {
-      toast.error('改不了这个名字', '这一块可能不是标题或条目')
+      toast.error('无法重命名', '该节点不是标题或条目')
     }
   }, [editing, editor, map.nodes])
 
@@ -169,7 +169,7 @@ export default function MindMap({ content, title, onJump, editor }: Props) {
     if (!node) return
     const next = addChild(editor, node.path)
     if (!next) {
-      toast.error('这里加不了子节点', '标题、段落和条目下面才可以加')
+      toast.error('无法添加子节点', '仅标题、段落与条目支持添加')
       return
     }
     setEditing({ id: '', path: next, value: '' })
@@ -181,12 +181,12 @@ export default function MindMap({ content, title, onJump, editor }: Props) {
     const node = map.nodes.find((n) => n.id === selected)
     if (!node) return
     if (!node.path.length) {
-      toast.info('根节点删不掉', '它就是这篇文档的标题')
+      toast.info('根节点不可删除', '它对应本文档的标题')
       return
     }
     if (deleteNode(editor, node.path)) {
       setSelected(null)
-      toast.success('已删除', 'Ctrl+Z 可以撤销')
+      toast.success('已删除', '可按 Ctrl+Z 撤销')
     }
   }, [editor, selected, map.nodes])
 
@@ -250,10 +250,10 @@ export default function MindMap({ content, title, onJump, editor }: Props) {
         if (hit && hit !== n.id) {
           const target = map.nodes.find((x) => x.id === hit)
           if (target && editor && moveNode(editor, path, target.path)) {
-            toast.success('已移动', `挂到「${target.text}」下面 · Ctrl+Z 可撤销`)
+            toast.success('已移动', `移至「${target.text}」下 · Ctrl+Z 可撤销`)
             setSelected(null)
           } else {
-            toast.error('移不过去', '不能把节点拖进它自己的子节点里')
+            toast.error('无法移动', '节点不能拖入自身的子节点')
           }
         }
       } else {
@@ -464,7 +464,7 @@ export default function MindMap({ content, title, onJump, editor }: Props) {
 
       <div className="mm-hint">
         {empty ? (
-          '还没有大纲结构 —— 回写作页，用 - 加空格开始列条目'
+          '暂无大纲结构 · 回到写作页，输入 - 加空格即可开始列条目'
         ) : editable ? (
           <>
             {map.nodes.length - 1} 个分支 · 双击改字 · Tab 加子节点 · Delete 删 · 拖动调层级 · 回车跳正文

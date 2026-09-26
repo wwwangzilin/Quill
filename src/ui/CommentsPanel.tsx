@@ -92,7 +92,7 @@ export default function CommentsPanel({
           <textarea
             ref={newRef}
             className="comment-input"
-            placeholder="写点什么… Ctrl+Enter 保存，Esc 取消"
+            placeholder="写下批注内容 · Ctrl+Enter 保存，Esc 取消"
             value={newText}
             onChange={(e) => setNewText(e.target.value)}
             onKeyDown={(e) => {
@@ -120,7 +120,7 @@ export default function CommentsPanel({
       <div className="comments-body">
         {!comments.length && !draft && (
           <div className="comments-empty">
-            还没有批注。
+            暂无批注。
             <br />
             选中一段文字，点浮条上的「＋ 批注」。
           </div>

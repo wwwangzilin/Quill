@@ -117,7 +117,7 @@ export default function Sticky({ doc }: Props) {
         ) : text ? (
           <pre className="sticky-text">{text}</pre>
         ) : (
-          <div className="sticky-empty">这篇文档还是空的</div>
+          <div className="sticky-empty">这篇文档暂无内容</div>
         )}
       </div>
 

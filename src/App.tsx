@@ -420,11 +420,11 @@ export default function App() {
     }, 200)
   }, [])
 
-  /** 复制为富文本：粘到公众号 / Word 里格式还在 */
+  /** 复制为富文本：保留标题、列表与强调格式，可直接粘贴到 Word / 公众号 */
   const copyRichText = useCallback(async () => {
     const ed = editorRef.current
     if (!ed || ed.isDestroyed) {
-      toast.info('先打开一篇文档')
+      toast.info('请先打开一篇文档')
       return
     }
     try {
@@ -436,7 +436,7 @@ export default function App() {
           'text/plain': new Blob([text], { type: 'text/plain' }),
         }),
       ])
-      toast.success('已复制为富文本', '粘到公众号 / Word 里格式还在')
+      toast.success('已复制为富文本', '粘贴到 Word、公众号等编辑器仍保留格式')
     } catch (err) {
       toast.error('复制失败', String(err).slice(0, 120))
     }
@@ -651,7 +651,7 @@ export default function App() {
       void (async () => {
         try {
           const info = await checkUpdate()
-          if (info) toast.info(`有新版本 ${info.version}`, '在「设置 → 关于」里可以更新')
+          if (info) toast.info(`有新版本 ${info.version}`, '可在「设置 → 关于」中更新')
         } catch {
           /* 静默：网络不通不该打扰写作 */
         }
@@ -748,7 +748,7 @@ export default function App() {
       const me = docRef.current
       if (!o) return
       if (!me || me.id !== id) {
-        toast.error('合并失败', '先打开这一篇再合并')
+        toast.error('合并失败', '请先打开该文档再合并')
         return
       }
       try {
@@ -761,7 +761,7 @@ export default function App() {
         const md = docToMarkdown(me.content)
         const size = await storage.writeSlice(o.srcId, o.from, o.to, md, o.digest)
         clearOrigin(id)
-        toast.success('合并回去了', `《${o.srcTitle}》${o.chapterTitle} · 全书现在 ${size} 字节`)
+        toast.success('已合并回原书', `《${o.srcTitle}》${o.chapterTitle} · 全书现在 ${size} 字节`)
       } catch (err) {
         toast.error('合并失败', String(err).slice(0, 160))
       }
@@ -795,7 +795,7 @@ export default function App() {
     if (origin) {
       toast.ask(
         `这篇是从《${origin.srcTitle}》摘出来的`,
-        `${origin.chapterTitle} · 改完能并回原书，也能就当独立的一篇留着`,
+        `${origin.chapterTitle} · 改完可合并回原书，也可作为独立文档保留`,
         [
           { label: '合并回原书', primary: true, run: () => void mergeBack(id) },
           { label: '先不改', run: () => {} },
@@ -826,8 +826,8 @@ export default function App() {
          * 所以两条路都摆出来，各自的代价写清楚，让他自己挑。
          */
         toast.ask(
-          `这篇约 ${wan} 万字，要编辑还是只看？`,
-          '进编辑器：标签/导图/AI 全在，但会卡　·　分栏阅读：很顺，但只能看',
+          `这篇约 ${wan} 万字，选择编辑还是阅读？`,
+          '进编辑器：标签 / 导图 / AI 均可用，但大文档会卡　·　分栏阅读：流畅，但仅可阅读',
           [
             { label: '进编辑器', primary: true, run: () => void openInEditor(id) },
             {
@@ -835,7 +835,7 @@ export default function App() {
               run: () => {
                 setHeavyOutline({ id, title: heavyTitle, marks: o.marks })
                 setReaderOpen(true)
-                toast.info(`分栏阅读 · 约 ${wan} 万字`, '按章现取 · 想编辑随时切过去')
+                toast.info(`分栏阅读 · 约 ${wan} 万字`, '按章加载 · 可随时切回编辑器')
               },
             },
           ],
@@ -905,9 +905,9 @@ export default function App() {
         setHeavyOutline(null)
         setView('write')
         setSaving('idle')
-        toast.success('这一章摘出来了', '改它就行 · 原书一个字没动')
+        toast.success('已摘出本章', '改完可合并回原书 · 原书未作改动')
       } catch (err) {
-        toast.error('摘出来失败', String(err).slice(0, 120))
+        toast.error('摘出失败', String(err).slice(0, 120))
       }
     },
     [flush, heavyOutline],
@@ -1138,15 +1138,15 @@ export default function App() {
     }
   }, [])
 
-  /** 把当前文档钉成桌面磁贴 */
+  /** 把当前文档固定为桌面磁贴 */
   const pinToDesktop = useCallback(async () => {
     const d = docRef.current
     if (!d) return
     try {
       await openSticky(d.id, d.title)
-      toast.success('已钉到桌面', d.title)
+      toast.success('已固定到桌面', d.title)
     } catch (err) {
-      toast.error('钉住失败', String(err))
+      toast.error('固定失败', String(err))
     }
   }, [])
 
@@ -1192,7 +1192,7 @@ export default function App() {
       void persistComments(id, (list) => {
         const exists = list.some((c) => c.id === next.id)
         return exists ? list.map((c) => (c.id === next.id ? next : c)) : [...list, next]
-      }).catch((err) => toast.error('批注没存上', String(err).slice(0, 120)))
+      }).catch((err) => toast.error('批注保存失败', String(err).slice(0, 120)))
     },
     [persistComments],
   )
@@ -1203,7 +1203,7 @@ export default function App() {
       if (!id) return
       setComments((prev) => prev.filter((c) => c.id !== cid))
       void persistComments(id, (list) => list.filter((c) => c.id !== cid)).catch((err) =>
-        toast.error('批注没删掉', String(err).slice(0, 120)),
+        toast.error('批注删除失败', String(err).slice(0, 120)),
       )
     },
     [persistComments],
@@ -1215,7 +1215,7 @@ export default function App() {
     if (!ed || ed.isDestroyed) return
     const at = locate(ed.state.doc, c.quote)
     if (!at) {
-      toast.info('原文已经改动了', '这条批注暂时找不到落脚点')
+      toast.info('正文已改动', '该批注暂时无法定位')
       return
     }
     ed.chain().focus().setTextSelection({ from: at.from, to: at.to }).run()
@@ -1264,7 +1264,7 @@ export default function App() {
           content: [...(doc.content.content ?? []), item],
         }
         await storage.put({ ...doc, content, updatedAt: Date.now() })
-        toast.success('已记一笔', '收件箱')
+        toast.success('已记入收件箱')
         await refreshDocs()
       } catch (err) {
         toast.error('保存失败', String(err))
@@ -1355,7 +1355,7 @@ export default function App() {
    */
   const exportPdf = useCallback(() => {
     if (!docRef.current) return
-    toast.info('在打印窗口的打印机里选「Microsoft Print to PDF」', '另存为 PDF')
+    toast.info('在系统打印窗口中选择「Microsoft Print to PDF」', '导出 PDF')
     window.setTimeout(() => window.print(), 120)
   }, [])
 
@@ -1366,12 +1366,12 @@ export default function App() {
       try {
         const items = await readMarkdownFolder(files)
         if (!items.length) {
-          toast.info('没找到能导入的文本', '支持 .md / .markdown / .txt')
+          toast.info('未找到可导入的文本文件', '支持 .md / .markdown / .txt')
           return
         }
         const n = await importMarkdown(items)
         await refreshDocs()
-        toast.success(`已导入 ${n} 篇文档`, '同名文件会自动加序号，不会覆盖')
+        toast.success(`已导入 ${n} 篇文档`, '同名文件自动加序号，不会覆盖')
       } catch (err) {
         toast.error('导入失败', String(err).slice(0, 120))
       }
@@ -1386,7 +1386,7 @@ export default function App() {
   const pickFiles = useCallback(
     (dir: boolean) => {
       if (!isDesktop()) {
-        toast.info('导入只在桌面版可用')
+        toast.info('导入功能仅在桌面版可用')
         return
       }
       const input = document.createElement('input')
@@ -1421,12 +1421,12 @@ export default function App() {
       try {
         const items = await readPathsAsDocs(paths)
         if (!items.length) {
-          toast.info('拖进来的不是文本文件', '支持 .md / .markdown / .txt')
+          toast.info('不支持的文件类型', '仅支持 .md / .markdown / .txt')
           return
         }
         const n = await importMarkdown(items)
         await refreshDocs()
-        toast.success(`已导入 ${n} 篇文档`, '同名文件会自动加序号，不会覆盖')
+        toast.success(`已导入 ${n} 篇文档`, '同名文件自动加序号，不会覆盖')
       } catch (err) {
         toast.error('导入失败', String(err).slice(0, 120))
       }
@@ -1662,7 +1662,7 @@ export default function App() {
       onChange(next)
       // 编辑器实例不会自己捡起外部塞进去的内容，换 key 让它重建一次
       setSessionKey((k) => k + 1)
-      toast.success('已插到文末')
+      toast.success('已插入文末')
     },
     [onChange],
   )
@@ -1877,7 +1877,7 @@ export default function App() {
               <h2>
                 欢迎来到 <em>Quill</em>
               </h2>
-              <p>左边还没有文档。新建一篇，用 - 加空格开始列大纲，再点右上角看看导图。</p>
+              <p>左侧暂无文档。新建一篇后，输入 - 加空格即可开始列大纲，再点右上角查看思维导图。</p>
               <button className="btn primary" onClick={() => void createNew()}>
                 ＋ 新建文档
               </button>
@@ -1905,7 +1905,7 @@ export default function App() {
                 onOpenDoc={(title) => {
                   const target = docs.find((d) => d.title === title)
                   if (target) void openDoc(target.id)
-                  else toast.info('还没有这篇文档', title)
+                  else toast.info('未找到该文档', title)
                 }}
                 onReady={handleEditorReady}
                 onDropText={(fs) => void runImport(fs)}
@@ -1992,7 +1992,7 @@ export default function App() {
               <span style={{ width: `${Math.round(progress.ratio * 100)}%` }} />
             </span>
             <span className={'sb-item' + (progress.done ? ' done' : '')}>
-              {progress.done ? '已达标 ✓' : `还差 ${progress.remain}`}
+              {progress.done ? '已达标 ✓' : `还差 ${progress.remain} 字`}
             </span>
           </>
         )}

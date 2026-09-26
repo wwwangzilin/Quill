@@ -103,7 +103,7 @@ export default function QuickNote() {
         ref={ref}
         className="qn-input"
         value={text}
-        placeholder="想到什么就写下来…"
+        placeholder="随手记下此刻的想法…"
         spellCheck={false}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
@@ -119,7 +119,7 @@ export default function QuickNote() {
       />
 
       <div className="qn-foot">
-        <span className="qn-hint">回车存 · Shift+回车换行 · Esc 关</span>
+        <span className="qn-hint">回车保存 · Shift+回车换行 · Esc 关闭</span>
         <button className="btn primary" onClick={() => void save()}>
           存进收件箱
         </button>
