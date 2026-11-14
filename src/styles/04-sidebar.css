@@ -1,0 +1,207 @@
+/* ============================ 侧栏 ============================ */
+
+.sidebar {
+  /* 同上：侧栏里的「新建」模板菜单也得靠这一层才盖得住正文 */
+  position: relative;
+  z-index: 20;
+  width: var(--sidebar-w);
+  flex: 0 0 var(--sidebar-w);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  transition: margin-left 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar.hidden {
+  margin-left: calc(var(--sidebar-w) * -1);
+}
+
+.sidebar-head {
+  padding: 12px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.16s, border-color 0.16s, transform 0.16s, color 0.16s;
+  white-space: nowrap;
+}
+.btn:hover {
+  background: var(--surface-active);
+  border-color: var(--border-strong);
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn.primary {
+  border: none;
+  background: var(--grad);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 18px rgba(168, 132, 63, 0.36);
+}
+.btn.primary:hover {
+  filter: brightness(1.08);
+}
+.btn.icon {
+  padding: 6px 8px;
+  font-size: 14px;
+  line-height: 1;
+}
+.btn.ghost {
+  border-color: transparent;
+  background: transparent;
+}
+.btn.ghost:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.16);
+}
+[data-theme="light"] .search {
+  background: rgba(255, 255, 255, 0.6);
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+}
+.search input::placeholder {
+  color: var(--text-3);
+}
+
+.doc-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 8px 16px;
+}
+
+.group-label {
+  padding: 12px 8px 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  text-transform: uppercase;
+}
+
+.doc-item {
+  position: relative;
+  padding: 9px 10px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.14s, border-color 0.14s;
+}
+.doc-item:hover {
+  background: var(--surface-hover);
+}
+.doc-item.active {
+  background: var(--surface-active);
+  border-color: var(--border-strong);
+}
+.doc-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--grad);
+}
+
+.doc-item .row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.doc-item .t {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-item .star {
+  color: var(--accent-3);
+  font-size: 11px;
+}
+
+.doc-item .sub {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-item .tools {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  display: none;
+  gap: 2px;
+}
+.doc-item:hover .tools {
+  display: flex;
+}
+.doc-item .tools button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 3px 5px;
+  border-radius: 6px;
+  line-height: 1;
+}
+.doc-item .tools button:hover {
+  color: var(--text);
+  background: var(--surface-active);
+}
+
+.empty-hint {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.8;
+}
+

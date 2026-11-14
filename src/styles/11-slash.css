@@ -1,0 +1,98 @@
+/* ==========================================================================
+   斜杠命令
+   ========================================================================== */
+
+.editor-inner {
+  position: relative;
+}
+
+.slash-menu {
+  position: absolute;
+  z-index: 50;
+  width: 272px;
+  max-height: 330px;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  animation: menu-in 0.16s var(--ease-out) both;
+  transform-origin: top left;
+}
+
+.slash-head,
+.slash-foot {
+  padding: 6px 9px;
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  color: var(--text-3);
+  text-transform: uppercase;
+}
+.slash-foot {
+  text-transform: none;
+  letter-spacing: 0;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 7px;
+}
+.slash-empty {
+  padding: 16px 10px;
+  font-size: 12.5px;
+  color: var(--text-3);
+  text-align: center;
+}
+
+.slash-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.slash-item .glyph {
+  flex: 0 0 28px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  font-size: 11px;
+  color: var(--text-2);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.slash-item .label {
+  flex: 0 0 auto;
+}
+.slash-item .hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.slash-item:hover {
+  background: var(--surface-hover);
+}
+.slash-item.on {
+  background: var(--surface-active);
+  transform: translateX(2px);
+}
+.slash-item.on .glyph {
+  border-color: transparent;
+  background: var(--grad);
+  color: #fff;
+}
+

@@ -1,0 +1,122 @@
+/* ==========================================================================
+   模态（快捷键面板等）
+   ========================================================================== */
+
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.46);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  animation: fade-in 0.18s var(--ease) both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal {
+  width: min(640px, 92vw);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  animation: modal-in 0.28s var(--ease-out) both;
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.modal-body {
+  overflow-y: auto;
+  padding: 6px 18px 20px;
+}
+
+.sc-group {
+  margin-top: 16px;
+}
+.sc-title {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  color: var(--text-3);
+  text-transform: uppercase;
+  margin-bottom: 9px;
+}
+.sc-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 0;
+  font-size: 12.5px;
+}
+.sc-keys {
+  flex: 0 0 208px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.sc-sep {
+  color: var(--text-3);
+  margin: 0 4px;
+  font-size: 10px;
+}
+.sc-text {
+  color: var(--text-2);
+}
+
+/* 模板菜单 */
+.new-wrap {
+  position: relative;
+}
+.tpl-menu {
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 0;
+  transform-origin: top left;
+}
+.menu .tpl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.menu .tpl .glyph {
+  flex: 0 0 20px;
+  text-align: center;
+  color: var(--text-3);
+}
+.menu .tpl .tips {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+

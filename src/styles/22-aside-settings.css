@@ -1,0 +1,351 @@
+/* ============================ 设置界面 ============================ */
+
+/*
+ * 独立占满主区域：左侧分类导航 + 右侧内容。
+ * 不做成悬浮弹窗 —— 六组配置项挤一个小窗口里既难找也不像样。
+ */
+/* ============================ 右侧栏 ============================ */
+
+/*
+ * 右侧栏：外观设置这类「边看边调」的东西放这儿，调的时候不用离开正文。
+ *
+ * 收起用的是**负 margin**，不是 transform —— 这是本项目的硬规矩：
+ * transform 不收占位，右边会留一条空白把正文挤扁；负 margin 是真让位，
+ * 正文会自己铺满。左栏、顶栏、底栏全是这么做的。
+ */
+.aside {
+  flex: 0 0 var(--aside-w);
+  width: var(--aside-w);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--surface-solid);
+  overflow: hidden;
+  transition: margin-right var(--dur) var(--ease);
+}
+.aside.is-hidden {
+  margin-right: calc(var(--aside-w) * -1);
+}
+/*
+ * 阅读模式与专注模式下右栏也得让位 —— 这两个模式是全屏沉浸的，
+ * 左栏让了、右栏还杵着就成了一个突兀的洞。和 .sidebar 的处理保持一致。
+ */
+.app.reading .aside,
+.app.zen .aside {
+  margin-right: calc(var(--aside-w) * -1);
+}
+
+.settings-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
+}
+
+/* 嵌在右栏里的形态：顶栏去掉，竖排导航变成一行横向标签 */
+.settings-view.is-embedded {
+  background: var(--surface-solid);
+}
+.settings-aside-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 10px 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--border);
+}
+/* 嵌在右栏时，标签和「收起」按钮共用一行 */
+.settings-aside-head .settings-tabs {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border-bottom: none;
+}
+.settings-close {
+  flex: 0 0 auto;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.settings-close:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+.settings-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-3);
+  background: transparent;
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.settings-tab:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+.settings-tab.on {
+  color: var(--text);
+  background: var(--accent-soft, var(--hover));
+  border-color: var(--border);
+}
+/* 右栏里内容区自己滚，别把标签条也滚走 */
+.settings-view.is-embedded .settings-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 14px 22px;
+}
+.settings-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.settings-nav {
+  flex: 0 0 186px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 10px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+.settings-nav-item {
+  appearance: none;
+  border: none;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.settings-nav-item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.settings-nav-item.on {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.settings-nav-item .label {
+  font-size: 13px;
+}
+.settings-nav-item .hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.settings-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 26px 30px 72px;
+}
+.settings-section {
+  max-width: 640px;
+}
+.settings-section h3 {
+  margin: 0 0 20px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* 设置里不再需要弹窗那套卡片外壳 */
+.settings-view .sc-group {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+.settings-view .field,
+.settings-view .sc-row {
+  margin-bottom: 15px;
+}
+.settings-view .field > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+/* 滑杆当前值：跟在标题右侧，安静一点 */
+.settings-view .field > span .val {
+  margin-left: auto;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.settings-view .desc {
+  margin: 0 0 16px;
+  font-size: 12.5px;
+  line-height: 1.9;
+  color: var(--text-2);
+}
+.settings-view .note {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.settings-view .hint {
+  margin-top: 6px;
+  font-size: 11.5px;
+  line-height: 1.75;
+  color: var(--text-3);
+}
+.sc-group-divider {
+  height: 1px;
+  margin: 24px 0 20px;
+  background: var(--border);
+}
+.settings-view .sc-title {
+  margin-bottom: 10px;
+}
+
+/* ---------- Markdown 标记提示 ---------- */
+/*
+ * 编辑器把 `**粗体**` 变成粗体时会吃掉那两对星号，于是没法确认文件里到底写了什么。
+ * 这些标记由 mdMarkers.ts 以 ProseMirror 装饰的形式画回来：看得见，但不进文档数据，
+ * 所以 .md 依旧干净，复制与导出都不会多出字符。
+ *
+ * 三处细节是必需的：
+ *   font-weight / font-style 重置 —— 否则粗体里的 `**` 自己也变粗，糊成一团
+ *   user-select: none            —— 视觉选中时不要把标记也框进去
+ *   pointer-events: none         —— 别挡住点文字定位光标
+ */
+.ProseMirror .md-marker {
+  color: var(--text-3);
+  opacity: 0.5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82em;
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: -0.02em;
+  white-space: pre;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* ---------- 正文栏宽度滑块 ---------- */
+/*
+ * 常驻标题栏，为的是「快速」：拖一下立刻见效，不必进设置里翻。
+ * 做得细而淡，平时不跟正文抢注意力，鼠标移上去才亮起来。
+ */
+.width-slider {
+  /*
+   * flex: 0 0 auto 不能删 —— 状态栏是 flex，这一块要是被当成弹性项压，
+   * 里面的滑块就伸出容器外（实测 overflow 42px：看着偏位，也不好点）。
+   */
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+  padding: 0 8px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 0.15s var(--ease-out, ease);
+}
+.width-slider:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.width-slider .ws-icon {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.width-slider .ws-val {
+  min-width: 30px;
+  font-size: 11px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  opacity: 0.7;
+}
+
+.width-slider input[type='range'] {
+  /*
+   * flex: 0 0 auto 不能删 —— 状态栏里东西一多，这个 input 会被当成弹性项压扁：
+   * 实测 CSS 写的 84px 被挤到 76px，还探出 .width-slider 右缘 42px。
+   * 主人报的「那个快速定位正文的滑块不好搞」就是这个。
+   */
+  flex: 0 0 auto;
+  width: 104px;
+  /*
+   * 轨道只有 3px 高，可点区域也就 3px —— 鼠标稍微偏一点就点不中。
+   * 用 padding 把元素撑到 15px，再让背景只画在 content-box 里（还是那条 3px 细线），
+   * 于是看起来没变、好按多了。
+   */
+  height: 3px;
+  padding: 6px 0;
+  background-clip: content-box;
+  margin: 0;
+  appearance: none;
+  border-radius: 2px;
+  background: var(--grad, linear-gradient(90deg, #7c6cff, #ff6ec7));
+  opacity: 0.7;
+  cursor: pointer;
+  transition: opacity 0.15s var(--ease-out, ease);
+}
+.width-slider:hover input[type='range'] {
+  opacity: 1;
+}
+
+.width-slider input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.45);
+}
+
+/* 阅读与禅模式是全屏沉浸，不需要这个控件 */
+.app.zen .width-slider,
+.app.reading .width-slider {
+  display: none;
+}
+

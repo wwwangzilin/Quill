@@ -1,0 +1,989 @@
+/* ============================ 小说阅读视图 ============================ */
+/* 左边章节目录，右边正文按栏排。
+   「分栏」用的是 CSS columns + column-fill: auto：容器高度固定，内容填满第一栏
+   自动往第二栏流，横向溢出多少就翻多少屏 —— 翻页只是把内容条整体平移。
+   这样不用自己算断行位置，中英文断行全交给排版引擎，跟浏览器里长文分栏一个道理。 */
+.reader {
+  position: fixed;
+  inset: 0;
+  z-index: 88;
+  display: flex;
+  background: var(--bg);
+  animation: reader-in 0.36s var(--ease-out) both;
+}
+/* 用独立的 scale / translate 属性做动效，不碰 transform ——
+   正文那条 track 的位移是 inline transform，两者叠加互不打架。 */
+@keyframes reader-in {
+  from {
+    opacity: 0;
+    scale: 1.012;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+/* 退出时先让这段播完再卸（ReaderView 里延迟 200ms 才调 onClose）。
+   全屏覆盖层直接消失是一帧硬切，观感上像闪了一下。 */
+.reader.leaving {
+  animation: reader-out 0.24s var(--ease) both;
+  pointer-events: none;
+}
+@keyframes reader-out {
+  from {
+    opacity: 1;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 0.99;
+  }
+}
+
+/* ---------- 正常模式 ⇄ 小说模式 ----------
+   只让阅读层淡入的话，看起来是「盖上去」；让底下那一层同时往后缩一点、
+   暗下去，才像「切过去」。两边时长错开一档（0.34 / 0.36），层次更清楚。
+
+   ⚠️ 下面这条是 * 通配，而 transition 是**简写**、会整个覆盖子元素自己的过渡。
+   必须把顶栏 / 底栏 / 侧栏 / 顶部感应区 / 通知全排除掉：
+   顶栏靠 margin-top 收放、底栏靠 margin-bottom、侧栏靠 margin-left，
+   被这条盖住之后「展开 / 收起」就成了一帧硬切（主人报过一次「动画没了」，就是它）。
+   它们本来就被阅读层盖住，也不需要跟着缩。改这里之前先看 verify-reader 的
+   「顶栏收放没被通配规则覆盖」那两条断言。 */
+.app
+  > *:not(.reader):not(.titlebar):not(.statusbar):not(.sidebar):not(.titlebar-hot):not(.toasts) {
+  transition: opacity 0.34s var(--ease-out), scale 0.34s var(--ease-out);
+}
+.app.reader-on
+  > *:not(.reader):not(.titlebar):not(.statusbar):not(.sidebar):not(.titlebar-hot):not(.toasts) {
+  opacity: 0.26;
+  scale: 0.986;
+}
+/* 退出时底下要先回来 —— 不然两层同时在淡，会糊成一团 */
+.app:has(.reader.leaving) > *:not(.reader) {
+  opacity: 1;
+  scale: 1;
+}
+.reader-toc {
+  flex: 0 0 236px;
+  /*
+   * ⚠️ min-width: 0 不能删。
+   * flex 子项的默认 min-width 是 auto（= min-content），所以目录里只要
+   * 存在一条长到放不下的章节名，整列就会被撑开 —— 实测 1052 章那篇被
+   * 撑到 937px，正文只剩 423px，双栏每栏 141px，看着像排版坏了。
+   * 有了它，长标题才会老老实实走省略号。
+   */
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface-solid);
+  animation: toc-in 0.3s var(--ease-out) both;
+}
+@keyframes toc-in {
+  from {
+    opacity: 0;
+    translate: -14px 0;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+.reader-toc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-3);
+}
+.reader-toc-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.reader-toc-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+}
+.reader-toc-item {
+  appearance: none;
+  border: none;
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.reader-toc-item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.reader-toc-item.on {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.reader-toc-n {
+  flex: 0 0 22px;
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.reader-toc-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.reader-bar,
+.reader-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  padding: 0 14px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.reader-bar {
+  height: 44px;
+  border-bottom: 1px solid var(--border);
+}
+.reader-foot {
+  height: 48px;
+  border-top: 1px solid var(--border);
+}
+.reader-now {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.reader-gap {
+  flex: 1;
+}
+.reader-page,
+.reader-pos {
+  font-variant-numeric: tabular-nums;
+}
+.reader-hint {
+  font-size: 11px;
+}
+/* 分章这件事不弹框、也不浮选项条 —— 直接做，右下角用系统的 toast 知会一声
+   （.toasts 本来就在右下角、z-index 90，盖得住阅读视图）。
+   想反悔的开关在 .reader-bar 上，不占视线。 */
+
+/* 批注抽屉跟编辑器里是同一个组件；阅读视图没有标题栏，顶到最上面就行 */
+.reader > .drawer {
+  top: 0;
+  z-index: 40;
+}
+
+.reader-pages {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px 44px 18px;
+}
+/* 浮条本体直接用 .ai-sel（编辑器那一套），这里只补个层级 */
+.reader-sel {
+  z-index: 9;
+}
+/* 抽屉开着的时候，工具条上那个开关要亮着 */
+.reader-bar .btn.ghost.icon.on {
+  background: var(--accent-soft);
+  color: var(--accent-3);
+}
+/* 固定高度 + column-fill: auto → 内容横向流出去，翻页靠平移 */
+.reader-track {
+  height: 100%;
+  column-count: 2;
+  column-gap: 52px;
+  column-fill: auto;
+  column-rule: 1px solid var(--border);
+  font-family: var(--font-prose);
+  font-size: var(--prose-size);
+  line-height: var(--prose-leading);
+  color: var(--text);
+  /* 翻页位移。多栏横移是大面积位移，用一条「先快后慢」的曲线并稍微拉长：
+     原来的 --dur（0.26s）配通用缓动，看着是「顿」过去的，不是滑过去的。 */
+  transition: transform 0.38s cubic-bezier(0.22, 0.61, 0.36, 1);
+  /* 换章时整条重新挂载（ReaderView 上挂了 key={ci}）：位移瞬时归零，
+     不可能出现「从上一章末尾滑回来」那一下。这里补一段淡入把「换章了」说清楚。
+     翻页不换 ci，所以不会重播。translate 是独立属性，与 inline 的
+     transform: translateX(…) 叠加，互不覆盖。 */
+  animation: reader-chap 0.3s var(--ease-out) both;
+}
+@keyframes reader-chap {
+  from {
+    opacity: 0;
+    translate: 0 7px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+.reader-track p {
+  margin: 0 0 0.85em;
+  text-indent: 2em;
+}
+.reader-track .reader-h {
+  margin: 0 0 0.6em;
+  font-family: var(--font-display);
+  text-indent: 0;
+}
+.reader-track blockquote {
+  margin: 0 0 1em;
+  padding-left: 14px;
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-2);
+}
+.reader-track pre {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  overflow-x: auto;
+}
+.reader-track code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+.reader-track hr {
+  margin: 1.2em 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+.reader-track img.reader-img {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+}
+/* 窄窗口只留一栏 —— 两栏在 900px 以下会挤成一团 */
+@media (max-width: 980px) {
+  .reader-track {
+    column-count: 1;
+  }
+  .reader-toc {
+    flex-basis: 190px;
+  }
+}
+
+/* ---------- 全文搜索（Ctrl+Shift+F） ---------- */
+/* 面板骨架直接复用命令面板的 .palette-*，这里只管结果行。
+   比命令面板宽一点：一行要同时塞下「哪一篇 + 上下文片段 + 行号」。 */
+.search-panel {
+  width: min(760px, 94vw);
+  max-height: 72vh;
+}
+/* 文档名只在同一篇的第一条上出现，后面的条留出等宽空位 ——
+   这样片段能对齐成一列，一眼看出哪几条属于同一篇。 */
+.hit-row {
+  appearance: none;
+  border: none;
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.hit-row.on {
+  background: var(--accent-soft);
+}
+/* 换了一篇就在上面画一条淡线，分组靠它，不靠缩进 */
+.hit-row.first {
+  margin-top: 4px;
+}
+.hit-row.first:not(:first-child) {
+  border-top: 1px solid var(--border);
+  padding-top: 9px;
+}
+.hit-file {
+  flex: 0 0 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.hit-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hit-mark {
+  background: var(--accent-soft);
+  color: var(--accent-1);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+.hit-line {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.hit-busy,
+.hit-warn {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ---------- 反向链接 ---------- */
+.main-stack {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.main-stack > .editor-scroll {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+/* 反向链接：并进底栏的一个小按钮，点开向上弹出 */
+.backlinks {
+  position: relative; /* 弹层的定位基准 */
+  flex: none;
+}
+
+.backlinks-head {
+  appearance: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  font-family: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: color 0.14s var(--ease-out), background 0.14s var(--ease-out);
+}
+.backlinks-head:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.backlinks.open .backlinks-head {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* 箭头指上：展开时转 180° */
+.backlinks-caret {
+  font-size: 9px;
+  opacity: 0.75;
+  transition: transform 0.2s var(--ease-out);
+}
+.backlinks.open .backlinks-caret {
+  transform: rotate(180deg);
+}
+
+.backlinks-count {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/*
+ * 向上弹出的浮层。
+ * 这条面板**始终在 DOM 里**，靠 .open 切换透明度和位移 ——
+ * 若用条件渲染，就没有可过渡的起止状态，动画会直接跳。
+ */
+.backlinks-body {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: 348px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-bg, rgba(22, 21, 19, 0.97));
+  box-shadow: 0 -14px 34px rgba(0, 0, 0, 0.46);
+  transform-origin: bottom right;
+  opacity: 0;
+  transform: translateY(8px) scale(0.985);
+  pointer-events: none;
+  transition: opacity 0.18s var(--ease-out), transform 0.18s var(--ease-out);
+}
+.backlinks.open .backlinks-body {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.backlinks-empty {
+  padding: 8px 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.backlinks-empty code {
+  background: var(--surface-hover);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.backlink {
+  appearance: none;
+  border: none;
+  width: 100%;
+  display: block;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.backlink:hover {
+  background: var(--surface-hover);
+}
+.backlink-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.backlink-title {
+  font-size: 12.5px;
+  color: var(--accent-1);
+}
+.backlink-when {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.backlink-snippet {
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--text-2);
+}
+
+/* ---------- AI 问答面板 ---------- */
+.aichat {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: min(430px, 92vw);
+  max-height: 62vh;
+  display: flex;
+  flex-direction: column;
+  z-index: 85;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: palette-in 0.22s var(--ease-out) both;
+}
+.aichat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.aichat-title {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.aichat-body {
+  flex: 1;
+  min-height: 96px;
+  overflow-y: auto;
+  padding: 14px 16px;
+}
+.aichat-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.aichat-chip {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.aichat-chip:hover {
+  color: var(--text);
+  border-color: var(--accent-1);
+}
+.aichat-wait {
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.aichat-answer {
+  font-size: 13px;
+  line-height: 1.95;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.aichat-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+}
+.aichat-foot {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+}
+.aichat-input {
+  flex: 1;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 0 10px;
+  outline: none;
+}
+.aichat-input:focus {
+  border-color: var(--accent-1);
+}
+
+/* ---------- 选中文字后的 AI 改写条 ---------- */
+.ai-sel {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 8px));
+  z-index: 70;
+  animation: mask-in 0.14s var(--ease-out) both;
+}
+.ai-sel-row,
+.ai-sel-panel {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-sm);
+}
+.ai-sel-panel {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: min(460px, 78vw);
+  padding: 10px 12px 12px;
+}
+.ai-sel.expanded {
+  transform: translate(-50%, calc(-100% - 10px));
+}
+/* 选区贴着顶部时翻到下面，不然会被滚动区裁掉 */
+.ai-sel.flip {
+  transform: translate(-50%, 8px);
+}
+.ai-sel.flip.expanded {
+  transform: translate(-50%, 10px);
+}
+.ai-sel-tag {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--accent-1);
+  padding: 0 6px 0 2px;
+}
+.ai-sel-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.ai-sel-btn:hover {
+  background: var(--surface-active);
+  color: var(--text);
+}
+.ai-sel-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ai-sel-status {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.ai-sel-mini {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px;
+  padding: 0 4px;
+  cursor: pointer;
+}
+.ai-sel-body {
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 12.5px;
+  line-height: 1.9;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 2px 1px;
+}
+.ai-sel-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- 阅读模式（F9） ---------- */
+/* 写完回头看一遍用的：收起侧栏、工具栏淡出、正文放宽。
+   编辑器本身转只读是 JS 那边做的（editor.setEditable(false)）。 */
+/*
+ * 用位移 + 淡出代替 display: none。
+ * display 是离散属性，没有可过渡的中间状态 —— 那样进出阅读模式时界面会「啪」地消失。
+ */
+.app.reading .sidebar {
+  margin-left: calc(var(--sidebar-w) * -1);
+  opacity: 0;
+  pointer-events: none;
+}
+.app.reading .backlinks {
+  opacity: 0;
+  pointer-events: none;
+}
+.app.reading .titlebar {
+  opacity: 0.22;
+  transition: opacity 0.25s var(--ease);
+}
+.app.reading .titlebar:hover,
+.app.reading .titlebar:focus-within {
+  opacity: 1;
+}
+.app.reading .editor-inner {
+  max-width: 880px;
+}
+.app.reading .ProseMirror {
+  caret-color: transparent;
+}
+.reading-badge {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 80;
+  appearance: none;
+  padding: 7px 15px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  animation: mask-in 0.2s var(--ease-out) both;
+}
+.reading-badge:hover {
+  color: var(--text);
+  border-color: var(--accent-1);
+}
+
+/* ---------- YAML frontmatter ---------- */
+/*
+ * 外部编辑器（Obsidian / Hugo / Jekyll）写在文件头的元数据。
+ * 它不属于正文，但必须让人一眼看见「它还在」，所以做成低调的等宽灰块，
+ * 不抢正文注意力，也不参与正文排版。
+ */
+.ProseMirror .md-frontmatter {
+  margin: 0 0 1.4em;
+  padding: 10px 14px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: #9a948c;
+  background: rgba(255, 255, 255, 0.028);
+  border-left: 2px solid rgba(255, 255, 255, 0.13);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.ProseMirror .md-frontmatter::before {
+  content: 'YAML 元数据 · 原样保留';
+  display: block;
+  margin-bottom: 6px;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #6f6a63;
+}
+
+.ProseMirror .md-frontmatter.ProseMirror-selectednode {
+  border-left-color: var(--accent-1, #7c6cff);
+  background: rgba(124, 108, 255, 0.08);
+}
+
+/* ---------- 打印 / 导出 PDF ---------- */
+/*
+ * 导出 PDF 走系统打印（打印机里选 Microsoft Print to PDF）。
+ * 不引 jsPDF 那类库：它们是截图拼的，中文会糊；
+ * 系统打印出来的是矢量文本，还能选中复制。
+ * 屏幕上什么配色无所谓，纸上必须白底黑字、没有工具栏。
+ */
+@media print {
+  @page {
+    margin: 18mm 16mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  /* 界面外壳全部收掉，只留正文 */
+  .titlebar,
+  .sidebar,
+  .backlinks,
+  .reading-badge,
+  .modal-mask,
+  .palette-mask,
+  .find-bar,
+  .slash-menu,
+  .wiki-menu,
+  .aichat,
+  .ai-sel,
+  .gutter,
+  .fold-toggle,
+  .block-handle,
+  .tag-editor {
+    display: none !important;
+  }
+
+  /* 滚动容器在纸上要整条展开，否则只打得出第一屏 */
+  .app,
+  .body,
+  .main,
+  .main-stack,
+  .editor-scroll,
+  .editor-inner {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  .editor-inner {
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  .ProseMirror {
+    color: #111 !important;
+    background: #fff !important;
+    font-size: 11.5pt !important;
+    line-height: 1.75 !important;
+    padding: 0 !important;
+  }
+  .ProseMirror * {
+    color: #111 !important;
+  }
+  .doc-title {
+    border: none !important;
+    background: transparent !important;
+    color: #111 !important;
+    font-size: 19pt !important;
+    padding: 0 0 6pt !important;
+  }
+  .doc-meta {
+    display: none !important;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  pre,
+  blockquote,
+  table,
+  figure,
+  img,
+  video {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  pre {
+    border: 1px solid #ddd !important;
+    background: #f7f7f7 !important;
+  }
+  blockquote {
+    border-left: 3px solid #ccc !important;
+  }
+  th,
+  td {
+    border-color: #bbb !important;
+  }
+  a {
+    text-decoration: underline;
+  }
+}
+
+/* ---------- 插入媒体：粘贴 / 拖拽 ---------- */
+
+/* 拖拽高亮要定位在编辑器上方，所以这里得有个定位上下文 */
+.editor-scroll {
+  position: relative;
+}
+.drop-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 88;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 74%, transparent);
+  backdrop-filter: blur(2px);
+  /* 关键：不能吃鼠标事件，否则文件根本落不到编辑器上 */
+  pointer-events: none;
+  animation: mask-in 0.15s var(--ease-out) both;
+}
+.drop-card {
+  padding: 15px 24px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--accent-1);
+  background: var(--surface-solid);
+  color: var(--text);
+  font-size: 13.5px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* 正文里的图片与视频 */
+.ProseMirror img,
+.ProseMirror .quill-video {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 6px 0;
+  border-radius: 10px;
+}
+.ProseMirror img.ProseMirror-selectednode,
+.ProseMirror video.ProseMirror-selectednode {
+  outline: 2px solid var(--accent-1);
+  outline-offset: 2px;
+}
+
+/* ---------- 图片尺寸：选中后可拖右下角手柄 ---------- */
+
+/* 宽度贴合图片本身（fit-content），这样手柄才不会飘到整个正文栏的右下角 */
+.img-wrap {
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 6px 0;
+}
+.img-wrap img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0;
+  border-radius: 10px;
+}
+.img-wrap.selected img {
+  outline: 2px solid var(--accent-1);
+  outline-offset: 2px;
+}
+.img-resize {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-1);
+  box-shadow: 0 0 0 2px var(--surface-solid);
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 0.14s var(--ease);
+}
+.img-wrap.selected .img-resize,
+.img-wrap:hover .img-resize,
+.img-resize.on {
+  opacity: 1;
+}
+/* 拖动时显示当前宽度 */
+.img-size {
+  position: absolute;
+  left: 50%;
+  top: -26px;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  color: var(--text-2);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s var(--ease);
+}
+.img-wrap.dragging .img-size {
+  opacity: 1;
+}
+.img-wrap.dragging img {
+  opacity: 0.85;
+}
+

@@ -1,0 +1,58 @@
+/* ============================ 布局 ============================ */
+
+.app {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.titlebar {
+  /* 必读：backdrop-filter 会生成层叠上下文，若不自己定位+给层级，
+     标题栏里的下拉菜单（⋯ 更多 / 导出）会被后面的编辑器盖住——
+     看得见、点不动。 */
+  position: relative;
+  z-index: 30;
+  height: var(--titlebar-h);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  user-select: none;
+}
+
+.titlebar .grow {
+  flex: 1;
+  height: 100%;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 4px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+}
+
+.brand .mark {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: var(--grad);
+  box-shadow: 0 0 14px rgba(203, 165, 107, 0.45);
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+

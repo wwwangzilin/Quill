@@ -1,0 +1,201 @@
+/* ============================ 禅模式（F11） ============================ */
+
+/* 藏掉整个界面，只剩正文；窗口本身由 Tauri 切成真全屏。
+   同样是「滑出去 + 淡掉」而不是 display: none，切换才有过渡。 */
+.app.zen .titlebar {
+  margin-top: calc(var(--titlebar-h) * -1);
+  opacity: 0;
+  pointer-events: none;
+}
+/* ---- 无边框窗口的顶栏：默认藏着，鼠标够到右上角才滑出来 ----
+   窗口去掉了系统标题栏（tauri.conf.json → decorations: false），顶栏于是从
+   「一直挂着的一条」变成了「要用时才出现的一条」。手法和禅模式、和底栏一致：
+   滑出去 + 淡掉，而不是 display: none —— 用 transform 就不占位移动，
+   顶栏进进出出时正文一个字都不会跳行。 */
+.titlebar {
+  /* 这条要写在「主题切换」那条之后：那里也声明了 transition，会把这边的盖掉。
+     收放走 margin 而不是 transform —— transform 只是「看起来走了」，
+     位置还占着，顶上会白留一条没人用的窄带。 */
+  transition:
+    margin-top var(--dur) var(--ease),
+    opacity var(--dur) var(--ease),
+    background-color 0.34s var(--ease),
+    border-color 0.34s var(--ease),
+    color 0.34s var(--ease);
+}
+/* 负上边距：顶栏整体移出视口顶边，底下的东西跟着上提 46px。 */
+.app.bar-hidden .titlebar {
+  margin-top: calc(var(--titlebar-h) * -1);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 顶栏的热区那套（.titlebar-hot / .hot-strip / .hot-corner / .hot-left）整个删掉了。
+   它服务的是「顶栏常态藏着、够到上沿才滑出来」那套规则，而那套规则本身是错的：
+   顶栏一滑出来按钮就跟着往下走，鼠标追过去就掉出热区，来回抖，永远点不中。
+   现在上/下/左三个栏统一走 .app.bars-hidden（一敲字就收，鼠标一动就回来），
+   顶栏跟状态栏一样随时够得着，不需要什么热区。 */
+
+/* ---- 无边框窗口右上角的三个窗口按钮 ---- */
+/* 系统标题栏没了，最小化 / 最大化 / 关闭就只剩这三个。但它们不该长成
+   Windows 原生的样子：撑满高度、贴死边角、关闭键一悬停就一块大红 —— 那套
+   硬邦邦的方钮跟这里的毛玻璃和暖色完全不是一家人。所以改成顶栏图标按钮
+   那一族的成员：小圆角、透明底、悬停才浮出一点点，安静地把事办了。 */
+.win-ctl {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+}
+.win-btn {
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+/* 圆头圆角：直角方框才是「系统味」的来源，这里全部化掉 */
+.win-btn svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.win-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+  color: var(--text);
+}
+/* 关闭键不点大红底，只借主题里那点陶土红 ——
+   意思到了，也不必把整条顶栏喊醒 */
+.win-btn.close:hover {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-3);
+}
+
+/* ---- 打字时自动收起，鼠标一动就回来 ----
+   和禅模式同一套手法：滑出去 + 淡掉，而不是 display: none。
+   **上 / 下 / 左 三个栏归这里管**（主人定的规则：这三个鼠标一动就展开、
+   写作时自动收起）。右栏不在这里 —— 它走「鼠标靠近右边缘才打开」，
+   由 .aside.is-hidden 单独控。
+   顶栏以前不归这里管（它常态藏着、够到上沿才出来），结果是按钮永远追不到；
+   现在统一进来，四个栏两条规则，没有特例。 */
+.app.bars-hidden .titlebar {
+  margin-top: calc(var(--titlebar-h) * -1);
+  opacity: 0;
+  pointer-events: none;
+}
+.app.bars-hidden .statusbar {
+  margin-bottom: calc(var(--statusbar-h) * -1);
+  opacity: 0;
+  pointer-events: none;
+}
+/*
+ * 鼠标搭在状态栏上时，它的位置必须是**死的** —— 一点过渡都不许重播。
+ * 这条栏里有那个可拖的「正文栏宽度」滑块：条子在动的时候，滑块就是点不中的。
+ */
+.app.bars-pinned .statusbar {
+  transition: none;
+}
+/* 侧栏的收放不再由这里管 —— 它跟着「鼠标贴不贴左边缘」走，
+   统一由 Sidebar 的 hidden 决定（负边距 + 淡出 + 模糊，见 .sidebar.hidden），
+   这样只有一个真相源，不会出现「CSS 藏了但状态说开着」的拧巴。 */
+.app.zen .sidebar {
+  margin-left: calc(var(--sidebar-w) * -1);
+  opacity: 0;
+  pointer-events: none;
+}
+.app.zen .backlinks,
+.app.zen .reading-badge {
+  opacity: 0;
+  pointer-events: none;
+}
+.app.zen .editor-scroll {
+  padding-top: 9vh;
+  padding-bottom: 18vh;
+}
+/* 文档信息与标签平时收起来，鼠标进正文才浮现 —— 不打断沉浸 */
+.app.zen .doc-meta,
+.app.zen .tag-editor {
+  opacity: 0;
+  transition: opacity 0.32s var(--ease);
+}
+.app.zen .editor-inner:hover .doc-meta,
+.app.zen .editor-inner:hover .tag-editor,
+.app.zen .editor-inner:focus-within .tag-editor {
+  opacity: 1;
+}
+/* 禅模式下光标亮一点，好找 */
+.app.zen .ProseMirror {
+  caret-color: var(--accent-1);
+}
+
+.zen-hint {
+  position: fixed;
+  right: 20px;
+  bottom: 16px;
+  z-index: 60;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text-3);
+  font-size: 11.5px;
+  /* 几乎看不见，但需要时扫一眼就有 —— 而且不吃鼠标 */
+  opacity: 0.18;
+  pointer-events: none;
+  animation: mask-in 0.5s var(--ease-out) both;
+}
+
+/* ---------- 设置面板里的「检查更新」卡片 ---------- */
+
+.update-card {
+  margin-top: 10px;
+  padding: 11px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--accent-soft);
+}
+.update-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.update-bar {
+  margin-top: 9px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-active);
+  overflow: hidden;
+}
+.update-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--grad);
+  transition: width 0.25s var(--ease);
+}
+.update-notes {
+  margin-top: 9px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 11.5px;
+  line-height: 1.8;
+  color: var(--text-2);
+  white-space: pre-wrap;
+}
+

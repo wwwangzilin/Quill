@@ -1,0 +1,430 @@
+/* ==========================================================================
+   动效层 —— 统一节奏、缓动与反馈
+   ========================================================================== */
+
+:root {
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 0.14s;
+  --dur: 0.26s;
+  --dur-slow: 0.44s;
+}
+
+/* 主题切换：容器颜色平滑过渡 */
+body,
+.titlebar,
+.sidebar,
+.drawer,
+.menu,
+.doc-item,
+.commit,
+.preview,
+.search,
+.seg {
+  transition: background-color 0.34s var(--ease), border-color 0.34s var(--ease),
+    color 0.34s var(--ease), opacity var(--dur) var(--ease);
+}
+
+/* ---------- 视图切换与页面切换 ---------- */
+.editor-scroll,
+.pane {
+  animation: view-in 0.18s var(--ease-out) both;
+}
+@keyframes view-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 整页切换（文档库 / 设置 / 回收站）：从下方轻轻浮入 */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 标题栏要能随禅模式滑出去，所以它的 transform / opacity 也得可过渡 */
+.titlebar {
+  transition: transform var(--dur) var(--ease), opacity var(--dur) var(--ease),
+    background var(--dur) var(--ease);
+}
+
+/* 正文栏宽度会变（阅读模式放宽、拖底栏的宽度滑块），别硬跳 */
+.editor-inner {
+  transition: max-width var(--dur) var(--ease);
+}
+
+/* 独立页面（文档库 / 设置）打开时从下方浮入 */
+.library-view,
+.settings-view {
+  animation: page-in 0.24s var(--ease-out) both;
+}
+
+/* 换文档时正文淡一下，避免硬切 */
+.editor-inner.doc-switching {
+  animation: view-in 0.24s var(--ease-out) both;
+}
+
+/* ---------- 侧栏收放 ---------- */
+.sidebar {
+  transition: margin-left var(--dur) var(--ease), opacity var(--dur) var(--ease),
+    filter var(--dur) var(--ease);
+}
+.sidebar.hidden {
+  margin-left: calc(var(--sidebar-w) * -1);
+  opacity: 0;
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+/* ---------- 文档列表入场 ---------- */
+.doc-item {
+  animation: item-in 0.2s var(--ease-out) both;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.doc-item:active {
+  transform: scale(0.996);
+}
+@keyframes item-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- 按钮反馈 ---------- */
+.btn {
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease), transform 0.12s var(--ease), box-shadow var(--dur-fast) var(--ease),
+    filter var(--dur-fast) var(--ease);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.975);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ---------- 弹出菜单 ---------- */
+.menu {
+  animation: menu-in 0.2s var(--ease-out) both;
+  transform-origin: top right;
+}
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.menu button {
+  transition: background var(--dur-fast) var(--ease);
+}
+
+/* 超大文档（一千多个块）才加的那一类。
+   实测主人那篇小说 50980 字符、**1663 个顶层块** —— 解析只要 2ms，
+   真正贵的是 ProseMirror 给每个块建 DOM 和排版。这条让浏览器跳过视口外
+   那些块的排版与绘制，滚动和重排会明显轻。
+   注意：它管不着「首次打开」时建立 ProseMirror 状态的开销 —— 那得靠分段加载，
+   是另一个量级的改动，先不动。
+   小文档不加：content-visibility 会让 coordsAtPos 这类几何查询偶尔多一次强制布局。 */
+.editor-inner.big-doc .ProseMirror > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
+}
+
+/* ---------- 超大文档（几百万字）----------
+   不进 ProseMirror，也不再另起一个阅读器 —— 走的就是 ReaderView 那套：
+   左边目录、双栏排版、翻页、批注底纹全都一样，只是正文**按章现取**。
+   下面这条是翻章时那一章还在路上的占位。 */
+.reader-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+/*
+ * 超大文档的正文也跳过视口外排版。
+ *
+ * 一章最长能到 6.5 万字（两千多个块），整章一次性排版仍然会顿一下。
+ * **这里用着比编辑器里安全得多**：没有光标、没有装饰、没有 coordsAtPos
+ * 这类几何查询，纯展示。编辑器那边不敢这么放开，就是因为那些东西全依赖
+ * DOM 真实存在。
+ */
+/*
+ * ⚠️ 这里**故意不加** content-visibility，别再「优化」回来。
+ *
+ * 加过的，代价是左右翻页一直抽搐：视口外的块先按 contain-intrinsic-size 的
+ * 估算高度占位，翻过去真正渲染后高度变成实测值，多栏布局就跟着重排 ——
+ * 实测 scrollWidth 每翻一页都变一次（13548 → 14092），每一列的内容都挪位。
+ * 而且多栏是靠 translateX 平移的，平移**不改变布局视口**，浏览器判断
+ * 「哪些块进视野了」天生慢半拍，这个抖动躲不掉。
+ *
+ * 换回来的是什么？一章两千多个块一次性排版，打开时顿一下 ——
+ * 那一下已经被 .reader-track 的 reader-chap 淡入盖住了。
+ * 「打开顿一下」比「每次翻页都抽搐」划算得多。
+ *
+ * .is-heavy 这个类保留：它标的是「走的是超大文档的按章通道」，语义还有用。
+ */
+.reader-track.is-heavy > * {
+  /* 只做一个不参与布局计算的隔离，别放 content-visibility */
+  contain: style;
+}
+
+/* ---------- Toast ---------- */
+.toasts {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 90;
+  pointer-events: none;
+}
+/* 提示本身要能点（上面有「跳过去 / 从头看」这种按钮）。
+   整块 pointer-events: none 是为了不挡住底下的正文，那颗按钮自己收回来即可。 */
+.toast {
+  pointer-events: auto;
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 220px;
+  max-width: 380px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  animation: toast-in 0.34s var(--ease-out) both;
+}
+.toast.success {
+  border-color: rgba(125, 155, 138, 0.4);
+}
+.toast.error {
+  border-color: rgba(192, 122, 99, 0.5);
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.toast .t-icon {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--grad);
+  color: #fff;
+  margin-top: 1px;
+}
+.toast.error .t-icon {
+  background: linear-gradient(135deg, #c07a63, #a1574a);
+}
+.toast.success .t-icon {
+  background: linear-gradient(135deg, #7d9b8a, #5f7f6e);
+}
+.toast .t-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.toast .t-text {
+  font-size: 12.5px;
+}
+.toast .t-detail {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+/* 带按钮的提示（「上次读到这儿」这类）：按了才动，也按了才消失。
+   .toasts 整块是 pointer-events: none（免得挡住底下的界面），
+   所以按钮这里得自己收回点击。 */
+.toast .t-acts {
+  display: flex;
+  gap: 6px;
+  margin-top: 9px;
+  pointer-events: auto;
+}
+
+/* ---------- 保存状态脉冲 ---------- */
+.doc-meta .save-flag.saving {
+  animation: soft-pulse 1.15s ease-in-out infinite;
+}
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ---------- 大纲折叠 ---------- */
+.ProseMirror li {
+  position: relative;
+}
+.ProseMirror li.is-folded > ul,
+.ProseMirror li.is-folded > ol,
+.ProseMirror li.is-folded > div > ul,
+.ProseMirror li.is-folded > div > ol {
+  display: none;
+}
+.ProseMirror .fold-toggle {
+  position: absolute;
+  left: -1.75em;
+  top: 0.42em;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.32;
+  transition: opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+    transform 0.12s var(--ease);
+}
+.ProseMirror .fold-toggle::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  background: currentColor;
+  clip-path: polygon(38% 24%, 38% 76%, 70% 50%);
+  transform: rotate(90deg);
+  transition: transform 0.26s var(--ease-out);
+}
+.ProseMirror .fold-toggle.folded::before {
+  transform: rotate(0deg);
+}
+.ProseMirror .fold-toggle:hover {
+  opacity: 1;
+  background: var(--surface-active);
+}
+.ProseMirror .fold-toggle:active {
+  transform: scale(0.85);
+}
+
+/* ---------- 专注模式 ---------- */
+.ProseMirror.focus-mode > * {
+  opacity: 0.26;
+  transition: opacity 0.4s var(--ease);
+}
+.ProseMirror.focus-mode > *.is-focus,
+.ProseMirror.focus-mode > *:hover {
+  opacity: 1;
+}
+
+/* ---------- 导图入场 ---------- */
+.mm-node rect,
+.mm-node text {
+  animation: mm-fade 0.5s var(--ease-out) both;
+}
+.mm-node.root rect,
+.mm-node.root text {
+  animation-delay: 0.04s;
+}
+@keyframes mm-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.mm-link {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: mm-draw 0.75s var(--ease-out) forwards;
+}
+@keyframes mm-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---------- 加载指示 ---------- */
+.spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent-2);
+  border-radius: 50%;
+  animation: spin 0.72s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- 状态点（仓库/模式指示） ---------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  font-size: 11px;
+  color: var(--text-2);
+  max-width: 260px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pill .dot-live {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4dc882;
+  box-shadow: 0 0 8px rgba(77, 200, 130, 0.8);
+  animation: soft-pulse 2s ease-in-out infinite;
+}
+
+/* ---------- 动效策略 ----------
+   界面里的过渡是设计的一部分，默认**不跟随**系统的「减少动效」——
+   否则在关掉系统动画的机器上，整个应用会退化成一帧帧硬切。
+   想让系统设置生效，去设置里打开「跟随系统的动画设置」；
+   那时 <html> 上会挂 .respect-motion，下面这段才开始起作用。 */
+@media (prefers-reduced-motion: reduce) {
+  html.respect-motion *,
+  html.respect-motion *::before,
+  html.respect-motion *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+

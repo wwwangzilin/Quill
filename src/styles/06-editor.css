@@ -1,0 +1,268 @@
+/* ============================ 编辑器 ============================ */
+
+.editor-scroll {
+  height: 100%;
+  overflow-y: auto;
+  padding: 0 24px 40vh;
+}
+
+.editor-inner {
+  max-width: var(--write-width);
+  margin: 0 auto;
+  padding-top: 56px;
+}
+
+.doc-title {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  padding: 0 0 6px;
+  margin-bottom: 10px;
+}
+.doc-title::placeholder {
+  color: var(--text-3);
+}
+
+.doc-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  padding-bottom: 22px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.doc-meta .dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+.doc-meta .save-flag {
+  margin-left: auto;
+  transition: opacity 0.3s;
+}
+.doc-meta .save-flag.saved {
+  opacity: 0.55;
+}
+
+.ProseMirror {
+  outline: none;
+  font-family: var(--font-prose);
+  font-size: var(--prose-size);
+  line-height: var(--prose-leading);
+  color: var(--text);
+  caret-color: var(--accent-2);
+  min-height: 40vh;
+  text-align: var(--prose-align);
+  /* 字间距：中文排得密时加一点点会松快很多；默认 0 不改变原样 */
+  letter-spacing: var(--prose-tracking);
+}
+
+/*
+ * 段间距走 --prose-gap（设置里可调），不再写死 0.65em。
+ * 用 em 而不是 px：主人把字号调大时，间距跟着长，不会突然显得挤。
+ */
+.ProseMirror > * + * {
+  margin-top: var(--prose-gap);
+}
+
+/*
+ * 首行缩进（设置里的「首行缩进」）。
+ *
+ * 只给**正文段落**加 —— 标题、列表、引用、代码块、表格都不该缩：
+ * 缩进是纸书里「另起一段」的标志，标题本来就跟正文不是一个层级，
+ * 列表更是一缩就串味。这些排除项一个都不能少，不然它们会一起歪。
+ */
+.ProseMirror p {
+  margin: 0;
+}
+.ProseMirror > p {
+  text-indent: var(--prose-indent);
+}
+/* 列表项和引用里的段落不缩 —— 它们已经有自己的左缩进了，再加一层会挤成梯田 */
+.ProseMirror li p,
+.ProseMirror blockquote p,
+.ProseMirror td p,
+.ProseMirror th p {
+  text-indent: 0;
+}
+/*
+ * 图片、分割线这些不该因为 text-indent 被推一下（它们不是文字）。
+ * 顺手把「整段就是一个图片」那种段落的缩进也免掉。
+ */
+.ProseMirror > p:has(> img),
+.ProseMirror > p:has(> .reader-img) {
+  text-indent: 0;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--text-3);
+}
+
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.4;
+  margin-top: 1.5em;
+  letter-spacing: 0.01em;
+}
+.ProseMirror h1 {
+  font-size: 25px;
+}
+.ProseMirror h2 {
+  font-size: 21px;
+}
+.ProseMirror h3 {
+  font-size: 18px;
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 1.35em;
+}
+.ProseMirror li {
+  margin: 0.18em 0;
+}
+.ProseMirror li > p {
+  margin: 0;
+}
+.ProseMirror ul {
+  list-style: disc;
+}
+.ProseMirror ul ul {
+  list-style: circle;
+}
+.ProseMirror ul ul ul {
+  list-style: square;
+}
+
+.ProseMirror blockquote {
+  border-left: 2px solid transparent;
+  border-image: var(--grad) 1;
+  padding-left: 16px;
+  color: var(--text-2);
+  font-style: italic;
+}
+
+.ProseMirror code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: #e2c793;
+}
+[data-theme="light"] .ProseMirror code {
+  color: #7a5716;
+}
+
+.ProseMirror pre {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  line-height: 1.7;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.32);
+  overflow-x: auto;
+}
+[data-theme="light"] .ProseMirror pre {
+  background: rgba(20, 20, 40, 0.05);
+}
+.ProseMirror pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+.ProseMirror hr {
+  border: none;
+  height: 1px;
+  background: var(--border-strong);
+  margin: 2em 0;
+}
+
+.ProseMirror mark {
+  background: rgba(203, 165, 107, 0.3);
+  color: inherit;
+  border-radius: 3px;
+  padding: 1px 2px;
+}
+
+.ProseMirror a {
+  color: var(--accent-2);
+  text-decoration-color: rgba(138, 168, 155, 0.45);
+  text-underline-offset: 3px;
+}
+
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0.2em;
+}
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+.ProseMirror ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+  margin-top: 0.42em;
+  user-select: none;
+}
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-strong);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.16s, border-color 0.16s;
+}
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked {
+  background: var(--grad);
+  border-color: transparent;
+}
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(42deg);
+}
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+
+/* 选中文字。
+   以前这条钉死在 .ProseMirror 上、颜色还是旧主题的金色 ——
+   换个主题就露馅，而且全局没有 ::selection，阅读视图里用的是浏览器默认的蓝。
+   现在跟着 --accent-1 走，两个界面一致。 */
+::selection {
+  background: color-mix(in srgb, var(--accent-1) 34%, transparent);
+}
+

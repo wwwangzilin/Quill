@@ -1,0 +1,179 @@
+/* ============================ 导图 ============================ */
+
+.mindmap {
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+.mindmap svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+}
+.mindmap svg:active {
+  cursor: grabbing;
+}
+/* 切到导图时把编辑器藏起来 —— 但保持挂载，否则 editor 会被销毁，导图就没得编辑 */
+.main-stack.is-hidden {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+/* ---- 思维导图：布局切换器 ---- */
+.mm-layouts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.mm-lay {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 11.5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+.mm-lay:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.mm-lay.on {
+  color: var(--accent-1);
+  border-color: var(--accent-1);
+  background: var(--accent-soft);
+}
+/* ---- 节点状态 ---- */
+.mindmap .mm-node {
+  cursor: pointer;
+}
+.mm-node.sel .box {
+  stroke: var(--accent-1);
+  stroke-width: 1.8;
+}
+.mm-node.dragging {
+  opacity: 0.45;
+}
+.mm-node.droptarget .box {
+  stroke: var(--accent-2);
+  stroke-width: 2;
+  stroke-dasharray: 5 3;
+}
+/* 紧凑大纲：不画线，节点框也退成透明，只留缩进层级 */
+.mm-node.flat .box {
+  fill: transparent;
+  stroke: transparent;
+}
+/* ---- 改名输入框（浮在节点上的 HTML 层，不进导出） ---- */
+.mm-edit {
+  position: absolute;
+  z-index: 30;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-1);
+  background: var(--surface-solid);
+  color: var(--text);
+  font-family: inherit;
+  outline: none;
+  box-shadow: var(--shadow-sm);
+}
+.mm-node text {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  fill: var(--text);
+  dominant-baseline: middle;
+}
+.mm-node .box {
+  fill: var(--surface-solid);
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+.mm-node.root .box {
+  stroke: url(#mm-grad);
+  stroke-width: 1.6;
+}
+.mm-node.root text {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+}
+/* 标题节点：导图里的「节」，让大纲层次一眼看得出来 */
+.mm-node.heading .box {
+  fill: var(--surface-active);
+  stroke: var(--accent-1);
+  stroke-width: 1.4;
+}
+.mm-node.heading text {
+  fill: var(--text);
+  font-weight: 700;
+}
+.mm-node.heading.lv2 .box {
+  stroke-width: 1.1;
+}
+.mm-node.heading.lv2 text {
+  font-weight: 600;
+}
+.mm-node.heading.lv3 {
+  opacity: 0.94;
+}
+.mm-node.heading.lv3 text {
+  font-weight: 500;
+}
+/* 正文段落节点：淡一点，别跟大纲项抢注意力 */
+.mm-node.para .box {
+  fill: transparent;
+  stroke-dasharray: 3 3;
+}
+.mm-node.para text {
+  fill: var(--text-3);
+}
+.mm-link {
+  fill: none;
+  stroke: rgba(180, 170, 155, 0.35);
+  stroke-width: 1.4;
+}
+.mm-link.root {
+  stroke: url(#mm-grad);
+  stroke-width: 1.8;
+}
+.mm-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  font-size: 11.5px;
+  color: var(--text-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 6px 14px;
+  border-radius: 999px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+.mm-tools {
+  position: absolute;
+  right: 16px;
+  top: 14px;
+  display: flex;
+  gap: 6px;
+  z-index: 12;
+  animation: menu-in 0.24s var(--ease-out) both;
+  transform-origin: top right;
+}
+.mm-tools .btn {
+  background: var(--surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+

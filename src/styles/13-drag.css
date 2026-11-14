@@ -1,0 +1,132 @@
+/* ==========================================================================
+   拖拽排序
+   ========================================================================== */
+
+.ProseMirror > * {
+  position: relative;
+}
+
+.ProseMirror > * > .drag-handle,
+.ProseMirror li > .drag-handle {
+  position: absolute;
+  left: -2.55em;
+  top: 0.36em;
+  width: 15px;
+  height: 15px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  place-items: center;
+  padding: 1px 2px;
+  border-radius: 4px;
+  cursor: grab;
+  opacity: 0;
+  /* 关键：告诉浏览器这里不是滚动区，否则 pointer 事件会被手势抢走 */
+  touch-action: none;
+  user-select: none;
+  transition: opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.ProseMirror .drag-handle i {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+}
+.ProseMirror > *:hover > .drag-handle,
+.ProseMirror li:hover > .drag-handle {
+  opacity: 0.5;
+}
+.ProseMirror .drag-handle:hover {
+  opacity: 1 !important;
+  background: var(--surface-active);
+}
+.ProseMirror .drag-handle.dragging {
+  opacity: 1 !important;
+  background: var(--accent-soft);
+  cursor: grabbing;
+}
+
+/* 拖拽进行中：整页锁定光标与选择 */
+body.quill-dragging,
+body.quill-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+/* 正文里的媒体 */
+.ProseMirror img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 6px 0;
+  border-radius: var(--radius);
+}
+.ProseMirror img.ProseMirror-selectednode,
+.ProseMirror .quill-video.ProseMirror-selectednode {
+  outline: 2px solid var(--accent-1);
+  outline-offset: 2px;
+}
+.ProseMirror .quill-video {
+  display: block;
+  max-width: 100%;
+  margin: 6px 0;
+  border-radius: var(--radius);
+  background: #000;
+}
+
+/* 右侧块类型标记 */
+.ProseMirror .gutter-label {
+  position: absolute;
+  right: -4.4em;
+  top: 0.34em;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  opacity: 0.42;
+  user-select: none;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.ProseMirror > *:hover > .gutter-label {
+  opacity: 0.85;
+  color: var(--accent-1);
+}
+
+.drag-line {
+  /* fixed + 视口坐标：getBoundingClientRect 给的就是视口坐标，天生一对。
+     用 absolute 就得猜「谁是定位祖先」，而编辑器容器并没有 position: relative，
+     那样算出来的 top 会被解释成相对更外层的容器，线就飘到屏幕上面去了。 */
+  position: fixed;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--grad);
+  box-shadow: 0 0 14px rgba(203, 165, 107, 0.7);
+  pointer-events: none;
+  display: none;
+  z-index: 8;
+  animation: line-in 0.14s var(--ease-out) both;
+}
+@keyframes line-in {
+  from {
+    transform: scaleX(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* 导图节点可点击跳转 */
+.mm-node {
+  cursor: pointer;
+}
+.mm-node .box {
+  transition: stroke var(--dur-fast) var(--ease), fill var(--dur-fast) var(--ease);
+}
+.mm-node:hover .box {
+  stroke: var(--accent-1);
+}
+
