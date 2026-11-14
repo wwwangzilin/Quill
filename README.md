@@ -338,10 +338,26 @@ src/
     TrashPanel.tsx   回收站
     Heatmap.tsx
     ToastHost.tsx / toast.ts
-  App.tsx            状态中枢
+  app/               App 拆出来的 hooks 与子组件（纯搬运，不含新逻辑）
+    useDocSession.ts   文档列表 / 当前文档 / 防抖保存 —— 写作数据流的唯一入口
+    useChromeBars.ts   上下左右栏的自动收放
+    useZenMode.ts      禅模式（F11）
+    useComments.ts     批注读写与跳转
+    useExportImport.ts 导出与导入
+    useEditorBridge.ts 编辑器实例、全文搜索跳转
+    useDesktopPrefs.ts / useUpdateCheck.ts / useAppShortcuts.ts
+    menus.ts           「更多」菜单与命令面板清单
+    TitleBar.tsx / StatusBar.tsx   标题栏与状态栏
+    docUtils.ts / exportUtils.ts / types.ts   纯函数与共用类型
+  App.tsx            界面状态与装配
   style.css          设计系统与动效层
 src-tauri/src/
-  vault.rs           文件读写、回收站、标签、统计、章节索引与大文档分片读写
+  vault/             文档仓库（对外仍是 vault::xxx，由 mod.rs 门面转出）
+    docs.rs            文档增删改查
+    meta.rs            星标 / 标签 / 批注（共用一把锁）
+    trash.rs           回收站
+    chapters.rs        章节索引与大文档分片读写（含单元测试）
+    stats.rs / assets.rs / fulltext.rs / util.rs
   git.rs             git CLI 封装（init / commit / log / show / restore）
   lib.rs             命令注册、全局快捷键、窗口管理
 ```
