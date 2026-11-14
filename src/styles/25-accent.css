@@ -1,0 +1,122 @@
+/* ============================ 强调色 ============================ */
+
+/* ---- 设置 → 外观里的选择器 ---- */
+.accent-picker {
+  margin-top: 16px;
+}
+.accent-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.accent-cur {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+.accent-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.accent-chip {
+  appearance: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px 6px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast, 0.16s) var(--ease, ease),
+    background var(--dur-fast, 0.16s) var(--ease, ease),
+    color var(--dur-fast, 0.16s) var(--ease, ease);
+}
+.accent-chip:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-active);
+}
+.accent-chip.on {
+  border-color: var(--accent-1);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.accent-chip:focus-visible {
+  outline: 2px solid var(--accent-1);
+  outline-offset: 2px;
+}
+.accent-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+}
+/* 「跟随主题」：斜纹底，表示「没有指定颜色」 */
+.accent-chip.auto .accent-dot {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--surface-solid) 0 3px,
+    var(--border-strong) 3px 4px
+  );
+}
+/* 「自选」没选中时是一圈彩虹，选中后换成实际选的颜色（行内样式覆盖） */
+.accent-chip.custom .accent-dot {
+  background: conic-gradient(#e05a4f, #e0b84f, #6fbf6a, #4fa9e0, #8a5fd0, #e05a4f);
+}
+.accent-chip.custom input[type='color'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.accent-note {
+  margin-top: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+/* ---- 选了自定义强调色之后：把写死的琥珀色发光 / 阴影也改成跟着走 ----
+   这些地方当初是照默认的琥珀写死的；不动它们，换成青色之后会留下一圈黄光。
+   只在 data-accent 存在时生效，所以没选强调色的人看到的和从前一模一样。 */
+[data-accent] .brand .mark {
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent-1) 45%, transparent);
+}
+[data-accent] .btn.primary {
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--accent-1) 36%, transparent);
+}
+[data-accent] .seg button.on {
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--accent-1) 38%, transparent);
+}
+[data-accent] .ProseMirror mark {
+  background: color-mix(in srgb, var(--accent-1) 30%, transparent);
+}
+/* 写作热力图（4 档）与拖拽排序的落点线 */
+[data-accent] .heat-cell.l1 {
+  background: color-mix(in srgb, var(--accent-1) 30%, transparent);
+}
+[data-accent] .heat-cell.l2 {
+  background: color-mix(in srgb, var(--accent-1) 52%, transparent);
+}
+[data-accent] .heat-cell.l3 {
+  background: color-mix(in srgb, var(--accent-1) 76%, transparent);
+}
+[data-accent] .heat-cell.l4 {
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent-1) 50%, transparent);
+}
+[data-accent] .drag-line {
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent-1) 70%, transparent);
+}

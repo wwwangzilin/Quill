@@ -167,3 +167,35 @@
   --shadow-sm: 0 4px 14px rgba(120, 60, 90, 0.09);
 }
 
+
+/* ---------- 玻璃奶白：冷调奶白底，顶栏 / 底栏浮成玻璃胶囊，单一深青点缀 ----------
+   版式细节（悬浮胶囊、网格底纹、编辑式小标题）在 26-theme-glass.css。 */
+[data-theme="glass"] {
+  color-scheme: light;
+  --bg: #f3f6fa;
+  --surface: rgba(255, 255, 255, 0.62);
+  --surface-solid: #fbfcfe;
+  --surface-hover: rgba(30, 50, 80, 0.045);
+  --surface-active: rgba(30, 50, 80, 0.08);
+  --border: rgba(40, 60, 90, 0.1);
+  --border-strong: rgba(40, 60, 90, 0.18);
+  --text: #16202b;
+  --text-2: #465566;
+  --text-3: #66768a;
+  --accent-1: #1f6f78;
+  --accent-2: #4a6fa5;
+  --accent-3: #b5654f;
+  --accent-soft: rgba(31, 111, 120, 0.11);
+  --grad: linear-gradient(135deg, #2b8791, #175861);
+  --radius-sm: 10px;
+  --radius: 14px;
+  --radius-lg: 22px;
+  --shadow: 0 14px 46px rgba(30, 50, 80, 0.12);
+  --shadow-sm: 0 4px 18px rgba(30, 50, 80, 0.08);
+  /* 玻璃层专用：胶囊的底、描边、投影、模糊，以及背景网格线 */
+  --glass-bg: rgba(255, 255, 255, 0.58);
+  --glass-border: rgba(255, 255, 255, 0.9);
+  --glass-shadow: 0 8px 26px rgba(30, 50, 80, 0.12), 0 1px 0 rgba(255, 255, 255, 0.95) inset;
+  --glass-blur: blur(22px) saturate(1.6);
+  --grid-line: rgba(60, 90, 130, 0.06);
+}

@@ -12,7 +12,9 @@
  * **字体不归主题管** —— 那是「设置 → 外观」里的排版项，用户选了就得算数。
  */
 
-export type Theme = 'dark' | 'light' | 'ink' | 'paper' | 'night' | 'sakura'
+import { applyAccent } from './accent'
+
+export type Theme = 'dark' | 'light' | 'ink' | 'paper' | 'night' | 'sakura' | 'glass'
 
 export interface ThemeInfo {
   id: Theme
@@ -75,6 +77,14 @@ export const THEMES: ThemeInfo[] = [
     swatch: ['#fdf6f8', '#c2547f'],
     icon: '❀',
   },
+  {
+    id: 'glass',
+    label: '玻璃奶白',
+    hint: '冷调奶白底，顶栏与底栏浮成玻璃胶囊，单一深青点缀',
+    dark: false,
+    swatch: ['#f3f6fa', '#1f6f78'],
+    icon: '◇',
+  },
 ]
 
 /** 按当前主题循环到下一个 —— 标题栏那个按钮与命令面板共用 */
@@ -113,6 +123,8 @@ export function readTheme(): Theme {
 /** 应用并记住主题 */
 export function applyTheme(theme: Theme): void {
   document.documentElement.dataset.theme = theme
+  // 自选的强调色要按新主题的明暗重新推一遍（深底要偏亮，浅底要偏深）
+  applyAccent(themeInfo(theme).dark)
   try {
     localStorage.setItem(THEME_KEY, theme)
   } catch {
@@ -127,5 +139,6 @@ export function applyTheme(theme: Theme): void {
 export function initTheme(): Theme {
   const theme = readTheme()
   document.documentElement.dataset.theme = theme
+  applyAccent(themeInfo(theme).dark)
   return theme
 }

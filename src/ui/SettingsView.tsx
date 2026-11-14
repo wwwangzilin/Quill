@@ -25,6 +25,7 @@ import {
 import { AI_TUNING_RANGE, resetAiTuning, useAiTuning } from '../core/aiPrefs'
 import { applyRespectMotion, readRespectMotion } from '../core/motion'
 import { THEMES, type Theme } from '../core/theme'
+import AccentPicker from './AccentPicker'
 import { isDesktop, type DesktopPrefs } from '../core/desktop'
 import { checkUpdate, currentVersion, installUpdate, type UpdateInfo } from '../core/update'
 import { toast } from './toast'
@@ -61,13 +62,13 @@ interface Props {
   onAutostart: (next: boolean) => void
 }
 
-const SECTIONS: { id: SectionId; label: string; hint: string; desktopOnly?: boolean }[] = [
-  { id: 'appearance', label: '外观', hint: '字体与排版' },
-  { id: 'writing', label: '写作', hint: '每日目标' },
-  { id: 'ai', label: 'AI 助手', hint: '续写与密钥' },
-  { id: 'backup', label: '远程备份', hint: '推送到 git 仓库' },
-  { id: 'desktop', label: '桌面', hint: '托盘与同步', desktopOnly: true },
-  { id: 'about', label: '关于', hint: '版本与更新' },
+const SECTIONS: { id: SectionId; label: string; en: string; hint: string; desktopOnly?: boolean }[] = [
+  { id: 'appearance', label: '外观', en: 'APPEARANCE', hint: '字体与排版' },
+  { id: 'writing', label: '写作', en: 'WRITING', hint: '每日目标' },
+  { id: 'ai', label: 'AI 助手', en: 'ASSISTANT', hint: '续写与密钥' },
+  { id: 'backup', label: '远程备份', en: 'BACKUP', hint: '推送到 git 仓库' },
+  { id: 'desktop', label: '桌面', en: 'DESKTOP', hint: '托盘与同步', desktopOnly: true },
+  { id: 'about', label: '关于', en: 'ABOUT', hint: '版本与更新' },
 ]
 
 /**
@@ -341,6 +342,8 @@ export default function SettingsView({
           </button>
         ))}
       </div>
+
+      <AccentPicker theme={theme} />
 
       <label className="field" style={{ marginTop: 14 }}>
         <span>正文字体</span>
@@ -1002,6 +1005,12 @@ export default function SettingsView({
         </div>
         <div className="settings-content">
           <div className="settings-section">
+            <div className="eyebrow" aria-hidden="true">
+              <span>
+                {String(Math.max(0, sections.indexOf(current)) + 1).padStart(2, '0')} / {current?.en}
+              </span>
+              <i />
+            </div>
             <h3>{current?.label}</h3>
             <div className="sc-group">{body}</div>
           </div>
@@ -1037,6 +1046,12 @@ export default function SettingsView({
 
         <div className="settings-content">
           <div className="settings-section">
+            <div className="eyebrow" aria-hidden="true">
+              <span>
+                {String(Math.max(0, sections.indexOf(current)) + 1).padStart(2, '0')} / {current?.en}
+              </span>
+              <i />
+            </div>
             <h3>{current?.label}</h3>
             <div className="sc-group">{body}</div>
           </div>

@@ -71,7 +71,9 @@ export default function TitleBar({
       </button>
       <div className="brand" data-tauri-drag-region>
         <span className="mark" />
-        Quill
+        <span className="brand-name">Quill</span>
+        {/* 编辑式小字：只有「玻璃奶白」显示，其余主题 display: none（见 styles/26-theme-glass.css） */}
+        <span className="brand-sub">WRITING DESK</span>
       </div>
       {vaultMode && (
         <button

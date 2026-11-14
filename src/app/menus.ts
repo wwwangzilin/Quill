@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { MenuItem } from '../ui/MoreMenu'
 import type { PaletteCommand } from '../ui/CommandPalette'
-import { nextTheme, themeInfo, type Theme } from '../core/theme'
+import { THEMES, nextTheme, themeInfo, type Theme } from '../core/theme'
 import { openQuickNote } from '../core/windows'
 import { storage } from '../core/storage'
 import type { ViewMode } from '../core/types'
@@ -183,7 +183,7 @@ export function buildMoreItems(c: MenuCtx): MenuItem[] {
       key: 'theme',
       icon: themeInfo(theme).icon,
       label: '换个主题',
-      hint: `${themeInfo(theme).label} · 共 6 套`,
+      hint: `${themeInfo(theme).label} · 共 ${THEMES.length} 套`,
       divider: true,
       onSelect: cycleTheme,
     },
