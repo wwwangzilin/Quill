@@ -2,8 +2,6 @@
  * 导出用的浏览器侧小工具：触发下载、拼单文件 HTML。
  */
 
-
-
 export function download(name: string, text: string, mime: string) {
   const blob = new Blob([text], { type: `${mime};charset=utf-8` })
   const url = URL.createObjectURL(blob)
