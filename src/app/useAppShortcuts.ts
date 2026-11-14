@@ -58,7 +58,7 @@ export function useAppShortcuts(opts: {
     return () => window.removeEventListener('keydown', onKey)
   }, [settingsOpen])
 
-  // 全局快捷键（放在 createNew 之后，避免 TDZ）
+  // 全局快捷键
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return
