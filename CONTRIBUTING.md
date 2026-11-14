@@ -32,6 +32,7 @@ pnpm tauri dev    # 桌面应用
 pnpm typecheck    # 类型检查必须过
 pnpm build        # 构建必须过
 node test-core.mjs  # 核心逻辑断言（Markdown 序列化等）
+cargo test --lib --manifest-path src-tauri/Cargo.toml  # 改了 src-tauri 时
 ```
 
 改动涉及编辑器 / 界面时，建议顺带跑一遍对应的验收脚本（需要先起 dev server）：

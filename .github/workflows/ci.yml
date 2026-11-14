@@ -31,3 +31,21 @@ jobs:
 
       - name: 核心逻辑断言（Markdown 序列化 / 文件名安全化）
         run: node test-core.mjs
+
+  rust:
+    name: Rust 单元测试（vault）
+    # 和发布用同一个系统：Windows 自带 WebView2，不必另装一堆 Linux 图形库
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # vault 里有章节识别、按章写回等破坏性操作的单元测试，之前没人跑
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test --lib
