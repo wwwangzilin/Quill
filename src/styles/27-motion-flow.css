@@ -1,0 +1,176 @@
+/* ==========================================================================
+   流畅动效层 —— 在 10-motion.css 的基础上加「弹性」和「错落」
+   借鉴 Wenku8_Flutter 的手感（只取思路）：
+   · 出现用带一点回弹的弹簧曲线，消失用干脆的减速
+   · 列表、卡片不是一起蹦出来，而是一个接一个浮起（错落入场）
+   · 按下去要有「被按住」的回应，松开再弹回来
+   全部只动 transform / opacity，不触发重排；
+   「跟随系统动画设置」打开时由 10-motion.css 末尾那段统一压成瞬时。
+   ========================================================================== */
+
+:root {
+  /* 弹簧：用 linear() 画出带轻微过冲的曲线（不支持的老引擎会落到下面的 cubic-bezier） */
+  --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --spring-soft: cubic-bezier(0.22, 1.2, 0.36, 1);
+  --stagger: 28ms;
+}
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --spring: linear(
+      0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 19.2%, 1.077 22%,
+      1.121 25%, 1.149 28.6%, 1.155 31.2%, 1.145 34%, 1.111 38.5%, 1.044 45%, 1.012 50%,
+      0.998 56%, 0.994 63%, 1 80%, 1
+    );
+  }
+}
+
+/* ---------- 弹窗 / 命令面板：从略小一点弹到位 ---------- */
+.modal {
+  animation: modal-spring 0.42s var(--spring) both;
+}
+.palette {
+  animation: modal-spring 0.36s var(--spring) both;
+}
+@keyframes modal-spring {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.modal-mask,
+.palette-mask {
+  animation: mask-in 0.22s var(--ease-out) both;
+}
+@keyframes mask-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------- 菜单：从触发点附近展开，带一点回弹 ---------- */
+.menu {
+  transform-origin: top right;
+  animation: menu-spring 0.28s var(--spring-soft) both;
+}
+@keyframes menu-spring {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- 列表错落入场：前 10 项依次浮起，其后一起出现 ---------- */
+.doc-item {
+  animation: item-rise 0.34s var(--ease-out) both;
+}
+.doc-item:nth-child(2) { animation-delay: calc(var(--stagger) * 1); }
+.doc-item:nth-child(3) { animation-delay: calc(var(--stagger) * 2); }
+.doc-item:nth-child(4) { animation-delay: calc(var(--stagger) * 3); }
+.doc-item:nth-child(5) { animation-delay: calc(var(--stagger) * 4); }
+.doc-item:nth-child(6) { animation-delay: calc(var(--stagger) * 5); }
+.doc-item:nth-child(7) { animation-delay: calc(var(--stagger) * 6); }
+.doc-item:nth-child(8) { animation-delay: calc(var(--stagger) * 7); }
+.doc-item:nth-child(9) { animation-delay: calc(var(--stagger) * 8); }
+.doc-item:nth-child(n + 10) { animation-delay: calc(var(--stagger) * 9); }
+@keyframes item-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 主题卡片：同样一张接一张 */
+.theme-card {
+  animation: item-rise 0.38s var(--ease-out) both;
+  transition: transform 0.22s var(--spring-soft), box-shadow 0.22s var(--ease),
+    background 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+.theme-card:nth-child(2) { animation-delay: 40ms; }
+.theme-card:nth-child(3) { animation-delay: 80ms; }
+.theme-card:nth-child(4) { animation-delay: 120ms; }
+.theme-card:nth-child(5) { animation-delay: 160ms; }
+.theme-card:nth-child(6) { animation-delay: 200ms; }
+.theme-card:nth-child(n + 7) { animation-delay: 240ms; }
+.theme-card:hover {
+  transform: translateY(-2px);
+}
+.theme-card:active {
+  transform: scale(0.97);
+}
+
+/* ---------- 按压：按下沉一点，松开弹回 ---------- */
+.btn,
+.seg button,
+.accent-chip,
+.palette-row {
+  transition-timing-function: var(--ease);
+}
+.btn:not(:active),
+.accent-chip:not(:active),
+.seg button:not(:active) {
+  /* 松开时用弹簧回位 */
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease),
+    filter var(--dur-fast) var(--ease), transform 0.34s var(--spring);
+}
+.btn.icon:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.accent-chip:active,
+.seg button:active {
+  transform: scale(0.95);
+}
+
+/* 选中强调色时，圆点弹一下 */
+.accent-chip.on .accent-dot {
+  animation: dot-pop 0.4s var(--spring) both;
+}
+@keyframes dot-pop {
+  from {
+    transform: scale(0.6);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* ---------- 设置页：切换分区时内容淡入上浮 ---------- */
+.settings-section {
+  animation: item-rise 0.3s var(--ease-out) both;
+}
+.settings-nav-item {
+  transition: background var(--dur-fast) var(--ease), transform 0.22s var(--spring-soft);
+}
+.settings-nav-item:hover {
+  transform: translateX(2px);
+}
+
+/* ---------- 整页切换：比原来多一点「落定」感 ---------- */
+.library-view,
+.settings-view {
+  animation: page-in 0.38s var(--ease-out) both;
+}
+
+/* ---------- 玻璃主题：胶囊也跟着弹一下 ---------- */
+[data-theme="glass"] .titlebar::before,
+[data-theme="glass"] .statusbar::before {
+  transition: box-shadow 0.3s var(--ease), background 0.3s var(--ease);
+}
+[data-theme="glass"] .titlebar:hover::before {
+  box-shadow: var(--glass-shadow), 0 6px 22px -10px color-mix(in srgb, var(--accent-1) 40%, transparent);
+}
