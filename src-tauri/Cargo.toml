@@ -1,0 +1,41 @@
+[package]
+name = "quill"
+version = "0.1.0"
+description = "沉浸式写作 + 大纲 + 思维导图，本地优先"
+authors = ["Quill"]
+license = "MIT"
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "quill_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.11.3", features = ["protocol-asset", "tray-icon"] }
+tauri-plugin-log = "2"
+tauri-plugin-global-shortcut = "2"
+# 开机自启：Windows 下就是往 HKCU\...\Run 写一条，交给插件省得自己碰注册表
+tauri-plugin-autostart = "2"
+# 自动更新：从 GitHub Release 拉 latest.json，校验 minisign 签名之后才装
+tauri-plugin-updater = "2"
+# 更新装完重启自己
+tauri-plugin-process = "2"
+# AI 续写：走兼容 OpenAI 的 /chat/completions。
+# tauri 自己就依赖 reqwest，版本对齐到同一个大版本，省一份重复编译。
+reqwest = { version = "0.13", features = ["json", "stream"] }
+futures-util = "0.3"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

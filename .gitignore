@@ -1,0 +1,16 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+src-tauri/target/
+src-tauri/gen/
+
+# 验收脚本的截图与临时 profile（docs/screenshots 是正式截图，另行提交）
+.verify/
+
+# 杂项
+*.log
+*.zip
+.DS_Store
+Thumbs.db
