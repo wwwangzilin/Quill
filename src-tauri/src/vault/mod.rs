@@ -47,6 +47,14 @@ pub fn info(dir: &Path) -> VaultInfo {
 
 pub fn dir_of(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     use tauri::Manager;
+    // 开发 / 验收用：把仓库指到别处，别拿主人真实的文档库做实验
+    // （冲突检测、备份恢复这类会写盘的功能，验收时都得有个能随便删的仓库）
+    if let Some(custom) = std::env::var_os("QUILL_VAULT_DIR") {
+        let path = PathBuf::from(custom);
+        if !path.as_os_str().is_empty() {
+            return Ok(path);
+        }
+    }
     let base = app
         .path()
         .document_dir()

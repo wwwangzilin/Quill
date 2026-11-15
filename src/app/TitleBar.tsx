@@ -1,6 +1,7 @@
 import { Glyph } from '../ui/Icon'
 import MoreMenu, { type MenuItem } from '../ui/MoreMenu'
 import WindowControls from '../ui/WindowControls'
+import BrandMark from '../ui/BrandMark'
 import { openQuickNote } from '../core/windows'
 import { storage } from '../core/storage'
 import type { ViewMode } from '../core/types'
@@ -71,7 +72,7 @@ export default function TitleBar({
         <Glyph g="☰" />
       </button>
       <div className="brand" data-tauri-drag-region>
-        <span className="mark" />
+        <BrandMark />
         <span className="brand-name">Quill</span>
         {/* 编辑式小字：只有「玻璃奶白」显示，其余主题 display: none（见 styles/26-theme-glass.css） */}
         <span className="brand-sub">WRITING DESK</span>

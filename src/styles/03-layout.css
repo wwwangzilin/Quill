@@ -42,12 +42,15 @@
   letter-spacing: 0.06em;
 }
 
-.brand .mark {
-  width: 18px;
-  height: 18px;
-  border-radius: 6px;
-  background: var(--grad);
-  box-shadow: 0 0 14px rgba(203, 165, 107, 0.45);
+.brand .brand-mark {
+  display: block;
+  flex: none;
+  /* 光晕用 filter 不占布局：18px 的小图加 box-shadow 会被裁掉一半 */
+  filter: drop-shadow(0 0 7px rgba(203, 165, 107, 0.45));
+  transition: transform 0.3s var(--spring, var(--ease-out));
+}
+.brand:hover .brand-mark {
+  transform: rotate(-6deg) scale(1.06);
 }
 
 .body {
