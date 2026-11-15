@@ -167,7 +167,7 @@
   background: var(--accent-soft);
   color: #e2c793;
 }
-[data-theme="light"] .ProseMirror code {
+[data-theme="glass"] .ProseMirror code {
   color: #7a5716;
 }
 
@@ -181,7 +181,7 @@
   background: rgba(0, 0, 0, 0.32);
   overflow-x: auto;
 }
-[data-theme="light"] .ProseMirror pre {
+[data-theme="glass"] .ProseMirror pre {
   background: rgba(20, 20, 40, 0.05);
 }
 .ProseMirror pre code {

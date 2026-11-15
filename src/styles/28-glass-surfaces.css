@@ -1,0 +1,185 @@
+/* ==========================================================================
+   玻璃表面：把侧栏、文档卡片、弹窗、菜单、设置页、文档库统一成一套悬浮玻璃质感。
+   和 26 一样的约束：**栏的盒子尺寸不动**（侧栏收放靠负外边距，右栏同理），
+   玻璃卡片是拿 ::before 在盒子里面内缩画出来的，栏本身只是变透明。
+   ========================================================================== */
+
+/* ---- 侧栏：整条悬浮成一张圆角卡片 ---- */
+:is([data-theme="glass"], [data-theme="glass-night"]) .sidebar {
+  padding: 4px 8px 8px 10px;
+  border-right: none;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .sidebar::before {
+  content: "";
+  position: absolute;
+  inset: 4px 8px 8px 10px;
+  z-index: -1;
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  pointer-events: none;
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .sidebar-head {
+  padding: 14px 12px 8px;
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .doc-list {
+  padding: 4px 10px 14px;
+  scrollbar-width: thin;
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .group-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  padding: 14px 6px 6px;
+}
+
+/* ---- 文档条目：一张张小卡片 ---- */
+:is([data-theme="glass"], [data-theme="glass-night"]) .doc-item {
+  margin-bottom: 6px;
+  border-radius: var(--radius);
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface-solid) 40%, transparent);
+  transition: transform 0.24s var(--spring-soft), box-shadow 0.24s var(--ease),
+    background 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .doc-item:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--surface-solid) 70%, transparent);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .doc-item.active {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent-1) 42%, transparent);
+  box-shadow: 0 6px 20px -10px color-mix(in srgb, var(--accent-1) 55%, transparent);
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .doc-item.active::before {
+  left: 5px;
+  width: 3px;
+  background: var(--accent-1);
+}
+
+/* ---- 按钮：胶囊形 ---- */
+:is([data-theme="glass"], [data-theme="glass-night"]) .btn:not(.icon) {
+  border-radius: 999px;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .btn.primary {
+  border: 1px solid color-mix(in srgb, #fff 22%, transparent);
+}
+
+/* ---- 弹窗 / 命令面板 / 菜单 / 提示：同一块玻璃 ---- */
+:is([data-theme="glass"], [data-theme="glass-night"]) .modal,
+:is([data-theme="glass"], [data-theme="glass-night"]) .palette,
+:is([data-theme="glass"], [data-theme="glass-night"]) .menu,
+:is([data-theme="glass"], [data-theme="glass-night"]) .tpl-menu,
+:is([data-theme="glass"], [data-theme="glass-night"]) .model-menu,
+:is([data-theme="glass"], [data-theme="glass-night"]) .toast {
+  background: color-mix(in srgb, var(--surface-solid) 78%, transparent);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .menu button:hover,
+:is([data-theme="glass"], [data-theme="glass-night"]) .palette-row.on {
+  background: var(--accent-soft);
+}
+[data-theme="glass"] .modal-mask,
+[data-theme="glass"] .palette-mask {
+  background: rgba(30, 46, 70, 0.26);
+  backdrop-filter: blur(8px) saturate(1.2);
+  -webkit-backdrop-filter: blur(8px) saturate(1.2);
+}
+[data-theme="glass-night"] .modal-mask,
+[data-theme="glass-night"] .palette-mask {
+  background: rgba(2, 6, 12, 0.55);
+  backdrop-filter: blur(8px) saturate(1.1);
+  -webkit-backdrop-filter: blur(8px) saturate(1.1);
+}
+
+/* ---- 设置页：导航与内容都成卡片 ---- */
+:is([data-theme="glass"], [data-theme="glass-night"]) .settings-head {
+  border-bottom: none;
+  padding: 16px 24px 6px;
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .settings-body {
+  gap: 14px;
+  padding: 8px 14px 14px;
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .settings-nav {
+  flex-basis: 196px;
+  padding: 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  align-self: flex-start;
+  max-height: 100%;
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .settings-nav-item {
+  border-radius: var(--radius);
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .settings-nav-item.on {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-1) 34%, transparent);
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .settings-content {
+  padding: 22px 28px 72px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--glass-bg) 70%, transparent);
+  box-shadow: var(--glass-shadow);
+  scrollbar-width: thin;
+}
+
+/* ---- 右侧「外观」栏 ---- */
+:is([data-theme="glass"], [data-theme="glass-night"]) .aside {
+  background: var(--glass-bg);
+  border-left-color: var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+/* ---- 文档库 / 双链面板：行与卡片圆润一点 ---- */
+:is([data-theme="glass"], [data-theme="glass-night"]) .wiki-card {
+  border-radius: var(--radius-sm);
+  border-color: var(--border);
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .wiki-panel {
+  background: color-mix(in srgb, var(--surface-solid) 82%, transparent);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .list-row {
+  border-bottom-color: var(--border);
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .list-row:hover {
+  background: var(--surface-hover);
+}
+
+/* ---- 搜索框 / 标签：同样的圆润 ---- */
+:is([data-theme="glass"], [data-theme="glass-night"]) .search {
+  border-radius: 999px;
+  padding: 0 14px;
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .tag {
+  border-radius: 999px;
+}
+
+/* ---- 动画：入场只在「出现」时占住起点，结束后把 transform 还给 hover / active ----
+   （fill-mode 用 both 的话，最后一帧的 transform: none 会一直压住悬停上浮） */
+.doc-item,
+.theme-card {
+  animation-fill-mode: backwards;
+}

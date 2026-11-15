@@ -1,30 +1,38 @@
 /* ==========================================================================
    Quill — 设计系统
-   纸墨感：暖灰底 + 琥珀金点缀（刻意避开高饱和霓虹）
+   玻璃质感：冷调底色 + 半透明玻璃层 + 单一青色点缀。
+   :root 就是「玻璃夜墨」（深色）；「玻璃奶白」在下面用 [data-theme="glass"] 覆盖。
+   版式细节（悬浮胶囊、网格底纹、编辑式小标题）在 26-theme-glass.css。
    ========================================================================== */
 
 :root {
   color-scheme: dark;
-  --bg: #0f0e0d;
-  --surface: rgba(26, 25, 23, 0.72);
-  --surface-solid: #171614;
-  --surface-hover: rgba(255, 250, 240, 0.05);
-  --surface-active: rgba(255, 250, 240, 0.085);
-  --border: rgba(255, 248, 235, 0.075);
-  --border-strong: rgba(255, 248, 235, 0.14);
-  --text: #e8e4dc;
-  --text-2: #a09a90;
-  --text-3: #6d6862;
-  --accent-1: #cba56b;
-  --accent-2: #8aa89b;
-  --accent-3: #c07a63;
-  --accent-soft: rgba(203, 165, 107, 0.14);
-  --grad: linear-gradient(135deg, #d3ae74, #a8843f);
-  --radius-sm: 8px;
-  --radius: 12px;
-  --radius-lg: 18px;
-  --shadow: 0 12px 44px rgba(0, 0, 0, 0.5);
-  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --bg: #0d1218;
+  --surface: rgba(24, 33, 44, 0.62);
+  --surface-solid: #141c26;
+  --surface-hover: rgba(190, 215, 240, 0.06);
+  --surface-active: rgba(190, 215, 240, 0.1);
+  --border: rgba(170, 200, 235, 0.1);
+  --border-strong: rgba(170, 200, 235, 0.19);
+  --text: #e6edf3;
+  --text-2: #a7b4c2;
+  --text-3: #7a8a9b;
+  --accent-1: #5fb3bd;
+  --accent-2: #7ea0cf;
+  --accent-3: #d08a72;
+  --accent-soft: rgba(95, 179, 189, 0.16);
+  --grad: linear-gradient(135deg, #6cc0ca, #3f939d);
+  --radius-sm: 10px;
+  --radius: 14px;
+  --radius-lg: 22px;
+  --shadow: 0 14px 48px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 4px 18px rgba(0, 0, 0, 0.32);
+  /* 玻璃层专用：胶囊的底、描边、投影、模糊，以及背景网格线 */
+  --glass-bg: rgba(26, 36, 48, 0.55);
+  --glass-border: rgba(170, 200, 235, 0.16);
+  --glass-shadow: 0 8px 28px rgba(0, 0, 0, 0.38), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  --glass-blur: blur(22px) saturate(1.5);
+  --grid-line: rgba(140, 180, 220, 0.05);
   --font-ui: "HarmonyOS Sans SC", "HarmonyOS Sans", "PingFang SC", "Microsoft YaHei",
     system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Smiley Sans", "得意黑", var(--font-ui);
@@ -45,128 +53,6 @@
   /* 右侧栏：外观这类「边看边调」的设置。比左栏宽一点，配置项一行放得下 */
   --aside-w: 320px;
 }
-
-[data-theme="light"] {
-  color-scheme: light;
-  --bg: #faf7f2;
-  --surface: rgba(255, 253, 249, 0.82);
-  --surface-solid: #fffdf9;
-  --surface-hover: rgba(60, 50, 30, 0.045);
-  --surface-active: rgba(60, 50, 30, 0.075);
-  --border: rgba(60, 50, 30, 0.1);
-  --border-strong: rgba(60, 50, 30, 0.18);
-  --text: #221f1b;
-  --text-2: #5b544b;
-  --text-3: #948c81;
-  --accent-1: #9c7420;
-  --accent-2: #4f7268;
-  --accent-3: #9c4f3a;
-  --accent-soft: rgba(156, 116, 32, 0.12);
-  --grad: linear-gradient(135deg, #b98f36, #8a6518);
-  --shadow: 0 12px 44px rgba(40, 30, 15, 0.12);
-  --shadow-sm: 0 4px 16px rgba(40, 30, 15, 0.08);
-}
-
-/* ---------- 墨水：宣纸底 + 朱红点缀，圆角收到最小 ---------- */
-[data-theme="ink"] {
-  color-scheme: light;
-  --bg: #f7f6f2;
-  --surface: rgba(252, 251, 248, 0.86);
-  --surface-solid: #fcfbf8;
-  --surface-hover: rgba(20, 18, 14, 0.035);
-  --surface-active: rgba(20, 18, 14, 0.06);
-  --border: rgba(20, 18, 14, 0.09);
-  --border-strong: rgba(20, 18, 14, 0.17);
-  --text: #1a1a18;
-  --text-2: #4a4844;
-  --text-3: #8a8782;
-  --accent-1: #a33a2a;
-  --accent-2: #4a5a52;
-  --accent-3: #8b5a3c;
-  --accent-soft: rgba(163, 58, 42, 0.1);
-  --grad: linear-gradient(135deg, #b8442f, #8e2f21);
-  --radius-sm: 3px;
-  --radius: 4px;
-  --radius-lg: 6px;
-  --shadow: 0 10px 34px rgba(30, 25, 20, 0.1);
-  --shadow-sm: 0 3px 12px rgba(30, 25, 20, 0.07);
-}
-
-/* ---------- 羊皮纸：暖黄纸感，久读不累 ---------- */
-[data-theme="paper"] {
-  color-scheme: light;
-  --bg: #f4ecd8;
-  --surface: rgba(250, 244, 228, 0.86);
-  --surface-solid: #faf4e4;
-  --surface-hover: rgba(90, 70, 40, 0.05);
-  --surface-active: rgba(90, 70, 40, 0.085);
-  --border: rgba(90, 70, 40, 0.14);
-  --border-strong: rgba(90, 70, 40, 0.22);
-  --text: #3a2f1e;
-  --text-2: #6b5a40;
-  --text-3: #9c8b6e;
-  --accent-1: #96662a;
-  --accent-2: #6b7a52;
-  --accent-3: #a04f36;
-  --accent-soft: rgba(150, 102, 42, 0.13);
-  --grad: linear-gradient(135deg, #b07d3a, #855a22);
-  --radius-sm: 5px;
-  --radius: 7px;
-  --radius-lg: 10px;
-  --shadow: 0 10px 32px rgba(80, 60, 30, 0.14);
-  --shadow-sm: 0 3px 10px rgba(80, 60, 30, 0.1);
-}
-
-/* ---------- 夜蓝：深蓝低对比，比纯黑柔和 ---------- */
-[data-theme="night"] {
-  color-scheme: dark;
-  --bg: #0e1620;
-  --surface: rgba(20, 30, 42, 0.72);
-  --surface-solid: #131d28;
-  --surface-hover: rgba(190, 215, 245, 0.05);
-  --surface-active: rgba(190, 215, 245, 0.085);
-  --border: rgba(190, 215, 245, 0.09);
-  --border-strong: rgba(190, 215, 245, 0.16);
-  --text: #dae4ef;
-  --text-2: #93a4b8;
-  --text-3: #64748b;
-  --accent-1: #6ea8d8;
-  --accent-2: #7fc4b0;
-  --accent-3: #d98b7a;
-  --accent-soft: rgba(110, 168, 216, 0.14);
-  --grad: linear-gradient(135deg, #7db4e0, #4a7fae);
-  --radius-sm: 8px;
-  --radius: 12px;
-  --radius-lg: 18px;
-  --shadow: 0 12px 44px rgba(0, 0, 0, 0.55);
-  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.35);
-}
-
-/* ---------- 樱花：浅粉配紫，轻快一点 ---------- */
-[data-theme="sakura"] {
-  color-scheme: light;
-  --bg: #fdf6f8;
-  --surface: rgba(255, 251, 252, 0.86);
-  --surface-solid: #fffbfc;
-  --surface-hover: rgba(120, 60, 90, 0.04);
-  --surface-active: rgba(120, 60, 90, 0.07);
-  --border: rgba(120, 60, 90, 0.1);
-  --border-strong: rgba(120, 60, 90, 0.18);
-  --text: #33222c;
-  --text-2: #6d5563;
-  --text-3: #a08a97;
-  --accent-1: #c2547f;
-  --accent-2: #8a6bb0;
-  --accent-3: #d4776a;
-  --accent-soft: rgba(194, 84, 127, 0.11);
-  --grad: linear-gradient(135deg, #e0739b, #b04570);
-  --radius-sm: 9px;
-  --radius: 14px;
-  --radius-lg: 20px;
-  --shadow: 0 12px 40px rgba(120, 60, 90, 0.13);
-  --shadow-sm: 0 4px 14px rgba(120, 60, 90, 0.09);
-}
-
 
 /* ---------- 玻璃奶白：冷调奶白底，顶栏 / 底栏浮成玻璃胶囊，单一深青点缀 ----------
    版式细节（悬浮胶囊、网格底纹、编辑式小标题）在 26-theme-glass.css。 */

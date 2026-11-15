@@ -154,7 +154,7 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
-[data-theme="light"] .preview {
+[data-theme="glass"] .preview {
   background: rgba(20, 20, 40, 0.045);
 }
 

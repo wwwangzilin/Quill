@@ -167,10 +167,10 @@
 }
 
 /* ---------- 玻璃主题：胶囊也跟着弹一下 ---------- */
-[data-theme="glass"] .titlebar::before,
-[data-theme="glass"] .statusbar::before {
+:is([data-theme="glass"], [data-theme="glass-night"]) .titlebar::before,
+:is([data-theme="glass"], [data-theme="glass-night"]) .statusbar::before {
   transition: box-shadow 0.3s var(--ease), background 0.3s var(--ease);
 }
-[data-theme="glass"] .titlebar:hover::before {
+:is([data-theme="glass"], [data-theme="glass-night"]) .titlebar:hover::before {
   box-shadow: var(--glass-shadow), 0 6px 22px -10px color-mix(in srgb, var(--accent-1) 40%, transparent);
 }

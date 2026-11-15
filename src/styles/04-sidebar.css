@@ -84,7 +84,7 @@
   border: 1px solid var(--border);
   background: rgba(0, 0, 0, 0.16);
 }
-[data-theme="light"] .search {
+[data-theme="glass"] .search {
   background: rgba(255, 255, 255, 0.6);
 }
 .search input {

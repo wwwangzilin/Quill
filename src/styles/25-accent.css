@@ -91,32 +91,32 @@
 
 /* ---- 选了自定义强调色之后：把写死的琥珀色发光 / 阴影也改成跟着走 ----
    这些地方当初是照默认的琥珀写死的；不动它们，换成青色之后会留下一圈黄光。
-   只在 data-accent 存在时生效，所以没选强调色的人看到的和从前一模一样。 */
-[data-accent] .brand .mark {
+   这些规则一直生效：默认强调色就是主题自带的青色，选了别的颜色也一并跟着变。 */
+:root .brand .mark {
   box-shadow: 0 0 14px color-mix(in srgb, var(--accent-1) 45%, transparent);
 }
-[data-accent] .btn.primary {
+:root .btn.primary {
   box-shadow: 0 4px 18px color-mix(in srgb, var(--accent-1) 36%, transparent);
 }
-[data-accent] .seg button.on {
+:root .seg button.on {
   box-shadow: 0 2px 12px color-mix(in srgb, var(--accent-1) 38%, transparent);
 }
-[data-accent] .ProseMirror mark {
+:root .ProseMirror mark {
   background: color-mix(in srgb, var(--accent-1) 30%, transparent);
 }
 /* 写作热力图（4 档）与拖拽排序的落点线 */
-[data-accent] .heat-cell.l1 {
+:root .heat-cell.l1 {
   background: color-mix(in srgb, var(--accent-1) 30%, transparent);
 }
-[data-accent] .heat-cell.l2 {
+:root .heat-cell.l2 {
   background: color-mix(in srgb, var(--accent-1) 52%, transparent);
 }
-[data-accent] .heat-cell.l3 {
+:root .heat-cell.l3 {
   background: color-mix(in srgb, var(--accent-1) 76%, transparent);
 }
-[data-accent] .heat-cell.l4 {
+:root .heat-cell.l4 {
   box-shadow: 0 0 8px color-mix(in srgb, var(--accent-1) 50%, transparent);
 }
-[data-accent] .drag-line {
+:root .drag-line {
   box-shadow: 0 0 14px color-mix(in srgb, var(--accent-1) 70%, transparent);
 }

@@ -16,7 +16,7 @@
   background: rgba(0, 0, 0, 0.18);
   gap: 2px;
 }
-[data-theme="light"] .seg {
+[data-theme="glass"] .seg {
   background: rgba(255, 255, 255, 0.6);
 }
 .seg button {

@@ -1,4 +1,4 @@
-/* ============================ 玻璃奶白 ============================
+/* ====================== 玻璃主题（奶白 + 夜墨共用版式）======================
    借鉴的是「冷调奶白 + 悬浮玻璃 + 编辑式小标题」这套设计语言（只借思路，没有搬任何代码）。
 
    ⚠️ 核心约束：顶栏 / 底栏的**盒子尺寸一个像素都不能动**。
@@ -7,7 +7,7 @@
    所以胶囊是拿伪元素在原位置内缩画出来的，栏本身仍是原来那条全宽的栏，只是变透明了。 */
 
 /* ---- 背景：淡淡的网格 + 两团冷色光，往下渐隐 ---- */
-[data-theme="glass"] body::before {
+:is([data-theme="glass"], [data-theme="glass-night"]) body::before {
   background:
     radial-gradient(780px 520px at 12% -10%, rgba(31, 111, 120, 0.1), transparent 66%),
     radial-gradient(700px 480px at 92% 4%, rgba(74, 111, 165, 0.09), transparent 62%),
@@ -17,8 +17,16 @@
   mask-image: linear-gradient(to bottom, #000 0, #000 52%, transparent 100%);
 }
 
+[data-theme="glass-night"] body::before {
+  background:
+    radial-gradient(780px 520px at 12% -10%, rgba(60, 150, 165, 0.14), transparent 66%),
+    radial-gradient(700px 480px at 92% 4%, rgba(90, 120, 190, 0.12), transparent 62%),
+    linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 28px 28px,
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 28px 28px;
+}
+
 /* ---- 顶栏：悬浮的玻璃胶囊 ---- */
-[data-theme="glass"] .titlebar {
+:is([data-theme="glass"], [data-theme="glass-night"]) .titlebar {
   border-bottom: none;
   background: transparent;
   backdrop-filter: none;
@@ -26,7 +34,7 @@
   /* 内容要落在胶囊里面：胶囊左右各缩 10px，再留 12px 的内边距 */
   padding: 0 22px;
 }
-[data-theme="glass"] .titlebar::before {
+:is([data-theme="glass"], [data-theme="glass-night"]) .titlebar::before {
   content: "";
   position: absolute;
   inset: 5px 10px;
@@ -45,7 +53,7 @@
 .brand-sub {
   display: none;
 }
-[data-theme="glass"] .brand {
+:is([data-theme="glass"], [data-theme="glass-night"]) .brand {
   display: grid;
   grid-template-columns: auto auto;
   column-gap: 9px;
@@ -54,17 +62,17 @@
   padding-left: 2px;
   line-height: 1.05;
 }
-[data-theme="glass"] .brand .mark {
+:is([data-theme="glass"], [data-theme="glass-night"]) .brand .mark {
   grid-row: 1 / span 2;
   width: 22px;
   height: 22px;
   border-radius: 50%;
   box-shadow: 0 0 0 4px var(--accent-soft);
 }
-[data-theme="glass"] .brand-name {
+:is([data-theme="glass"], [data-theme="glass-night"]) .brand-name {
   font-size: 14px;
 }
-[data-theme="glass"] .brand-sub {
+:is([data-theme="glass"], [data-theme="glass-night"]) .brand-sub {
   display: block;
   font-family: var(--font-mono);
   font-size: 8.5px;
@@ -73,7 +81,7 @@
 }
 
 /* 顶栏里的图标按钮改圆，视图切换已经是胶囊形 */
-[data-theme="glass"] .titlebar .btn.icon {
+:is([data-theme="glass"], [data-theme="glass-night"]) .titlebar .btn.icon {
   width: 30px;
   height: 30px;
   padding: 0;
@@ -81,22 +89,22 @@
   background: transparent;
   border-color: transparent;
 }
-[data-theme="glass"] .titlebar .btn.icon:hover {
+:is([data-theme="glass"], [data-theme="glass-night"]) .titlebar .btn.icon:hover {
   background: var(--surface-active);
 }
-[data-theme="glass"] .win-btn {
+:is([data-theme="glass"], [data-theme="glass-night"]) .win-btn {
   border-radius: 50%;
 }
 
 /* ---- 底栏：同样的胶囊，更矮 ---- */
-[data-theme="glass"] .statusbar {
+:is([data-theme="glass"], [data-theme="glass-night"]) .statusbar {
   position: relative;
   z-index: 20;
   border-top: none;
   background: transparent;
   padding: 0 24px;
 }
-[data-theme="glass"] .statusbar::before {
+:is([data-theme="glass"], [data-theme="glass-night"]) .statusbar::before {
   content: "";
   position: absolute;
   inset: 2px 10px 3px;
@@ -109,19 +117,19 @@
   -webkit-backdrop-filter: var(--glass-blur);
   pointer-events: none;
 }
-[data-theme="glass"] .sb-goal {
+:is([data-theme="glass"], [data-theme="glass-night"]) .sb-goal {
   background: var(--border-strong);
 }
 /* 「保存中」的黄在浅底上看不清，换成强调色 */
-[data-theme="glass"] .sb-save.saving {
+:is([data-theme="glass"], [data-theme="glass-night"]) .sb-save.saving {
   color: var(--accent-1);
 }
-[data-theme="glass"] .sb-item.done {
+:is([data-theme="glass"], [data-theme="glass-night"]) .sb-item.done {
   color: #2f8a5a;
 }
 
 /* ---- 侧栏：半透明玻璃，细一点的分隔线 ---- */
-[data-theme="glass"] .sidebar {
+:is([data-theme="glass"], [data-theme="glass-night"]) .sidebar {
   border-right-color: var(--border);
   background: var(--surface);
 }
@@ -130,7 +138,7 @@
 .eyebrow {
   display: none;
 }
-[data-theme="glass"] .eyebrow {
+:is([data-theme="glass"], [data-theme="glass-night"]) .eyebrow {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -140,38 +148,46 @@
   letter-spacing: 0.16em;
   color: var(--text-3);
 }
-[data-theme="glass"] .eyebrow i {
+:is([data-theme="glass"], [data-theme="glass-night"]) .eyebrow i {
   flex: 1;
   height: 1px;
   background: var(--border-strong);
 }
-[data-theme="glass"] .eyebrow::after {
+:is([data-theme="glass"], [data-theme="glass-night"]) .eyebrow::after {
   content: "";
   width: 4px;
   height: 4px;
   background: var(--text-2);
 }
-[data-theme="glass"] .settings-section h3 {
+:is([data-theme="glass"], [data-theme="glass-night"]) .settings-section h3 {
   font-size: 20px;
   letter-spacing: 0.01em;
 }
 
-/* ---- 其余几处「浅色底」专属修正（和 [data-theme="light"] 那几条同理） ---- */
+/* ---- 浅色 / 深色各自的小修正 ---- */
 [data-theme="glass"] .search,
 [data-theme="glass"] .seg {
   background: rgba(255, 255, 255, 0.7);
 }
-[data-theme="glass"] .seg button.on {
+[data-theme="glass-night"] .search,
+[data-theme="glass-night"] .seg {
+  background: rgba(10, 16, 24, 0.45);
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .seg button.on {
   box-shadow: 0 2px 10px color-mix(in srgb, var(--accent-1) 32%, transparent);
 }
-[data-theme="glass"] .ProseMirror code {
+:is([data-theme="glass"], [data-theme="glass-night"]) .ProseMirror code {
   color: var(--accent-1);
 }
 [data-theme="glass"] .ProseMirror pre,
 [data-theme="glass"] .preview {
   background: rgba(30, 50, 80, 0.05);
 }
-[data-theme="glass"] .brand .mark {
+[data-theme="glass-night"] .ProseMirror pre,
+[data-theme="glass-night"] .preview {
+  background: rgba(0, 0, 0, 0.22);
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .brand .mark {
   box-shadow: 0 0 0 4px var(--accent-soft);
 }
 
@@ -181,8 +197,12 @@
     --glass-bg: #ffffff;
     --surface: #fbfcfe;
   }
-  [data-theme="glass"] .titlebar::before,
-  [data-theme="glass"] .statusbar::before {
+  [data-theme="glass-night"] {
+    --glass-bg: #18222d;
+    --surface: #141c26;
+  }
+  :is([data-theme="glass"], [data-theme="glass-night"]) .titlebar::before,
+  :is([data-theme="glass"], [data-theme="glass-night"]) .statusbar::before {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }

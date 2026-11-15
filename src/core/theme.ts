@@ -14,7 +14,7 @@
 
 import { applyAccent } from './accent'
 
-export type Theme = 'dark' | 'light' | 'ink' | 'paper' | 'night' | 'sakura' | 'glass'
+export type Theme = 'glass' | 'glass-night'
 
 export interface ThemeInfo {
   id: Theme
@@ -30,60 +30,20 @@ export interface ThemeInfo {
 
 export const THEMES: ThemeInfo[] = [
   {
-    id: 'dark',
-    label: '暗色',
-    hint: '暖木底配琥珀金，夜里写最舒服',
-    dark: true,
-    swatch: ['#0f0e0d', '#cba56b'],
-    icon: '☾',
-  },
-  {
-    id: 'light',
-    label: '亮色',
-    hint: '干净的米白，白天用着清爽',
-    dark: false,
-    swatch: ['#faf7f2', '#9c7420'],
-    icon: '☀',
-  },
-  {
-    id: 'ink',
-    label: '墨水',
-    hint: '宣纸与朱红，圆角收到最小，像在读一册书',
-    dark: false,
-    swatch: ['#f7f6f2', '#a33a2a'],
-    icon: '✒',
-  },
-  {
-    id: 'paper',
-    label: '羊皮纸',
-    hint: '暖黄纸感，长时间读不刺眼',
-    dark: false,
-    swatch: ['#f4ecd8', '#96662a'],
-    icon: '▤',
-  },
-  {
-    id: 'night',
-    label: '夜蓝',
-    hint: '深蓝低对比，比纯黑柔和',
-    dark: true,
-    swatch: ['#0e1620', '#6ea8d8'],
-    icon: '✦',
-  },
-  {
-    id: 'sakura',
-    label: '樱花',
-    hint: '浅粉配紫，轻快一点',
-    dark: false,
-    swatch: ['#fdf6f8', '#c2547f'],
-    icon: '❀',
-  },
-  {
     id: 'glass',
     label: '玻璃奶白',
-    hint: '冷调奶白底，顶栏与底栏浮成玻璃胶囊，单一深青点缀',
+    hint: '冷调奶白底，栏位浮成玻璃胶囊，单一深青点缀',
     dark: false,
     swatch: ['#f3f6fa', '#1f6f78'],
     icon: '◇',
+  },
+  {
+    id: 'glass-night',
+    label: '玻璃夜墨',
+    hint: '深蓝墨色底，同样的玻璃质感，夜里写不刺眼',
+    dark: true,
+    swatch: ['#0d1218', '#5fb3bd'],
+    icon: '◆',
   },
 ]
 
@@ -94,7 +54,20 @@ export function nextTheme(current: Theme): Theme {
 }
 
 const THEME_KEY = 'quill-theme'
-const DEFAULT_THEME: Theme = 'dark'
+const DEFAULT_THEME: Theme = 'glass'
+
+/**
+ * 旧版本有 6 套老主题，现在收成了两套玻璃主题。
+ * 存档里还是旧 id 的，按明暗各自落到对应的新主题上，别让人一升级就掉回默认。
+ */
+const LEGACY_THEME: Record<string, Theme> = {
+  dark: 'glass-night',
+  night: 'glass-night',
+  light: 'glass',
+  ink: 'glass',
+  paper: 'glass',
+  sakura: 'glass',
+}
 
 /** 这个 id 认不认识（存坏了、存了旧版本的值都要能兜住） */
 export function isTheme(v: unknown): v is Theme {
@@ -110,11 +83,12 @@ export function isDarkTheme(id?: Theme): boolean {
   return themeInfo(id ?? readTheme()).dark
 }
 
-/** 取当前主题。取不到（首次启动、隐私模式写不进）就默认暗色。 */
+/** 取当前主题。取不到（首次启动、隐私模式写不进）就默认玻璃奶白；旧 id 按 LEGACY_THEME 迁移。 */
 export function readTheme(): Theme {
   try {
     const v = localStorage.getItem(THEME_KEY)
-    return isTheme(v) ? v : DEFAULT_THEME
+    if (isTheme(v)) return v
+    return (v && LEGACY_THEME[v]) || DEFAULT_THEME
   } catch {
     return DEFAULT_THEME
   }

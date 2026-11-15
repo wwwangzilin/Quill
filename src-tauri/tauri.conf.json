@@ -22,7 +22,7 @@
         "fullscreen": false,
         "decorations": false,
         "shadow": true,
-        "backgroundColor": "#0f0e0d"
+        "backgroundColor": "#f3f6fa"
       }
     ],
     "security": {
