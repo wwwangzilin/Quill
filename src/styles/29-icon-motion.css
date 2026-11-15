@@ -1,0 +1,155 @@
+/* ==========================================================================
+   图标动效：鼠标划过 / 按下时，图标各按自己的性格动一下
+   靠 Icon.tsx 给 <svg> 挂的 data-icon 区分；触发点是它所在的按钮 / 菜单项 / 卡片，
+   所以鼠标落在整个按钮上都会动，不必精准指到图标。
+   只动 transform / stroke，不触发重排；「跟随系统动画设置」打开时由 10-motion.css 统一压掉。
+   ========================================================================== */
+
+.icon-svg {
+  transition: transform 0.38s var(--spring);
+  transform-origin: 50% 50%;
+}
+.icon-svg path {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transition: transform 0.34s var(--spring);
+}
+
+/* 触发点：按钮、菜单项、面板行、卡片、侧栏条目 */
+:is(button, label, .palette-row, .tpl, .doc-item, .slash-item, .list-row):hover .icon-svg {
+  transform: scale(1.14);
+}
+:is(button, label, .palette-row, .tpl, .doc-item, .slash-item, .list-row):active .icon-svg {
+  transform: scale(0.86);
+  transition-duration: 0.1s;
+}
+
+/* ---- 各有各的动作 ---- */
+:is(button, .palette-row, .doc-item, .list-row):hover .icon-svg[data-icon="pen"] {
+  animation: ico-write 0.6s var(--ease-out) both;
+}
+@keyframes ico-write {
+  0% { transform: rotate(0) translate(0, 0); }
+  25% { transform: rotate(-14deg) translate(-1px, 1px); }
+  55% { transform: rotate(8deg) translate(1px, -1px); }
+  100% { transform: rotate(0) translate(0, 0) scale(1.1); }
+}
+
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="settings"] {
+  transform: rotate(75deg) scale(1.1);
+  transition-duration: 0.7s;
+}
+:is(button, .palette-row, .list-row):active .icon-svg[data-icon="settings"] {
+  transform: rotate(150deg) scale(0.9);
+}
+
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="refresh"] {
+  transform: rotate(200deg);
+  transition-duration: 0.6s;
+}
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="close"] {
+  transform: rotate(90deg) scale(1.1);
+}
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="sun"] {
+  transform: rotate(60deg) scale(1.1);
+  transition-duration: 0.8s;
+}
+
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="pin"] {
+  transform: rotate(22deg) translateY(-1px) scale(1.1);
+}
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="search"] {
+  transform: rotate(-14deg) scale(1.12);
+}
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="width"] {
+  transform: scaleX(1.22);
+}
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="maximize"] {
+  transform: scale(1.22);
+}
+
+/* 垃圾桶：左右抖一下 */
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="trash"] {
+  animation: ico-shake 0.5s var(--ease-out) both;
+}
+@keyframes ico-shake {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-12deg); }
+  50% { transform: rotate(10deg); }
+  75% { transform: rotate(-5deg); }
+}
+
+/* 闪光：转着胀一下 */
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="sparkles"] {
+  animation: ico-twinkle 0.7s var(--ease-out) both;
+}
+@keyframes ico-twinkle {
+  0% { transform: scale(1) rotate(0); }
+  45% { transform: scale(1.25) rotate(18deg); }
+  100% { transform: scale(1.1) rotate(0); }
+}
+
+/* 星标：弹一下，转一点 */
+:is(button, .doc-item, .list-row):hover .icon-svg[data-icon="star"] {
+  transform: scale(1.28) rotate(14deg);
+}
+
+/* 上传 / 下载 / 上下箭头：沿箭头方向弹 */
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="download"] {
+  animation: ico-down 0.55s var(--ease-out) both;
+}
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="upload"] {
+  animation: ico-up 0.55s var(--ease-out) both;
+}
+@keyframes ico-down {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(3px); }
+  70% { transform: translateY(-1px); }
+}
+@keyframes ico-up {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-3px); }
+  70% { transform: translateY(1px); }
+}
+
+/* 汉堡菜单：上下两条向外张开 */
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="menu"] {
+  transform: none;
+}
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="menu"] path:nth-child(1) {
+  transform: translateY(-2px);
+}
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="menu"] path:nth-child(3) {
+  transform: translateY(2px);
+}
+
+/* 滑块：三个旋钮错开上下 */
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="sliders"] {
+  transform: none;
+}
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="sliders"] path:nth-child(1),
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="sliders"] path:nth-child(2) {
+  transform: translateY(-1.5px);
+}
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="sliders"] path:nth-child(5),
+:is(button, .palette-row, .list-row):hover .icon-svg[data-icon="sliders"] path:nth-child(6) {
+  transform: translateY(1.5px);
+}
+
+/* 对勾：出现时一笔画出来（保存成功、已达标那种） */
+.icon-svg[data-icon="check"] path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 0;
+  animation: ico-draw 0.45s var(--ease-out) both;
+}
+@keyframes ico-draw {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* 按下：不管划过时是什么动作，一律先「按进去」（放最后，压过上面各图标的专属划过动作） */
+:is(button, label, .palette-row, .tpl, .doc-item, .slash-item, .list-row):active .icon-svg[data-icon] {
+  transform: scale(0.84);
+  animation: none;
+  transition-duration: 0.1s;
+}

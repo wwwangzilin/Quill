@@ -86,6 +86,7 @@ export function Icon({ name, size, filled, className }: IconProps) {
   return (
     <svg
       className={'icon-svg' + (className ? ' ' + className : '')}
+      data-icon={name}
       width={s}
       height={s}
       viewBox="0 0 24 24"
