@@ -33,6 +33,8 @@ export interface MenuCtx {
   copyRichText: () => Promise<void>
   toggleReading: () => void
   toggleZen: () => void
+  /** 手动进长文本模式（自动判定之外的兜底入口） */
+  enterLongform: () => void
   toggleFocus: () => void
   toggleTypewriter: () => void
   cycleTheme: () => void
@@ -74,6 +76,7 @@ export function buildMoreItems(c: MenuCtx): MenuItem[] {
     toggleFocus,
     toggleTypewriter,
     cycleTheme,
+    enterLongform,
     setReaderOpen,
     setCommentsOpen,
     setHistoryOpen,
@@ -110,6 +113,14 @@ export function buildMoreItems(c: MenuCtx): MenuItem[] {
       hint: '.txt / .md',
       disabled: !vaultMode,
       onSelect: () => void importFiles(),
+    },
+    {
+      key: 'longform',
+      icon: '❏',
+      label: '长文本模式',
+      hint: '按章加载 · 可编辑',
+      disabled: !hasDoc,
+      onSelect: enterLongform,
     },
     {
       key: 'reader',
@@ -240,6 +251,7 @@ export function buildPaletteCommands(c: MenuCtx): PaletteCommand[] {
     toggleFocus,
     toggleTypewriter,
     cycleTheme,
+    enterLongform,
     setReaderOpen,
     setCommentsOpen,
     setLibraryOpen,
@@ -270,6 +282,13 @@ export function buildPaletteCommands(c: MenuCtx): PaletteCommand[] {
     { id: 'daily', title: '今天的日记', hint: 'Ctrl+D', icon: '☀', run: () => void dailyNote() },
     { id: 'reading', title: '阅读模式', hint: 'F9', icon: '▤', run: toggleReading },
     { id: 'zen', title: '禅模式', hint: 'F11', icon: '⛶', run: toggleZen },
+    {
+      id: 'longform',
+      title: '长文本模式',
+      hint: '按章加载 · 可编辑',
+      icon: '❏',
+      run: enterLongform,
+    },
     {
       id: 'reader',
       title: '小说阅读',

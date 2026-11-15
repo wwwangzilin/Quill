@@ -28,6 +28,9 @@ pub struct DocOutline {
 }
 
 /** 章名最长这么多**字节**（≈66 个汉字，够宽了） */
+/// 没有标题时每块的目标字节数（约 1.2 万汉字）
+const CHUNK_TARGET: u64 = 36_000;
+
 const MAX_HEAD_BYTES: usize = 200;
 
 /** 章名后面常跟着的元信息 */
@@ -184,13 +187,55 @@ pub fn outline(dir: &Path, file: &str) -> Result<DocOutline, String> {
         };
     }
     if marks.is_empty() {
+        /*
+         * 整篇没有标题：不能把整个文件当一章塞给编辑器 ——
+         * 一百万字节的稿子进 ProseMirror 就是几万个块，必卡死。
+         * 按累计字节数切块，边界优先落在空行（段落边界）。12k 字符一块，
+         * 既够一个屏幕的上下文，又不至于让单章太重。
+         */
+        marks = chunk_marks(dir, &name)?;
+    }
+    Ok(DocOutline { marks, bytes: at })
+}
+
+/// 没有标题的文本：按累计字节数切块。
+///
+/// 只做一次行扫描（不读全文进内存）：攒够 `CHUNK_TARGET` 字节就在**空行**处断开，
+/// 断不出来就硬断在行尾 —— 总比把整篇塞成一章强。
+fn chunk_marks(dir: &Path, name: &str) -> Result<Vec<ChapterMark>, String> {
+    let f = std::fs::File::open(dir.join(name)).map_err(|e| format!("打开失败: {e}"))?;
+    let mut r = std::io::BufReader::new(f);
+    let mut buf: Vec<u8> = Vec::new();
+    let mut at: u64 = 0;
+    let mut block_at: u64 = 0;
+    let mut marks: Vec<ChapterMark> = Vec::new();
+
+    loop {
+        buf.clear();
+        let n = std::io::BufRead::read_until(&mut r, b'\n', &mut buf)
+            .map_err(|e| format!("读取失败: {e}"))?;
+        if n == 0 {
+            break;
+        }
+        at += n as u64;
+        let blank = buf.iter().all(|b| *b == b'\n' || *b == b'\r');
+        if at - block_at >= CHUNK_TARGET && blank {
+            marks.push(ChapterMark {
+                title: String::new(),
+                from: block_at,
+                to: at,
+            });
+            block_at = at;
+        }
+    }
+    if block_at < at {
         marks.push(ChapterMark {
             title: String::new(),
-            from: 0,
+            from: block_at,
             to: at,
         });
     }
-    Ok(DocOutline { marks, bytes: at })
+    Ok(marks)
 }
 
 /// 只读 `[from, to)` 这一段。按章取正文用，一次最多几十 KB。
@@ -378,5 +423,56 @@ mod slice_tests {
 
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&dir2).ok();
+    }
+}
+
+#[cfg(test)]
+mod chunk_tests {
+    use super::*;
+
+    /// 没有标题的长文本：按累计字节切块，不能整篇当一章
+    #[test]
+    fn splits_text_without_headings_into_chunks() {
+        let dir = std::env::temp_dir().join(format!("quill-chunk-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = "plain.md";
+
+        // 30 段 × 每段约 4KB，总量远超一个块的目标
+        let para = "一".repeat(1300) + "\n\n";
+        let body: String = (0..30).map(|_| para.as_str()).collect();
+        std::fs::write(dir.join(file), &body).unwrap();
+
+        let o = outline(&dir, file).unwrap();
+        assert!(o.marks.len() > 1, "应该切成多块，实际 {} 块", o.marks.len());
+        // 首尾相接、覆盖全文
+        assert_eq!(o.marks[0].from, 0);
+        assert_eq!(o.marks.last().unwrap().to, o.bytes);
+        for w in o.marks.windows(2) {
+            assert_eq!(w[0].to, w[1].from, "块之间不能有空隙或重叠");
+        }
+        // 每块不该超过目标的两倍（边界落在空行上，会略微超出）
+        for m in &o.marks {
+            assert!(
+                m.to - m.from <= CHUNK_TARGET * 2 + 8,
+                "单块过大：{} 字节",
+                m.to - m.from
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 有标题的文档仍然按标题切，不被兜底逻辑影响
+    #[test]
+    fn keeps_real_headings_intact() {
+        let dir = std::env::temp_dir().join(format!("quill-head-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = "book.md";
+        std::fs::write(dir.join(file), "第一章 甲\n正文\n第二章 乙\n正文\n").unwrap();
+        let o = outline(&dir, file).unwrap();
+        assert_eq!(o.marks.len(), 2);
+        assert_eq!(o.marks[0].title, "第一章 甲");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

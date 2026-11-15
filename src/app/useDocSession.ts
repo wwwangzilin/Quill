@@ -35,6 +35,8 @@ export interface SessionUi {
   heavyOutline: HeavyOutline | null
   setHeavyOutline: (v: HeavyOutline | null) => void
   setReaderOpen: (v: boolean) => void
+  /** 进长文本模式（按章节窗口化加载，可编辑） */
+  openLongform: (file: string, title: string) => void
 }
 
 /**
@@ -44,7 +46,7 @@ export interface SessionUi {
  * 这里是写作数据流的唯一入口 —— 想知道「内容是怎么存下去的」，只看这一个文件。
  */
 export function useDocSession(ui: SessionUi) {
-  const { setView, heavyOutline, setHeavyOutline, setReaderOpen } = ui
+  const { setView, heavyOutline, setHeavyOutline, setReaderOpen, openLongform } = ui
 
   const [docs, setDocs] = useState<DocMeta[]>([])
   const [doc, setDoc] = useState<Doc | null>(null)
@@ -264,22 +266,16 @@ export function useDocSession(ui: SessionUi) {
         .then((s) => !cancelled && setStats(s))
         .catch(() => {})
 
-      const first = await store.get(list[0].id)
-      if (first && !cancelled) {
-        // 启动时也要有基线，否则第一次保存会被当成「不知道磁盘是什么」而跳过校验
-        void syncDiskMark(first.id)
-        dirtyRef.current = false
-        docRef.current = first
-        liveRef.current = { title: first.title, content: first.content }
-        lastCharsRef.current = countChars(first.content)
-        setDoc(first)
-        setSessionKey((k) => k + 1)
-      }
+      // 启动时也走同一个打开入口：大文档在这里同样要进长文本模式，
+      // 否则「自动判定」只在手动切文档时生效，一重启就漏了
+      if (list[0] && !cancelled) void openDoc(list[0].id)
       setReady(true)
     })()
     return () => {
       cancelled = true
     }
+    // openDoc 定义在本函数后面，但 effect 是渲染之后才执行，引用是安全的
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   /**
@@ -527,30 +523,17 @@ export function useDocSession(ui: SessionUi) {
       const o = storage.outline ? await storage.outline(id).catch(() => null) : null
       if (o && o.bytes > HEAVY_BYTES) {
         const head = storage.readSlice ? await storage.readSlice(id, 0, 600).catch(() => '') : ''
-        const heavyTitle = splitTitle(head).title || '未命名'
-        const wan = Math.round(o.bytes / 3 / 10000)
+        // 标题优先取清单里的（文件名去掉 .md），其次才看正文开头有没有 # 标题
+        const listed = docs.find((d) => d.id === id)?.title
+        const heavyTitle = listed || splitTitle(head).title || id.replace(/\.md$/, '')
         /*
-         * 超大文档**不替主人做决定**。
+         * 大文档**直接进长文本模式**，不再问「看还是改」。
          *
-         * 上一版我直接把人塞进分栏阅读，理由是编辑器会卡。理由没错，**结论错了** ——
-         * 主人一句「那些 tag 什么的功能全都用不了」就把问题戳穿了：能看不等于能用。
-         * 所以两条路都摆出来，各自的代价写清楚，让他自己挑。
+         * 那个二选一本身就是旧结构留下的问题：能看的不能改，能改的会卡。
+         * 现在长文本模式自己就能改 —— 一次只挂三章，编辑成本和文档总长无关。
+         * 判定放在这里（拿到索引之后、进编辑器之前），不存在「先全量加载再降级」。
          */
-        toast.ask(
-          `这篇约 ${wan} 万字，选择编辑还是阅读？`,
-          '进编辑器：标签 / 导图 / AI 均可用，但大文档会卡　·　分栏阅读：流畅，但仅可阅读',
-          [
-            { label: '进编辑器', primary: true, run: () => void openInEditor(id) },
-            {
-              label: '分栏阅读',
-              run: () => {
-                setHeavyOutline({ id, title: heavyTitle, marks: o.marks })
-                setReaderOpen(true)
-                toast.info(`分栏阅读 · 约 ${wan} 万字`, '按章加载 · 可随时切回编辑器')
-              },
-            },
-          ],
-        )
+        openLongform(id, heavyTitle)
         return
       }
       await openInEditor(id)

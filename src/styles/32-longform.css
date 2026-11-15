@@ -1,0 +1,232 @@
+/* ==========================================================================
+   长文本模式：一个壳，按章节窗口化加载
+   三章各是独立的 ProseMirror 实例，窗口外只有标题 + 占位高度。
+   视觉上沿用正文的排版变量，不另起一套。
+   ========================================================================== */
+.lf {
+  position: fixed;
+  inset: var(--titlebar-h) 0 var(--statusbar-h) 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  animation: view-in 0.2s var(--ease-out) both;
+}
+
+.lf-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  backdrop-filter: var(--glass-blur, blur(18px));
+  flex: none;
+}
+.lf-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  max-width: 40vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lf-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+.lf-dirty {
+  font-style: normal;
+  color: var(--accent-3);
+}
+
+.lf-scroll {
+  flex: 1;
+  overflow-y: auto;
+  scroll-behavior: auto;
+  padding: 0 0 40vh;
+}
+
+.lf-loading {
+  padding: 60px 0;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.lf-chapter {
+  max-width: calc(var(--write-width) + 96px);
+  margin: 0 auto;
+  padding: 8px 48px 28px;
+}
+.lf-chapter-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 8px;
+  background: linear-gradient(var(--bg) 70%, transparent);
+  border-bottom: 1px solid transparent;
+}
+.lf-chapter.is-current .lf-chapter-head {
+  border-bottom-color: var(--border);
+}
+.lf-chapter-no {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+.lf-chapter-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lf-chapter.is-current .lf-chapter-title {
+  color: var(--text);
+}
+.lf-chapter-badge {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--text-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  flex: none;
+}
+.lf-chapter.is-current .lf-chapter-badge {
+  color: var(--accent-1);
+  border-color: color-mix(in srgb, var(--accent-1) 40%, transparent);
+  background: var(--accent-soft);
+}
+
+.lf-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  border: 1px dashed var(--border);
+  color: var(--text-3);
+  font-size: 12px;
+  cursor: pointer;
+  background: var(--surface-hover);
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.lf-placeholder:hover {
+  background: var(--surface-active);
+  border-color: var(--border-strong);
+  color: var(--text-2);
+}
+
+/* 章内正文：沿用普通编辑器的排版，只是宽度跟着容器 */
+.lf-body .ProseMirror {
+  min-height: 2em;
+  outline: none;
+  padding: 6px 0 0;
+  font-family: var(--font-prose, var(--font-ui));
+  font-size: var(--prose-size);
+  line-height: var(--prose-leading);
+  color: var(--text);
+}
+.lf-body.is-readonly .ProseMirror {
+  opacity: 0.82;
+  cursor: default;
+}
+
+/* ---------- 章节浮层：绝对定位，不挤压正文 ---------- */
+.lf-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.28);
+  z-index: 8;
+}
+.lf-sidebar {
+  position: absolute;
+  top: 44px;
+  bottom: 0;
+  left: 0;
+  width: 320px;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-solid);
+  border-right: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  animation: view-in 0.18s var(--ease-out) both;
+}
+.lf-sidebar header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  border-bottom: 1px solid var(--border);
+}
+.lf-sidebar header span {
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+.lf-sidebar header .btn {
+  margin-left: auto;
+}
+.lf-sidebar ol {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+}
+.lf-sidebar li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+.lf-sidebar li:hover {
+  background: var(--surface-hover);
+}
+.lf-sidebar li.on {
+  color: var(--text);
+  background: var(--accent-soft);
+  border-left-color: var(--accent-1);
+}
+.lf-side-no {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+  width: 22px;
+  flex: none;
+}
+.lf-side-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lf-side-dirty {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-3);
+  flex: none;
+}
+.lf-side-chars {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+  flex: none;
+}

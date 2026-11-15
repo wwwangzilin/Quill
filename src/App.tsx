@@ -14,6 +14,7 @@ import DocLibrary from './ui/DocLibrary'
 import CommandPalette from './ui/CommandPalette'
 import SearchPanel from './ui/SearchPanel'
 import ReaderView from './ui/ReaderView'
+import LongformEditor from './ui/LongformEditor'
 import AiChatPanel from './ui/AiChatPanel'
 import QuickCapture from './ui/QuickCapture'
 import CommentsPanel from './ui/CommentsPanel'
@@ -74,6 +75,11 @@ export default function App() {
    * 但渲染走的还是同一个 ReaderView，所以界面跟普通小说一模一样。
    */
   const [heavyOutline, setHeavyOutline] = useState<HeavyOutline | null>(null)
+  /**
+   * 长文本模式：和普通界面**同一个壳**，只是加载策略不同 ——
+   * 一次只挂当前章和前后各一章，其余按字节数占位。
+   */
+  const [longform, setLongform] = useState<{ id: string; title: string } | null>(null)
   /** 小说阅读视图：左边章节目录，右边正文按栏排（跟编辑模式完全分开，只读） */
   const [readerOpen, setReaderOpen] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
@@ -89,6 +95,11 @@ export default function App() {
   const [dailyGoal, setDailyGoal] = useSetting('daily-goal', 500)
   /** 阅读模式：只读、收起干扰，用来回头通读 */
   const [reading, setReading] = useState(false)
+
+  /** 进长文本模式：只记文件与标题，正文交给 LongformEditor 按章现取 */
+  const openLongform = useCallback((file: string, title: string) => {
+    setLongform({ id: file, title })
+  }, [])
 
   const {
     docs,
@@ -126,7 +137,7 @@ export default function App() {
     clearConflict,
     reopenConflict,
     forcePersist,
-  } = useDocSession({ setView, heavyOutline, setHeavyOutline, setReaderOpen })
+  } = useDocSession({ setView, heavyOutline, setHeavyOutline, setReaderOpen, openLongform })
 
   // 底部状态栏要用：今日写了多少、离目标还差多少
   const progress = useMemo(() => goalProgress(stats, dailyGoal), [stats, dailyGoal])
@@ -332,6 +343,10 @@ export default function App() {
     copyRichText,
     toggleReading,
     toggleZen,
+    enterLongform: () => {
+      const cur = docRef.current
+      if (cur) openLongform(cur.id, cur.title)
+    },
     toggleFocus,
     toggleTypewriter,
     cycleTheme,
@@ -387,6 +402,14 @@ export default function App() {
         两条数据来源、**同一个组件**，所以界面完全一致。
         （上一版给超大文档另写了个 LightReader，界面跟这儿对不上。）
       */}
+      {longform && (
+        <LongformEditor
+          file={longform.id}
+          title={longform.title}
+          onExit={() => setLongform(null)}
+        />
+      )}
+
       {readerOpen && (doc || heavyOutline) && (
         <ReaderView
           docId={heavyOutline?.id ?? doc!.id}
