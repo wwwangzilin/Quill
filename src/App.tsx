@@ -15,6 +15,8 @@ import CommandPalette from './ui/CommandPalette'
 import SearchPanel from './ui/SearchPanel'
 import ReaderView from './ui/ReaderView'
 import LongformEditor from './ui/LongformEditor'
+import TabBar from './ui/TabBar'
+import SplitPane from './ui/SplitPane'
 import AiChatPanel from './ui/AiChatPanel'
 import QuickCapture from './ui/QuickCapture'
 import CommentsPanel from './ui/CommentsPanel'
@@ -80,6 +82,21 @@ export default function App() {
    * 一次只挂当前章和前后各一章，其余按字节数占位。
    */
   const [longform, setLongform] = useState<{ id: string; title: string } | null>(null)
+  /**
+   * 标签页：只是「打开过哪几篇」的序列。
+   * 每篇的内容状态仍然只在 useDocSession 里 —— 标签不复制一份数据。
+   */
+  const [tabs, setTabs] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('quill:tabs')
+      const arr = raw ? (JSON.parse(raw) as unknown) : []
+      return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : []
+    } catch {
+      return []
+    }
+  })
+  /** 分屏右栏对照哪一篇（null = 不分屏） */
+  const [splitId, setSplitId] = useState<string | null>(null)
   /** 小说阅读视图：左边章节目录，右边正文按栏排（跟编辑模式完全分开，只读） */
   const [readerOpen, setReaderOpen] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
@@ -138,6 +155,32 @@ export default function App() {
     reopenConflict,
     forcePersist,
   } = useDocSession({ setView, heavyOutline, setHeavyOutline, setReaderOpen, openLongform })
+
+  /** 打开一篇并把它挂进标签栏（已经在标签里就只是切过去） */
+  const openInTab = useCallback(
+    (id: string) => {
+      setTabs((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      void openDoc(id)
+    },
+    [openDoc],
+  )
+
+  const closeTab = useCallback(
+    (id: string) => {
+      setTabs((prev) => {
+        const next = prev.filter((x) => x !== id)
+        // 关的是当前这篇：顺手切到还开着的最后一篇
+        if (docRef.current?.id === id) {
+          const fallback = next[next.length - 1]
+          if (fallback) void openDoc(fallback)
+        }
+        return next
+      })
+      setSplitId((cur) => (cur === id ? null : cur))
+    },
+    [openDoc],
+  )
+
 
   // 底部状态栏要用：今日写了多少、离目标还差多少
   const progress = useMemo(() => goalProgress(stats, dailyGoal), [stats, dailyGoal])
@@ -213,6 +256,29 @@ export default function App() {
   } = useExportImport({ docRef, liveRef, editorRef, refreshDocs })
   const { desk, autostart, applyDesk, applyAutostart } = useDesktopPrefs()
   useUpdateCheck()
+
+  // 标签栏记在本地：下次打开还是那几篇（不存在的会在下面被剔掉）
+  useEffect(() => {
+    try {
+      localStorage.setItem('quill:tabs', JSON.stringify(tabs))
+    } catch {
+      /* 存不下就算了，不影响使用 */
+    }
+  }, [tabs])
+
+  // 文档列表变了：把已经不存在的标签剔掉（删掉的、改名的）
+  useEffect(() => {
+    if (!docs.length) return
+    setTabs((prev) => prev.filter((id) => docs.some((d) => d.id === id)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docs.length])
+
+  // 当前打开的是哪篇，标签栏里就得有它（启动自动打开、侧栏点开都走这儿）
+  useEffect(() => {
+    const id = doc?.id
+    if (!id) return
+    setTabs((prev) => (prev.includes(id) ? prev : [...prev, id]))
+  }, [doc?.id])
 
   // 主题落盘与应用都走 core/theme，和便签、磁贴用的是同一套
   useEffect(() => {
@@ -467,7 +533,7 @@ export default function App() {
           activeTag={activeTag}
           stats={stats}
           goal={dailyGoal}
-          onSelect={(id) => void openDoc(id)}
+          onSelect={(id) => openInTab(id)}
           onCreate={(templateId) => void createNew(templateId)}
           onDelete={(id) => void removeDoc(id)}
           onStar={(id) => void toggleStar(id)}
@@ -477,12 +543,26 @@ export default function App() {
         />
 
         <div className="main">
+          {!libraryOpen && !settingsOpen && (
+            <TabBar
+              tabs={tabs}
+              docs={docs}
+              activeId={doc?.id ?? null}
+              splitId={splitId}
+              onSelect={openInTab}
+              onClose={closeTab}
+              onToggleSplit={() =>
+                setSplitId((cur) => (cur ? null : (docRef.current?.id ?? null)))
+              }
+            />
+          )}
+          <div className={'main-split' + (splitId ? ' with-split' : '')}>
           {libraryOpen ? (
             <DocLibrary
               docs={docs}
               currentId={doc?.id ?? null}
               onOpen={(id) => {
-                void openDoc(id)
+                openInTab(id)
                 setLibraryOpen(false)
               }}
               onCreate={() => {
@@ -561,6 +641,15 @@ export default function App() {
               )}
             </>
           )}
+          {splitId && (
+            <SplitPane
+              docs={docs}
+              docId={splitId}
+              onPick={(id) => setSplitId(id)}
+              onClose={() => setSplitId(null)}
+            />
+          )}
+          </div>
         </div>
 
         {historyOpen && doc && (

@@ -1,0 +1,134 @@
+/* ==========================================================================
+   多标签 + 左右分屏
+   标签栏是「打开过哪几篇」的一排快捷方式；分屏右栏是只读对照。
+   ========================================================================== */
+.tabbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+}
+.tabbar-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabbar-list::-webkit-scrollbar {
+  display: none;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 3px 6px 3px 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  color: var(--text-2);
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.tab:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.tab.on {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent-1) 28%, transparent);
+  color: var(--text);
+}
+.tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 关闭按钮平时收着，省得每个标签都挂一个叉 */
+.tab-x {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  width: 16px;
+  height: 16px;
+  line-height: 1;
+  border-radius: 5px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.tab:hover .tab-x,
+.tab.on .tab-x {
+  opacity: 1;
+}
+.tab-x:hover {
+  background: var(--surface-active);
+  color: var(--text);
+}
+
+/* ---------- 分屏 ---------- */
+.main-split {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  min-width: 0;
+}
+.main-split > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.split-pane {
+  flex: 0 0 42%;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-solid) 70%, transparent);
+  min-height: 0;
+}
+.split-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.split-pick {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+.split-badge {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--text-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+.split-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 18px 22px 60px;
+}
+.split-body .ProseMirror {
+  min-height: 0;
+  font-size: calc(var(--prose-size) - 1px);
+  opacity: 0.92;
+}
