@@ -149,7 +149,12 @@ export default function App() {
     zen,
     hasDoc: Boolean(doc),
   })
-  const asideShown = asideOpen || asidePeek
+  /*
+   * 全屏页（设置 / 文档库）打开时右栏必须让位。
+   * 不然同一份设置会在「主区」和「右栏」各画一遍 —— 右边那份还是嵌在窄栏里的形态，
+   * 看起来就像重复了一块。
+   */
+  const asideShown = (asideOpen || asidePeek) && !settingsOpen && !libraryOpen
   const sidebarShown = sidebarOpen && !barsHidden
 
   const { editorRef, liveEditor, handleEditorReady, jumpToHit } = useEditorBridge({

@@ -92,7 +92,8 @@
 .settings-tab {
   appearance: none;
   border: 1px solid transparent;
-  border-radius: 999px;
+  /* 和设置页左侧导航用同一个圆角：同一套导航，别一处药丸一处圆角 */
+  border-radius: var(--radius);
   padding: 4px 11px;
   font: inherit;
   font-size: 12.5px;

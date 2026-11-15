@@ -141,10 +141,41 @@
   scrollbar-width: thin;
 }
 
-/* ---- 右侧「外观」栏 ---- */
+/* 右栏里已经是「卡片里的内容」了，别再套一层卡片 ——
+   卡中卡会让同一块区域出现两层圆角，看着就像圆角没对齐。 */
+:is([data-theme="glass"], [data-theme="glass-night"]) .settings-view.is-embedded .settings-content {
+  padding: 14px 16px 40px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .settings-view.is-embedded .settings-aside-head {
+  padding-right: 12px;
+}
+
+/* ---- 右侧「外观」栏：和左栏一样，浮成一张圆角玻璃卡 ----
+   以前它是贴着右边缘的直角面板，左栏却是浮起来的卡片 —— 一左一右两套形状，
+   摆在同一个界面上很显眼。现在两个栏用同一套「inset + radius-lg + 玻璃底」。 */
 :is([data-theme="glass"], [data-theme="glass-night"]) .aside {
+  position: relative;
+  /* 建一个层叠上下文：否则 ::before 的 z-index:-1 会跑到整个界面底下去 */
+  isolation: isolate;
+  padding: 4px 10px 8px 8px;
+  border-left: none;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .aside::before {
+  content: "";
+  position: absolute;
+  inset: 4px 10px 8px 8px;
+  z-index: -1;
+  border-radius: var(--radius-lg);
   background: var(--glass-bg);
-  border-left-color: var(--glass-border);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
 }
