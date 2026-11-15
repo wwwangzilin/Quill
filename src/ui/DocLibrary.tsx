@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { DocMeta } from '../core/types'
+import Bookshelf3D from './Bookshelf3D'
+import { Icon } from './Icon'
 
 interface Props {
   docs: DocMeta[]
@@ -10,6 +12,17 @@ interface Props {
   onStar: (id: string, starred: boolean) => void
   /** 侧栏默认收起了，回收站的入口挪到这里 */
   onOpenTrash: () => void
+}
+
+type LibView = 'shelf' | 'list'
+const VIEW_KEY = 'quill-library-view'
+
+function readView(): LibView {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'shelf'
+  } catch {
+    return 'shelf'
+  }
 }
 
 type SortKey = 'title' | 'updated' | 'created' | 'chars'
@@ -54,6 +67,15 @@ export default function DocLibrary({
   const [filter, setFilter] = useState<Filter>({ kind: 'all' })
   const [sort, setSort] = useState<SortKey>('updated')
   const [asc, setAsc] = useState(false)
+  const [view, setViewState] = useState<LibView>(() => readView())
+  const setView = (v: LibView) => {
+    setViewState(v)
+    try {
+      localStorage.setItem(VIEW_KEY, v)
+    } catch {
+      /* 记不住也不影响这次 */
+    }
+  }
 
   const tags = useMemo(() => {
     const set = new Set<string>()
@@ -145,8 +167,20 @@ export default function DocLibrary({
             </button>
           )
         })}
+        <span className="grow" />
+        <div className="seg view-toggle" role="radiogroup" aria-label="文档库视图">
+          <button role="radio" aria-checked={view === 'shelf'} className={view === 'shelf' ? 'on' : ''} onClick={() => setView('shelf')} title="立体书架">
+            <Icon name="shelf" /> 书架
+          </button>
+          <button role="radio" aria-checked={view === 'list'} className={view === 'list' ? 'on' : ''} onClick={() => setView('list')} title="列表">
+            <Icon name="list" /> 列表
+          </button>
+        </div>
       </div>
 
+      {view === 'shelf' ? (
+        <Bookshelf3D docs={rows} currentId={currentId} onOpen={onOpen} onStar={onStar} />
+      ) : (
       <div className="library-list">
         <div className="list-head">
           <button className="lh name" onClick={() => pickSort('title')}>
@@ -221,6 +255,7 @@ export default function DocLibrary({
           <span>合计 {totalChars.toLocaleString('zh-CN')} 字</span>
         </div>
       </div>
+      )}
     </div>
   )
 }

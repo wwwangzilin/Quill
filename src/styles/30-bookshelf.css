@@ -1,0 +1,234 @@
+/* ==========================================================================
+   立体书架（ui/Bookshelf3D.tsx）
+   舞台上设透视，书靠 translate3d / rotateY 摆位；变换全由 JS 按「离中心几本」算出，
+   这里只管书长什么样。动画不走 CSS transition —— 位置每帧都在变，
+   给它加过渡反而会拖尾。
+   ========================================================================== */
+
+.shelf {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0 12px 12px;
+}
+
+.shelf-stage {
+  position: relative;
+  flex: 1;
+  min-height: 300px;
+  perspective: 1300px;
+  perspective-origin: 50% 42%;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+  outline: none;
+  border-radius: var(--radius-lg);
+}
+.shelf-stage:active {
+  cursor: grabbing;
+}
+.shelf-stage:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-1) 55%, transparent);
+}
+
+.shelf-track {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+
+/* 书底下的落影：一个压扁的椭圆，托住正中那本 */
+.shelf-floor {
+  position: absolute;
+  left: 50%;
+  bottom: 9%;
+  width: 360px;
+  height: 46px;
+  margin-left: -180px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(20, 40, 70, 0.28), transparent);
+  filter: blur(6px);
+  pointer-events: none;
+}
+[data-theme="glass-night"] .shelf-floor {
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.6), transparent);
+}
+
+/* ---- 一本书 ---- */
+.book {
+  --w: 176px;
+  --h: 248px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--w);
+  height: var(--h);
+  margin-left: calc(var(--w) / -2);
+  margin-top: calc(var(--h) / -2 - 14px);
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+  cursor: pointer;
+}
+.book-cover {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px 14px 24px;
+  border-radius: 5px 12px 12px 5px;
+  color: #fff;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent 42%),
+    linear-gradient(160deg, hsl(var(--hue) 38% 46%), hsl(var(--hue) 42% 28%));
+  box-shadow:
+    0 22px 36px -14px rgba(10, 25, 50, 0.5),
+    0 2px 0 rgba(255, 255, 255, 0.18) inset,
+    -1px 0 0 rgba(255, 255, 255, 0.12) inset;
+  transition: box-shadow 0.3s var(--ease);
+}
+/* 书脊：左边一条深色的装订带 + 一道高光 */
+.book-spine {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 13px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.06) 70%, rgba(255, 255, 255, 0.14));
+}
+/* 封面上一圈细框，像烫印 */
+.book-cover::after {
+  content: "";
+  position: absolute;
+  inset: 10px 9px 10px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 3px 8px 8px 3px;
+  pointer-events: none;
+}
+.book-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  opacity: 0.72;
+}
+.book-title {
+  margin-top: 14px;
+  flex: 1;
+  font-family: var(--font-display);
+  font-size: 19px;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  word-break: break-all;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.25);
+}
+.book-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  opacity: 0.8;
+}
+.book-star {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  color: #ffe9a8;
+  font-size: 13px;
+  line-height: 1;
+}
+.book-ribbon {
+  position: absolute;
+  top: 12px;
+  right: -26px;
+  width: 92px;
+  padding: 3px 0;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  background: rgba(255, 255, 255, 0.92);
+  color: hsl(var(--hue) 45% 24%);
+  transform: rotate(40deg);
+}
+.book.is-center .book-cover {
+  box-shadow:
+    0 30px 50px -16px rgba(10, 25, 50, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.22),
+    0 2px 0 rgba(255, 255, 255, 0.25) inset;
+}
+.book:not(.is-center) .book-cover {
+  filter: saturate(0.85) brightness(0.96);
+}
+.book.is-center:hover .book-cover {
+  filter: brightness(1.05);
+}
+
+/* ---- 下方：当前这本的信息与操作 ---- */
+.shelf-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 0 2px;
+}
+.shelf-meta {
+  min-width: 200px;
+  max-width: 420px;
+  text-align: center;
+}
+.shelf-count {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  color: var(--text-3);
+}
+.shelf-name {
+  margin-top: 2px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shelf-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.shelf-sub .lr-tag {
+  margin-left: 6px;
+}
+.shelf-hint {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+.shelf-empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  font-size: 13px;
+}
+.btn.icon.on {
+  color: var(--accent-1);
+}
+
+/* ---- 文档库顶部的「书架 / 列表」切换 ---- */
+.view-toggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
