@@ -12,6 +12,12 @@ import { WELCOME } from '../core/welcome'
 import { setAssetResolver } from '../core/asset'
 import type { Saving, HeavyOutline } from './types'
 import { toMeta, sortDocs, countChars, todayKey } from './docUtils'
+import {
+  SaveConflictError,
+  asSaveConflict,
+  type ConflictInfo,
+  type DiskMark,
+} from '../core/docGuard'
 
 /**
  * 超过这个体积就不进编辑器了。
@@ -55,46 +61,152 @@ export function useDocSession(ui: SessionUi) {
   const liveRef = useRef<{ title: string; content: JSONContent } | null>(null)
   const timerRef = useRef<number | null>(null)
   const lastCharsRef = useRef(0)
+  /** 磁盘上这一篇的摘要（我最后见到的那一版）—— 保存时的 baseDigest 就从这儿来 */
+  const diskMarkRef = useRef<DiskMark | null>(null)
+  /** 有没有还没落盘的改动：窗口重新聚焦时据此决定「静默跟上」还是「弹冲突」 */
+  const dirtyRef = useRef(false)
+  /** 冲突的即时版本（persist / scheduleSave 是稳定回调，闭包里读 state 会读到旧值） */
+  const conflictRef = useRef<ConflictInfo | null>(null)
+  /**
+   * 外部改动冲突。非空时整篇写入一律挡住 —— 保存被拒不是错误，是「先看一眼」。
+   */
+  const [conflict, setConflict] = useState<ConflictInfo | null>(null)
 
   /* ---------------- 持久化 ---------------- */
 
-  const persist = useCallback(async () => {
-    const base = docRef.current
-    const live = liveRef.current
-    if (!base || !live) return
-    const candidate: Doc = {
-      ...base,
-      title: live.title,
-      content: live.content,
-      updatedAt: Date.now(),
+  /**
+   * 记下磁盘此刻的摘要。
+   *
+   * 浏览器调试模式没有文件，`stamp` 不存在 —— 那就清空，让 `put` 退化成
+   * 「不校验、直接写」的老行为，别把浏览器模拟也拖进冲突流程。
+   */
+  const syncDiskMark = useCallback(async (id: string) => {
+    if (!storage.stamp) {
+      diskMarkRef.current = null
+      return
     }
     try {
-      const { id } = await storage.put(candidate)
-      const next = { ...candidate, id }
-      docRef.current = next
-      const meta = toMeta(next)
-      setDocs((prev) => sortDocs([meta, ...prev.filter((m) => m.id !== meta.id && m.id !== base.id)]))
-      setDoc(next)
-      setSaving('saved')
-      // 记一笔今日写作量（热力图）
-      const now = countChars(live.content)
-      const delta = now - lastCharsRef.current
-      lastCharsRef.current = now
-      if (delta > 0) {
-        void storage
-          .recordWriting(todayKey(), delta)
-          .then(() => storage.writingStats())
-          .then(setStats)
-          .catch(() => {})
-      }
-    } catch (err) {
-      console.error('保存失败', err)
-      toast.error('保存失败', String(err))
-      setSaving('idle')
+      const st = await storage.stamp(id)
+      diskMarkRef.current = st.exists ? { digest: st.digest, size: st.size } : null
+    } catch {
+      diskMarkRef.current = null
     }
   }, [])
 
+  /** 挂上/撤掉冲突：一挂上就停掉待跑的保存，界面切到「有冲突」 */
+  const showConflict = useCallback((info: ConflictInfo | null) => {
+    conflictRef.current = info
+    setConflict(info)
+    if (!info) return
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    setSaving('conflict')
+  }, [])
+
+  /**
+   * 把一次「保存被拒」变成弹给用户看的对比单。
+   *
+   * 外部改名要靠「摘要 + 大小」认回同一篇：认回来了就提示「跟随改名」，
+   * 认不回来才当删除处理 —— 别一上来就让用户以为文件没了。
+   */
+  const raiseConflict = useCallback(
+    async (
+      base: Doc,
+      live: { title: string; content: JSONContent },
+      err: SaveConflictError,
+    ) => {
+      let renamedTo: string | null = null
+      const mark = diskMarkRef.current
+      if (err.code === 'deleted' && mark && storage.findByDigest) {
+        renamedTo = await storage.findByDigest(mark.digest, mark.size).catch(() => null)
+      }
+      let disk = err.disk
+      // 浏览器的 Err / 老版本 Rust 不带 disk 时，自己把磁盘那份读回来做对比
+      if (err.code === 'conflict' && disk == null && storage.raw) {
+        disk = await storage.raw(base.id).catch(() => null)
+      }
+      showConflict({
+        code: err.code,
+        docId: base.id,
+        title: live.title,
+        mine: docToMarkdown(live.content, live.title),
+        disk,
+        renamedTo,
+        at: Date.now(),
+      })
+      dirtyRef.current = true
+    },
+    [showConflict],
+  )
+
+  /**
+   * 落盘。
+   *
+   * `force` 是「不管磁盘上是什么，按我的写」—— 只有用户已经在冲突框里
+   * 明确选过「保存我的版本 / 接到文末」才配用。平时一律带上 baseDigest：
+   * 磁盘被外部改过就一个字都不写，把两份都摆到用户面前。
+   */
+  const persist = useCallback(
+    async (force = false): Promise<boolean> => {
+      const base = docRef.current
+      const live = liveRef.current
+      if (!base || !live) return false
+      // 冲突没解决之前不写 —— 否则「暂停自动保存」只是一句空话
+      if (!force && conflictRef.current) return false
+      const candidate: Doc = {
+        ...base,
+        title: live.title,
+        content: live.content,
+        updatedAt: Date.now(),
+      }
+      try {
+        const res = await storage.put(candidate, {
+          baseDigest: force ? null : diskMarkRef.current?.digest,
+        })
+        if (res.digest != null) {
+          diskMarkRef.current = { digest: res.digest, size: res.size ?? 0 }
+        }
+        const next = { ...candidate, id: res.id }
+        docRef.current = next
+        dirtyRef.current = false
+        const meta = toMeta(next)
+        setDocs((prev) =>
+          sortDocs([meta, ...prev.filter((m) => m.id !== meta.id && m.id !== base.id)]),
+        )
+        setDoc(next)
+        setSaving('saved')
+        // 记一笔今日写作量（热力图）
+        const now = countChars(live.content)
+        const delta = now - lastCharsRef.current
+        lastCharsRef.current = now
+        if (delta > 0) {
+          void storage
+            .recordWriting(todayKey(), delta)
+            .then(() => storage.writingStats())
+            .then(setStats)
+            .catch(() => {})
+        }
+        return true
+      } catch (err) {
+        const clash = asSaveConflict(err)
+        if (clash) {
+          await raiseConflict(base, live, clash)
+          return false
+        }
+        console.error('保存失败', err)
+        toast.error('保存失败', String(err))
+        setSaving('idle')
+        return false
+      }
+    },
+    [raiseConflict],
+  )
+
   const scheduleSave = useCallback(() => {
+    // 冲突期间照旧记「有改动」，但不再排保存 —— 每次打字都弹一次框会很烦
+    if (conflictRef.current) return
     setSaving('saving')
     if (timerRef.current) window.clearTimeout(timerRef.current)
     // 停手 1.4 秒才落盘。之前是 650ms —— 打字稍微一顿就写一次盘、跟着一次 git 提交，
@@ -154,6 +266,9 @@ export function useDocSession(ui: SessionUi) {
 
       const first = await store.get(list[0].id)
       if (first && !cancelled) {
+        // 启动时也要有基线，否则第一次保存会被当成「不知道磁盘是什么」而跳过校验
+        void syncDiskMark(first.id)
+        dirtyRef.current = false
         docRef.current = first
         liveRef.current = { title: first.title, content: first.content }
         lastCharsRef.current = countChars(first.content)
@@ -209,6 +324,10 @@ export function useDocSession(ui: SessionUi) {
   const openInEditor = useCallback(async (id: string) => {
     const next = await storage.get(id)
     if (!next) return
+    // 进门先记住磁盘这一版是什么样：之后每次保存都拿它当 baseDigest 去核对
+    await syncDiskMark(id)
+    dirtyRef.current = false
+    showConflict(null)
     docRef.current = next
     liveRef.current = { title: next.title, content: next.content }
     lastCharsRef.current = countChars(next.content)
@@ -233,11 +352,172 @@ export function useDocSession(ui: SessionUi) {
         ],
       )
     }
-  }, [mergeBack])
+  }, [mergeBack, showConflict, syncDiskMark])
+
+  /* ---------------- 外部改动的处理 ---------------- */
+
+  /** 以我的版本为准写回去（用户拍板了，才走这条强制覆盖） */
+  const keepMine = useCallback(async () => {
+    const ok = await persist(true)
+    if (!ok) return
+    showConflict(null)
+    toast.success('已按你的版本保存', '磁盘上被覆盖的那一版仍能在历史抽屉里找回')
+  }, [persist, showConflict])
+
+  /** 丢掉我的未保存改动，改用磁盘上的版本 */
+  const takeDisk = useCallback(async () => {
+    const cur = docRef.current
+    if (!cur) return
+    showConflict(null)
+    dirtyRef.current = false
+    await openInEditor(cur.id)
+    toast.info('已采用磁盘上的版本', '未保存的改动已丢弃')
+  }, [openInEditor, showConflict])
+
+  /** 外部改名：换成新文件名接着写 */
+  const adoptRename = useCallback(async () => {
+    const info = conflictRef.current
+    const base = docRef.current
+    const live = liveRef.current
+    if (!info?.renamedTo || !base || !live) return
+    try {
+      const st = storage.stamp ? await storage.stamp(info.renamedTo) : null
+      if (st && !st.exists) {
+        toast.error('那个文件又不见了', info.renamedTo)
+        return
+      }
+      const res = await storage.put(
+        { ...base, id: info.renamedTo, title: live.title, content: live.content, updatedAt: Date.now() },
+        { baseDigest: st?.digest },
+      )
+      if (res.digest != null) diskMarkRef.current = { digest: res.digest, size: res.size ?? 0 }
+      const next: Doc = {
+        ...base,
+        id: res.id,
+        title: live.title,
+        content: live.content,
+        updatedAt: Date.now(),
+      }
+      docRef.current = next
+      setDoc(next)
+      setDocs((prev) => sortDocs([toMeta(next), ...prev.filter((m) => m.id !== base.id)]))
+      showConflict(null)
+      dirtyRef.current = false
+      setSaving('saved')
+      toast.success('已跟随改名', `现在写的是 ${res.id}`)
+    } catch (err) {
+      const clash = asSaveConflict(err)
+      if (clash) await raiseConflict({ ...base, id: info.renamedTo }, live, clash)
+      else toast.error('跟随改名失败', String(err).slice(0, 120))
+    }
+  }, [raiseConflict, showConflict])
+
+  /** 另存为一篇新文档：原路径没了也不丢字 */
+  const saveAsNew = useCallback(async () => {
+    const base = docRef.current
+    const live = liveRef.current
+    if (!live) return
+    try {
+      const fresh = await storage.create(live.title || base?.title || '未命名')
+      const body: Doc = { ...fresh, title: live.title || fresh.title, content: live.content }
+      const res = await storage.put(body)
+      const next: Doc = { ...body, id: res.id }
+      docRef.current = next
+      liveRef.current = { title: next.title, content: next.content }
+      lastCharsRef.current = countChars(next.content)
+      if (res.digest != null) diskMarkRef.current = { digest: res.digest, size: res.size ?? 0 }
+      setDoc(next)
+      setDocs((prev) => sortDocs([toMeta(next), ...prev.filter((m) => m.id !== base?.id)]))
+      setSessionKey((k) => k + 1)
+      showConflict(null)
+      dirtyRef.current = false
+      setSaving('saved')
+      toast.success('已另存为新文档', res.id)
+    } catch (err) {
+      toast.error('另存失败', String(err).slice(0, 160))
+    }
+  }, [showConflict])
+
+  /** 先放着：关掉弹窗，但保存继续暂停（状态栏上有入口能再打开） */
+  const laterConflict = useCallback(() => {
+    setConflict(null)
+  }, [])
+
+  /*
+   * 窗口重新聚焦时对一眼磁盘。
+   *
+   * 为什么先做「聚焦时检查」而不是实时监听：实时监听要引 notify / fsevents，
+   * 三平台的坑比收益大；而一个人改完外部文件，回到 Quill 的第一件事就是点窗口，
+   * 这一刻足以覆盖绝大多数场景。
+   */
+  useEffect(() => {
+    if (!vaultMode || !storage.stamp) return
+    let busy = false
+    const check = async () => {
+      const cur = docRef.current
+      if (busy || !cur || conflictRef.current) return
+      busy = true
+      try {
+        const st = await storage.stamp!(cur.id)
+        const mark = diskMarkRef.current
+        if (!st.exists) {
+          // 没有基线 = 这篇本来就没落过盘（新建还没保存），不算被删
+          const live = liveRef.current
+          if (!mark || !live) return
+          await raiseConflict(cur, live, new SaveConflictError('deleted'))
+          return
+        }
+        if (mark && st.digest === mark.digest) return
+        if (!dirtyRef.current) {
+          // 我一个字没改：直接跟上磁盘，别拿过期版本去覆盖人家
+          diskMarkRef.current = { digest: st.digest, size: st.size }
+          const fresh = await storage.get(cur.id)
+          if (!fresh) return
+          docRef.current = fresh
+          liveRef.current = { title: fresh.title, content: fresh.content }
+          lastCharsRef.current = countChars(fresh.content)
+          setDoc(fresh)
+          setSessionKey((k) => k + 1)
+          toast.info('这篇在外部被改过', '已载入磁盘上的新版本')
+          return
+        }
+        const live = liveRef.current
+        if (!live) return
+        const disk = storage.raw ? await storage.raw(cur.id).catch(() => null) : null
+        showConflict({
+          code: 'conflict',
+          docId: cur.id,
+          title: live.title,
+          mine: docToMarkdown(live.content, live.title),
+          disk,
+          renamedTo: null,
+          at: Date.now(),
+        })
+      } finally {
+        busy = false
+      }
+    }
+    const onFocus = () => void check()
+    const onVisible = () => {
+      if (!document.hidden) void check()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [vaultMode, raiseConflict, showConflict])
 
   const openDoc = useCallback(
     async (id: string) => {
       await flush()
+      // 刚存的一下被判了冲突：先把决定做完再切，否则切走就丢字
+      if (conflictRef.current && docRef.current?.id !== id) {
+        setConflict(conflictRef.current)
+        toast.error('这篇还有未保存的冲突', '先处理完再切换文档')
+        return
+      }
 
       /*
        * 先问 Rust 要一份「章节目录 + 文件大小」，**不搬正文**。
@@ -285,6 +565,9 @@ export function useDocSession(ui: SessionUi) {
       const fresh = await storage.create(tpl.id === 'blank' ? '未命名' : tpl.name)
       const withBody = { ...fresh, content: tpl.build() }
       await storage.put(withBody)
+      void syncDiskMark(withBody.id)
+      dirtyRef.current = false
+      showConflict(null)
       docRef.current = withBody
       liveRef.current = { title: withBody.title, content: withBody.content }
       lastCharsRef.current = countChars(withBody.content)
@@ -295,7 +578,7 @@ export function useDocSession(ui: SessionUi) {
       setSaving('idle')
       toast.success('已新建', tpl.name)
     },
-    [flush],
+    [flush, showConflict, syncDiskMark],
   )
 
   /**
@@ -312,6 +595,9 @@ export function useDocSession(ui: SessionUi) {
         const fresh = await storage.create(title)
         const withBody = { ...fresh, content: parseDocument(markdown).doc }
         await storage.put(withBody)
+        void syncDiskMark(withBody.id)
+        dirtyRef.current = false
+        showConflict(null)
         /*
          * 记下这一篇的来路，改完才能并回去。
          * 只有区间成立时才记 —— 坏坐标比没有坐标危险得多。
@@ -341,7 +627,7 @@ export function useDocSession(ui: SessionUi) {
         toast.error('摘出失败', String(err).slice(0, 120))
       }
     },
-    [flush, heavyOutline],
+    [flush, heavyOutline, showConflict, syncDiskMark],
   )
 
   /** Ctrl+D：跳到今天的日记，没有就按「日记」模板建一篇 */
@@ -360,6 +646,9 @@ export function useDocSession(ui: SessionUi) {
       const fresh = await storage.create(key)
       const withBody = { ...fresh, content: tpl.build() }
       await storage.put(withBody)
+      void syncDiskMark(withBody.id)
+      dirtyRef.current = false
+      showConflict(null)
       docRef.current = withBody
       liveRef.current = { title: withBody.title, content: withBody.content }
       lastCharsRef.current = countChars(withBody.content)
@@ -372,7 +661,7 @@ export function useDocSession(ui: SessionUi) {
     } catch (err) {
       toast.error('日记打开失败', String(err).slice(0, 120))
     }
-  }, [flush, openDoc])
+  }, [flush, openDoc, showConflict, syncDiskMark])
 
   const removeDoc = useCallback(
     async (id: string) => {
@@ -508,6 +797,7 @@ export function useDocSession(ui: SessionUi) {
     (title: string) => {
       if (!liveRef.current) return
       liveRef.current.title = title
+      dirtyRef.current = true
       setDoc((d) => (d ? { ...d, title } : d))
       scheduleSave()
     },
@@ -518,6 +808,7 @@ export function useDocSession(ui: SessionUi) {
     (content: JSONContent) => {
       if (!liveRef.current) return
       liveRef.current.content = content
+      dirtyRef.current = true
       scheduleSave()
     },
     [scheduleSave],
@@ -573,5 +864,16 @@ export function useDocSession(ui: SessionUi) {
     onTitle,
     onChange,
     insertToEnd,
+    /* 外部改动冲突：App 负责画对比框，这里给状态和几个出口 */
+    conflict,
+    keepMine,
+    takeDisk,
+    adoptRename,
+    saveAsNew,
+    laterConflict,
+    /** 状态栏那条「处理冲突」入口：把「稍后处理」收起来的框叫回来 */
+    reopenConflict: () => setConflict(conflictRef.current),
+    clearConflict: () => showConflict(null),
+    forcePersist: () => persist(true),
   }
 }

@@ -6,7 +6,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use super::util::{commit, safe_name};
+use super::util::{commit, fnv1a32, safe_name, SAVE_LOCK};
 
 /* ==================== 超大文档：按章读 ==================== */
 
@@ -213,18 +213,6 @@ pub fn read_slice(dir: &Path, file: &str, from: u64, to: u64) -> Result<String, 
     }))
 }
 
-/// FNV-1a 32 —— 手写的，只为「这一章还是不是原来那一章」这一个判断。
-///
-/// 不是密码学哈希。它防的是**坐标错位**（原书前面被人插了几行，摘出去时记的
-/// from/to 就全偏了，照原样覆盖会写错地方），不是防恶意构造。
-fn fnv1a32(bytes: &[u8]) -> u32 {
-    let mut h: u32 = 0x811c_9dc5;
-    for b in bytes {
-        h ^= *b as u32;
-        h = h.wrapping_mul(0x0100_0193);
-    }
-    h
-}
 
 /// 把 `[from, to)` 这一段换成新正文 —— 「摘出来改」改完之后合并回原书用。
 ///
@@ -249,6 +237,7 @@ pub fn write_slice(
 ) -> Result<u64, String> {
     let name = safe_name(file)?;
     let path = dir.join(&name);
+    let _guard = SAVE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let raw = std::fs::read(&path).map_err(|e| format!("读取失败: {e}"))?;
     let n = raw.len() as u64;
     if from > to || to > n {

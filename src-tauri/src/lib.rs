@@ -9,7 +9,7 @@ use std::sync::Mutex;
 use tauri::window::Color;
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
-use vault::{DocEntry, SaveResult, TrashEntry, VaultInfo};
+use vault::{DocEntry, SaveError, SaveResult, TrashEntry, VaultInfo};
 
 /// 每次调用都确保仓库就绪：目录存在 + git init + 本地身份兜底
 pub(crate) fn prepare(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -105,16 +105,42 @@ async fn save_doc(
     file: String,
     title: String,
     content: String,
-) -> Result<SaveResult, String> {
-    let dir = prepare(&app)?;
+    // 打开/上次保存时磁盘内容的摘要。带回来就校验，对不上返回 `conflict`。
+    base_digest: Option<u32>,
+) -> Result<SaveResult, SaveError> {
+    let dir = prepare(&app).map_err(SaveError::io)?;
     // 写盘 + git 提交都是阻塞活，必须扔到阻塞线程池去。
     //
     // 同步命令会被 Tauri 放在主线程上执行：git 一慢（提交要起 git.exe、写对象、
     // 有时还要等索引锁）整个 WebView 就僵住，正在组词的中文输入随即被系统提交 ——
     // 用户看到的就是「一保存，字自己上屏、光标跳走了」。
-    tauri::async_runtime::spawn_blocking(move || vault::save(&dir, &file, &title, &content))
+    tauri::async_runtime::spawn_blocking(move || {
+        vault::save(&dir, &file, &title, &content, base_digest)
+    })
+    .await
+    .map_err(|e| SaveError::io(format!("保存任务失败: {e}")))?
+}
+
+/// 磁盘上这一篇此刻的摘要 —— 打开文档、窗口重新聚焦时各查一次。
+#[tauri::command]
+async fn doc_stamp(app: tauri::AppHandle, file: String) -> Result<vault::DocStamp, String> {
+    let dir = prepare(&app)?;
+    tauri::async_runtime::spawn_blocking(move || vault::stamp(&dir, &file))
         .await
-        .map_err(|e| format!("保存任务失败: {e}"))?
+        .map_err(|e| e.to_string())?
+}
+
+/// 外部改名之后按摘要找回那一篇（只比对大小相同的文件）。
+#[tauri::command]
+async fn find_doc_by_digest(
+    app: tauri::AppHandle,
+    digest: u32,
+    size: u64,
+) -> Result<Option<String>, String> {
+    let dir = prepare(&app)?;
+    tauri::async_runtime::spawn_blocking(move || vault::find_by_digest(&dir, digest, size))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -570,6 +596,8 @@ pub fn run() {
             write_doc_slice,
             create_doc,
             save_doc,
+            doc_stamp,
+            find_doc_by_digest,
             delete_doc,
             star_doc,
             set_tags,

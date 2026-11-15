@@ -31,6 +31,8 @@ import { useComments } from './app/useComments'
 import { useExportImport } from './app/useExportImport'
 import { useEditorBridge } from './app/useEditorBridge'
 import { useDocSession } from './app/useDocSession'
+import ConflictDialog from './ui/ConflictDialog'
+import { parseDocument } from './core/md-parse'
 import { useAppShortcuts } from './app/useAppShortcuts'
 import { buildMoreItems, buildPaletteCommands } from './app/menus'
 import TitleBar from './app/TitleBar'
@@ -115,6 +117,15 @@ export default function App() {
     onTitle,
     onChange,
     insertToEnd,
+    conflict,
+    keepMine,
+    takeDisk,
+    adoptRename,
+    saveAsNew,
+    laterConflict,
+    clearConflict,
+    reopenConflict,
+    forcePersist,
   } = useDocSession({ setView, heavyOutline, setHeavyOutline, setReaderOpen })
 
   // 底部状态栏要用：今日写了多少、离目标还差多少
@@ -134,6 +145,33 @@ export default function App() {
     docRef,
     openDoc,
   })
+
+  /**
+   * 冲突处理：两边都留。
+   *
+   * 为什么不真做一个合并编辑器：长文档里三路合并的界面成本远高于一次
+   * 「先都留下、再慢慢删」，而这条路的**内容零丢失**，收拾起来心里有底。
+   */
+  const resolveMerge = useCallback(async () => {
+    const ed = editorRef?.current
+    if (!ed || ed.isDestroyed || !conflict?.disk) return
+    const blocks = parseDocument(conflict.disk).doc.content ?? []
+    ed.chain()
+      .focus('end')
+      .insertContent([
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '———— 以下是磁盘上被外部改过的版本 ————' }],
+        },
+        ...blocks,
+      ])
+      .run()
+    const ok = await forcePersist()
+    if (!ok) return
+    clearConflict()
+    toast.success('两份都已保留', '磁盘版本接在文末 · 已按你的版本保存')
+  }, [conflict, clearConflict, forcePersist])
+
   const {
     comments,
     commentsOpen,
@@ -527,8 +565,27 @@ export default function App() {
         </aside>
       </div>
 
+      {conflict && (
+        <ConflictDialog
+          info={conflict}
+          onKeepMine={() => void keepMine()}
+          onTakeDisk={() => void takeDisk()}
+          onMerge={() => void resolveMerge()}
+          onAdoptRename={() => void adoptRename()}
+          onSaveAsNew={() => void saveAsNew()}
+          onRestoreHistory={() => {
+            setHistoryOpen(true)
+            toast.info('在历史里挑一版恢复', '恢复会把这一篇重新写回仓库')
+          }}
+          onLater={laterConflict}
+        />
+      )}
+
       <StatusBar
         saving={saving}
+        hasConflict={Boolean(conflict)}
+        /* 「稍后处理」收起之后，状态栏是唯一入口 */
+        onOpenConflict={reopenConflict}
         progress={progress}
         doc={doc}
         docs={docs}

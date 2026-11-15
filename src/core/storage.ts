@@ -1,5 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb'
 import { createDoc, type Doc, type DocMeta } from './types'
+import type { DocStamp } from './docGuard'
 import { vaultStorage } from './storage-vault'
 import type { Comment } from './comments'
 import type { RawChapter } from './rawChapters'
@@ -63,8 +64,24 @@ export interface DocStorage {
    */
   writeSlice?(id: string, from: number, to: number, text: string, expectDigest: number): Promise<number>
   create(title: string): Promise<Doc>
-  /** 保存；返回可能变化的新 id（文件模式按标题改名后会换文件名） */
-  put(doc: Doc): Promise<{ id: string }>
+  /**
+   * 保存；返回可能变化的新 id（文件模式按标题改名后会换文件名）。
+   *
+   * `baseDigest` = 打开/上次保存时磁盘内容的摘要。带上它就等于说「我是照着这一版改的」，
+   * 文件模式会在写之前核对，对不上抛 `SaveConflictError` —— 别把外部改动盖掉。
+   * 不带（或 `force`）就是「不管磁盘上是什么，按我的写」。
+   */
+  put(doc: Doc, opts?: { baseDigest?: number | null }): Promise<{
+    id: string
+    /** 这次落盘的正文摘要，存着当下次的 baseDigest（浏览器模式没有） */
+    digest?: number
+    /** 落盘后的字节数（找回改名用） */
+    size?: number
+  }>
+  /** 磁盘上这一篇此刻的摘要（只有文件模式有） */
+  stamp?(id: string): Promise<DocStamp>
+  /** 按摘要 + 大小在仓库里找一篇（外部改名后认回它） */
+  findByDigest?(digest: number, size: number): Promise<string | null>
   remove(id: string): Promise<void>
   star(id: string, starred: boolean): Promise<void>
   setTags(id: string, tags: string[]): Promise<void>

@@ -13,6 +13,9 @@ interface Props {
   onOpenDoc: (id: string) => void
   proseWidth: number
   onProseWidth: (width: number) => void
+  /** 外部改动还没处理：保存是停着的，状态栏要一直挂着入口 */
+  hasConflict?: boolean
+  onOpenConflict?: () => void
 }
 
 /** 底部状态栏：保存状态、今日进度、反向链接、正文栏宽度 */
@@ -24,6 +27,8 @@ export default function StatusBar({
   onOpenDoc,
   proseWidth,
   onProseWidth,
+  hasConflict,
+  onOpenConflict,
 }: Props) {
   return (
     <div className="statusbar">
@@ -33,11 +38,31 @@ export default function StatusBar({
     */}
       <span
         className={
-          'sb-save' + (saving === 'saving' ? ' saving' : saving === 'saved' ? ' saved' : '')
+          'sb-save' +
+          (saving === 'saving'
+            ? ' saving'
+            : saving === 'saved'
+              ? ' saved'
+              : saving === 'conflict'
+                ? ' clash'
+                : '')
         }
       >
-        {saving === 'saving' ? '保存中…' : saving === 'saved' ? '✓ 已保存' : ''}
+        {saving === 'saving'
+          ? '保存中…'
+          : saving === 'saved'
+            ? '✓ 已保存'
+            : saving === 'conflict'
+              ? '⚠ 外部改动未处理'
+              : ''}
       </span>
+
+      {/* 冲突被「稍后处理」收起之后，入口挂在状态栏上，不让人找不着 */}
+      {hasConflict && (
+        <button className="sb-clash" onClick={onOpenConflict}>
+          处理冲突
+        </button>
+      )}
 
       <span className="sb-item">
         今天 <b>{progress.today}</b> 字

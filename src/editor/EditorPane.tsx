@@ -21,7 +21,8 @@ import { MAX_ANCHOR, posLabel, readPos, writePos, type DocPos } from '../core/la
 
 interface Props {
   doc: Doc
-  saving: 'idle' | 'saving' | 'saved'
+  /** `conflict` = 外部改动还没处理，这时自动保存是停着的 */
+  saving: 'idle' | 'saving' | 'saved' | 'conflict'
   focusMode: boolean
   typewriter: boolean
   tags: string[]
@@ -1005,10 +1006,23 @@ export default function EditorPane({
           <span>约 {minutes} 分钟</span>
           <span
             className={
-              'save-flag' + (saving === 'saving' ? ' saving' : saving === 'saved' ? ' saved' : '')
+              'save-flag' +
+              (saving === 'saving'
+                ? ' saving'
+                : saving === 'saved'
+                  ? ' saved'
+                  : saving === 'conflict'
+                    ? ' clash'
+                    : '')
             }
           >
-            {saving === 'saving' ? '保存中…' : saving === 'saved' ? '已保存' : ''}
+            {saving === 'saving'
+              ? '保存中…'
+              : saving === 'saved'
+                ? '已保存'
+                : saving === 'conflict'
+                  ? '⚠ 外部改动未处理'
+                  : ''}
           </span>
         </div>
         <div className="tag-editor" style={{ marginBottom: 18 }}>

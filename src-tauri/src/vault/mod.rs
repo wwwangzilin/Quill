@@ -16,7 +16,10 @@ mod fulltext;
 // 对外路径保持不变：外面仍然写 `vault::save`、`vault::DocEntry`……
 pub use util::title_to_file;
 pub use meta::{Comment, VaultMeta, all_tags, comments_of, read_meta, set_comments, set_tags, star};
-pub use docs::{DocEntry, SaveResult, create, delete, import_many, list, read, save};
+pub use docs::{
+    create, delete, find_by_digest, import_many, list, read, save, stamp, DocEntry,
+    DocStamp, SaveError, SaveResult,
+};
 pub use trash::{TrashEntry, empty_trash, list_trash, purge_trash, restore_trash};
 pub use chapters::{ChapterMark, DocOutline, outline, read_slice, write_slice};
 pub use stats::{get_stats, record_writing};

@@ -4,7 +4,8 @@
 
 import type { RawChapter } from '../core/rawChapters'
 
-export type Saving = 'idle' | 'saving' | 'saved'
+/** `conflict` = 外部改动还没处理，这时自动保存是停着的 */
+export type Saving = 'idle' | 'saving' | 'saved' | 'conflict'
 
 /**
  * 超大文档：只揣一份章节目录，正文交给 ReaderView 按章现取。

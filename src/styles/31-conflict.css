@@ -1,0 +1,125 @@
+/* ==========================================================================
+   外部改动冲突：逐行对比 + 三选一
+   只在「保存会盖掉别人改动」时出现，所以做得比 toast 重、比设置页轻 ——
+   一眼看清哪几行不一样才是重点。
+   ========================================================================== */
+.conflict-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(4, 10, 16, 0.5);
+  backdrop-filter: blur(6px);
+  animation: mask-in 0.16s var(--ease-out) both;
+}
+.conflict {
+  width: min(900px, 94vw);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border, var(--border-strong));
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  outline: none;
+  animation: modal-spring 0.36s var(--spring, var(--ease-out)) both;
+}
+.conflict-head {
+  display: flex;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.conflict-icon {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-1);
+  font-size: 13px;
+}
+.conflict-head h3 {
+  margin: 0 0 5px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+}
+.conflict-head p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-2);
+}
+.conflict-legend {
+  display: flex;
+  gap: 16px;
+  padding: 10px 20px 0;
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+.conflict-legend .lg.mine { color: var(--accent-3); }
+.conflict-legend .lg.disk { color: var(--accent-2); }
+.conflict-diff {
+  flex: 1;
+  min-height: 120px;
+  margin: 8px 20px 0;
+  padding: 10px 0;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.18);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+[data-theme='glass'] .conflict-diff { background: rgba(20, 40, 55, 0.06); }
+.conflict-diff .dl { display: flex; gap: 8px; padding: 0 12px; }
+.conflict-diff .dl-mark { flex: none; width: 10px; color: var(--text-3); user-select: none; }
+.conflict-diff .dl-text { flex: 1; }
+.conflict-diff .dl.mine { background: rgba(208, 138, 114, 0.16); }
+.conflict-diff .dl.mine .dl-mark { color: var(--accent-3); }
+.conflict-diff .dl.disk { background: rgba(126, 160, 207, 0.16); }
+.conflict-diff .dl.disk .dl-mark { color: var(--accent-2); }
+.conflict-diff .dl.cut {
+  justify-content: center;
+  color: var(--text-3);
+  font-size: 11px;
+  padding: 4px 12px;
+  background: none;
+}
+.conflict-empty { padding: 22px 20px; font-size: 13px; line-height: 1.7; color: var(--text-2); }
+.conflict-empty code {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--surface-hover);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+}
+.conflict-rename { color: var(--accent-1); }
+.conflict-foot { display: flex; align-items: center; gap: 8px; padding: 14px 20px 6px; }
+.conflict-foot .grow { flex: 1; }
+.conflict-hint { margin: 0; padding: 0 20px 16px; font-size: 11.5px; line-height: 1.6; color: var(--text-3); }
+
+/* 状态栏上那条常驻入口（「稍后处理」收起之后还能找回来） */
+.sb-clash {
+  border: 1px solid rgba(208, 138, 114, 0.45);
+  background: rgba(208, 138, 114, 0.14);
+  color: var(--accent-3);
+  border-radius: 999px;
+  padding: 1px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.sb-clash:hover { filter: brightness(1.15); }
+.sb-save.clash { color: var(--accent-3); }

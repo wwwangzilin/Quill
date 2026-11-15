@@ -1,8 +1,28 @@
 //! 仓库内通用的小工具：时间、文件名、提交。
 
 use std::path::Path;
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::git;
+
+/// FNV-1a 32 —— 手写的，只为「这一版还是不是我看到的那一版」这一个判断。
+///
+/// 不是密码学哈希。它防的是**内容错位**（文件在别处被改过，按老坐标写回去
+/// 就抹掉了别人的改动），不是防恶意构造。
+pub(super) fn fnv1a32(bytes: &[u8]) -> u32 {
+    let mut h: u32 = 0x811c_9dc5;
+    for b in bytes {
+        h ^= *b as u32;
+        h = h.wrapping_mul(0x0100_0193);
+    }
+    h
+}
+
+/// 正文写入的串行锁。
+///
+/// 两件事靠它：一是「读摘要 → 判断冲突 → 写盘」必须是一个整体（中间插进一次
+/// 整篇保存，校验就失效了）；二是整篇保存和「按章写回」不能同时写同一个文件。
+pub(super) static SAVE_LOCK: Mutex<()> = Mutex::new(());
 
 pub(super) fn ms(t: SystemTime) -> i64 {
     t.duration_since(UNIX_EPOCH)

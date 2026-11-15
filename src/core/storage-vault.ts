@@ -4,6 +4,7 @@ import { parseDocument } from './md-parse'
 import type { Comment } from './comments'
 import type { RawChapter } from './rawChapters'
 import type { CommitInfo, DocStorage, RemoteInfo, TrashItem } from './storage'
+import { asSaveConflict, type DocStamp } from './docGuard'
 import { emptyContent, type Doc, type DocMeta } from './types'
 
 /** Rust 侧 list_docs 的返回结构 */
@@ -21,6 +22,8 @@ interface DocEntry {
 interface SaveResult {
   file: string
   commit: string | null
+  digest: number
+  size: number
 }
 
 export interface VaultInfo {
@@ -130,14 +133,39 @@ export const vaultStorage: DocStorage = {
     return { ...metaOf(entry), content: emptyContent() }
   },
 
-  async put(doc: Doc) {
+  /**
+   * 保存。
+   *
+   * 带上 `baseDigest` 就**先核对磁盘**：文件被外部改过 / 删掉了，Rust 侧一个字都不写，
+   * 直接把 `{ code, message, disk, digest }` 抛上来，这里转成 SaveConflictError。
+   * 不带就是「按我的覆盖」—— 恢复、合并这类用户已经拍板过的路径才用它。
+   */
+  async put(doc: Doc, opts?: { baseDigest?: number | null }) {
     const md = docToMarkdown(doc.content, doc.title)
-    const res = await invoke<SaveResult>('save_doc', {
-      file: doc.id,
-      title: doc.title,
-      content: md,
-    })
-    return { id: res.file }
+    try {
+      const res = await invoke<SaveResult>('save_doc', {
+        file: doc.id,
+        title: doc.title,
+        content: md,
+        baseDigest: opts?.baseDigest ?? null,
+      })
+      return { id: res.file, digest: res.digest, size: res.size }
+    } catch (err) {
+      // Tauri 的 Err 是序列化后的对象，不是 Error —— 得自己掰开认
+      const conflict = asSaveConflict(err)
+      if (conflict) throw conflict
+      throw err
+    }
+  },
+
+  /** 磁盘上这一篇此刻的摘要（打开文档、窗口重新聚焦时各查一次） */
+  async stamp(id: string) {
+    return await invoke<DocStamp>('doc_stamp', { file: id })
+  },
+
+  /** 外部改名：按「摘要 + 大小」在仓库里找回同一篇 */
+  async findByDigest(digest: number, size: number) {
+    return await invoke<string | null>('find_doc_by_digest', { digest, size })
   },
 
   async remove(id) {
