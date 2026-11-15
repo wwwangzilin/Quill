@@ -92,8 +92,12 @@
 .settings-tab {
   appearance: none;
   border: 1px solid transparent;
-  /* 和设置页左侧导航用同一个圆角：同一套导航，别一处药丸一处圆角 */
-  border-radius: var(--radius);
+  /*
+   * 同一套导航，别一处药丸一处圆角。
+   * 用「小控件」那一档（radius-sm）：标签只有三十来像素高，给 14px 会看着像药丸，
+   * 和设置页里那些高得多的导航项对不上。
+   */
+  border-radius: var(--radius-sm);
   padding: 4px 11px;
   font: inherit;
   font-size: 12.5px;

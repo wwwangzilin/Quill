@@ -141,6 +141,12 @@
   scrollbar-width: thin;
 }
 
+/* 右栏里那层设置视图本来是实心底色，它会把下面那张圆角玻璃卡整个盖住 ——
+   于是卡片有圆角、看到的却是方角。玻璃主题下让它透过去，圆角才露得出来。 */
+:is([data-theme="glass"], [data-theme="glass-night"]) .settings-view.is-embedded {
+  background: transparent;
+}
+
 /* 右栏里已经是「卡片里的内容」了，别再套一层卡片 ——
    卡中卡会让同一块区域出现两层圆角，看着就像圆角没对齐。 */
 :is([data-theme="glass"], [data-theme="glass-night"]) .settings-view.is-embedded .settings-content {

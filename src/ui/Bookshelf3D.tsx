@@ -95,8 +95,25 @@ export default function Bookshelf3D({
 }: Props) {
   const geo = GEO[variant]
   const n = docs.length
-  const [pos, setPos] = useState(() => Math.max(0, docs.findIndex((d) => d.id === currentId)))
-  const posRef = useRef(pos)
+  /*
+   * pos（第几本，可以是 .37 这种小数）只放在 ref 里。
+   *
+   * 之前是 `setPos(v)` + requestAnimationFrame：拖一下、滑一次，就是每帧一次
+   * React 重渲染 —— 十几本书连样式带类名全部重算，书架一拖就掉帧。
+   * 现在每帧只改**已经挂上的 DOM** 的 transform / opacity / z-index，
+   * 只有当「正中那本」换了才 setState 一次（下面的 shelf-info 要跟着变）。
+   */
+  const posRef = useRef(Math.max(0, docs.findIndex((d) => d.id === currentId)))
+  /** 正中那本的下标（整数），只在跨过一本时更新 */
+  const [centerIdx, setCenterIdx] = useState(() =>
+    n > 0 ? mod(posRef.current, n) : 0,
+  )
+  const centerIdxRef = useRef(centerIdx)
+  const bookRefs = useRef<Array<HTMLDivElement | null>>([])
+  const docsRef = useRef(docs)
+  docsRef.current = docs
+  const applyRef = useRef<() => void>(() => {})
+  const pending = useRef(0)
   const raf = useRef(0)
   const stageRef = useRef<HTMLDivElement>(null)
   const wheelTimer = useRef<number | undefined>(undefined)
@@ -110,18 +127,74 @@ export default function Bookshelf3D({
     v: number
   } | null>(null)
 
+  /**
+   * 把 pos 应用到 DOM。
+   *
+   * 只碰在窗口内（|偏移| <= visible）的那几本，其余直接 display:none ——
+   * 既不参与合成，也不用算 transform。
+   */
+  const apply = useCallback(() => {
+    const list = docsRef.current
+    const total = list.length
+    if (!total) return
+    const p = posRef.current
+    const idxNow = mod(Math.round(p), total)
+    for (let i = 0; i < total; i++) {
+      const el = bookRefs.current[i]
+      if (!el) continue
+      const off = total > 1 ? wrap(i - p, total) : 0
+      const a = Math.abs(off)
+      if (a > geo.visible) {
+        if (el.style.display !== 'none') el.style.display = 'none'
+        continue
+      }
+      if (el.style.display === 'none') el.style.display = 'block'
+      const side = Math.sign(off)
+      const rot = Math.max(-geo.maxRot, Math.min(geo.maxRot, -off * geo.tilt))
+      const tx = side * (Math.min(a, 1) * geo.gap + Math.max(0, a - 1) * geo.far)
+      const tz = -Math.min(a, 1) * geo.zNear - Math.max(0, Math.min(a, 3.5) - 1) * geo.zFar
+      const sc = 1 - Math.min(a, 3) * 0.04
+      const fade = a > 3 ? Math.max(0, 1 - (a - 3) / 1.2) : 1
+      el.style.transform = `translate3d(${tx.toFixed(2)}px, 0, ${tz.toFixed(2)}px) rotateY(${rot.toFixed(2)}deg) scale(${sc.toFixed(3)})`
+      el.style.opacity = fade.toFixed(3)
+      el.style.zIndex = String(100 - Math.round(a * 10))
+      el.classList.toggle('is-center', i === idxNow)
+      el.setAttribute('aria-selected', i === idxNow ? 'true' : 'false')
+    }
+    if (idxNow !== centerIdxRef.current) {
+      centerIdxRef.current = idxNow
+      setCenterIdx(idxNow)
+    }
+  }, [geo])
+  applyRef.current = apply
+
+  /** 一帧内多次调用只算一次 */
   const put = useCallback((v: number) => {
     posRef.current = v
-    setPos(v)
+    if (pending.current) return
+    pending.current = requestAnimationFrame(() => {
+      pending.current = 0
+      applyRef.current()
+    })
   }, [])
-  const stop = useCallback(() => cancelAnimationFrame(raf.current), [])
+  const stop = useCallback(() => {
+    cancelAnimationFrame(raf.current)
+    if (pending.current) {
+      cancelAnimationFrame(pending.current)
+      pending.current = 0
+    }
+  }, [])
 
   /** 缓动滑到 target（单位：本）。target 不必是整数，但落点总会是整数 */
   const glideTo = useCallback(
     (target: number, ms = 380) => {
       stop()
+      const finish = () => {
+        posRef.current = target
+        applyRef.current()
+      }
       if (motionReduced() || ms <= 0) {
-        put(target)
+        finish()
         return
       }
       const from = posRef.current
@@ -129,20 +202,27 @@ export default function Bookshelf3D({
       const step = (t: number) => {
         const k = Math.min(1, (t - t0) / ms)
         const e = 1 - Math.pow(1 - k, 3)
-        put(from + (target - from) * e)
+        posRef.current = from + (target - from) * e
+        applyRef.current()
         if (k < 1) raf.current = requestAnimationFrame(step)
       }
       raf.current = requestAnimationFrame(step)
     },
-    [put, stop],
+    [stop],
   )
 
   // 文档数量变了（筛选、搜索）：回到合法范围，别停在空处
   useEffect(() => {
     if (n === 0) return
     const i = Math.round(posRef.current)
-    if (i < 0 || i >= n) put(mod(i, n))
-  }, [n, put])
+    if (i < 0 || i >= n) {
+      posRef.current = mod(i, n)
+      centerIdxRef.current = mod(i, n)
+      setCenterIdx(mod(i, n))
+    }
+    // 列表换了（筛选/新增/删除）：重画一遍位置
+    applyRef.current()
+  }, [n, docs])
 
   useEffect(() => () => stop(), [stop])
 
@@ -166,8 +246,7 @@ export default function Bookshelf3D({
     }
   }, [n, put, stop, glideTo])
 
-  const centerIdx = n > 0 ? mod(Math.round(pos), n) : 0
-  const center = n > 0 ? docs[centerIdx] : undefined
+  const center = n > 0 ? docs[Math.min(centerIdx, n - 1)] : undefined
   const centerId = center?.id
 
   // 正中那本换了：告诉外面（侧栏据此高亮列表里的对应条目）
@@ -270,35 +349,26 @@ export default function Bookshelf3D({
         <div className="shelf-floor" aria-hidden="true" />
         <div className="shelf-track">
           {docs.map((d, i) => {
-            const off = n > 1 ? wrap(i - pos, n) : 0
-            const a = Math.abs(off)
-            if (a > geo.visible) return null
-            const side = Math.sign(off)
-            const rot = Math.max(-geo.maxRot, Math.min(geo.maxRot, -off * geo.tilt))
-            const tx = side * (Math.min(a, 1) * geo.gap + Math.max(0, a - 1) * geo.far)
-            const tz = -Math.min(a, 1) * geo.zNear - Math.max(0, Math.min(a, 3.5) - 1) * geo.zFar
-            const sc = 1 - Math.min(a, 3) * 0.04
-            const fade = a > 3 ? Math.max(0, 1 - (a - 3) / 1.2) : 1
             const hue = coverHue(d.id)
             const isCenter = i === centerIdx
             return (
               <div
                 key={d.id}
-                className={'book' + (isCenter ? ' is-center' : '') + (d.id === currentId ? ' is-current' : '')}
-                style={
-                  {
-                    transform: `translate3d(${tx}px, 0, ${tz}px) rotateY(${rot}deg) scale(${sc})`,
-                    opacity: fade,
-                    zIndex: 100 - Math.round(a * 10),
-                    '--hue': hue,
-                  } as React.CSSProperties
-                }
+                ref={(el) => {
+                  bookRefs.current[i] = el
+                }}
+                className={'book' + (d.id === currentId ? ' is-current' : '')}
+                style={{ '--hue': hue } as React.CSSProperties}
                 role="option"
                 aria-selected={isCenter}
                 onClick={() => {
                   if (suppressClick.current) return
-                  if (isCenter) onOpen(d.id)
-                  else glideTo(posRef.current + Math.round(off), 420)
+                  if (i === centerIdxRef.current) onOpen(d.id)
+                  else {
+                    // 点到哪本，就沿最短方向转过去（首尾相接，可能往回转）
+                    const cur = posRef.current
+                    glideTo(cur + wrap(i - cur, n), 420)
+                  }
                 }}
               >
                 <div className="book-cover">
