@@ -10,6 +10,13 @@ import { Icon } from './Icon'
  *   · 松手带惯性：按松手时的速度估一个落点，再缓动吸附到最近的一本
  *   · 点两侧的书：滑到中间；点中间那本：打开
  *
+ * 两种版式：
+ *   stage —— 文档库里的大舞台，书正面朝前、两侧渐渐退开
+ *   side  —— 左侧栏顶上的小书架：两侧的书几乎侧过来（只露书脊那一道），
+ *            正中那本被「抽」出来正对你，下面接着就是平常的文档列表。
+ *            它和列表是联动的：正中那本 = 列表里高亮的那条（onCenter），
+ *            在列表里点哪篇、或者别处切了文档，书架就滑过去（focusId）。
+ *
  * 位置用一个连续的 pos（单位：本）表示，第 i 本相对中心的偏移是
  * d = wrap(i - pos)。所有 3D 变换都只由 d 算出来，没有任何额外状态。
  */
@@ -19,14 +26,27 @@ interface Props {
   currentId: string | null
   onOpen: (id: string) => void
   onStar: (id: string, starred: boolean) => void
+  /** 版式，默认 stage */
+  variant?: 'stage' | 'side'
+  /**
+   * 外部指定「该转到哪一本」。用对象而不是裸 id：每次传一个新对象就转一次，
+   * 这样用户手动转开之后，再点列表里同一条，书架照样会转回来。
+   */
+  focus?: { id: string } | null
+  /** 正中那本换了就通知一声（侧栏据此高亮列表里对应的一条） */
+  onCenter?: (id: string) => void
 }
+
+/** 两种版式的摆位参数：中心间距、侧面倾角、纵深等 */
+const GEO = {
+  stage: { gap: 196, far: 84, tilt: 44, maxRot: 62, zNear: 70, zFar: 120, visible: 4.2 },
+  side: { gap: 74, far: 30, tilt: 62, maxRot: 72, zNear: 36, zFar: 46, visible: 3.4 },
+} as const
 
 /** 拖多少像素算翻一本 */
 const DRAG_PX_PER_BOOK = 170
 /** 惯性的「滑行时间常数」（毫秒）：松手速度 × 它 ≈ 还会再滑多远 */
 const GLIDE_MS = 320
-/** 最多渲染中心左右各这么多本，再远的看不见，不画 */
-const VISIBLE = 4.2
 
 /** 把差值折到 [-n/2, n/2)，实现首尾相接 */
 function wrap(d: number, n: number): number {
@@ -64,7 +84,16 @@ function motionReduced(): boolean {
   }
 }
 
-export default function Bookshelf3D({ docs, currentId, onOpen, onStar }: Props) {
+export default function Bookshelf3D({
+  docs,
+  currentId,
+  onOpen,
+  onStar,
+  variant = 'stage',
+  focus,
+  onCenter,
+}: Props) {
+  const geo = GEO[variant]
   const n = docs.length
   const [pos, setPos] = useState(() => Math.max(0, docs.findIndex((d) => d.id === currentId)))
   const posRef = useRef(pos)
@@ -137,10 +166,30 @@ export default function Bookshelf3D({ docs, currentId, onOpen, onStar }: Props) 
     }
   }, [n, put, stop, glideTo])
 
-  if (n === 0) return <div className="shelf-empty">没有符合条件的文档</div>
+  const centerIdx = n > 0 ? mod(Math.round(pos), n) : 0
+  const center = n > 0 ? docs[centerIdx] : undefined
+  const centerId = center?.id
 
-  const centerIdx = mod(Math.round(pos), n)
-  const center = docs[centerIdx]
+  // 正中那本换了：告诉外面（侧栏据此高亮列表里的对应条目）
+  const onCenterRef = useRef(onCenter)
+  onCenterRef.current = onCenter
+  useEffect(() => {
+    if (centerId) onCenterRef.current?.(centerId)
+  }, [centerId])
+
+  // 外面指定了要看哪一本：沿最短的方向滑过去（首尾相接，所以可能是往回转）
+  useEffect(() => {
+    if (!focus || n === 0) return
+    const idx = docs.findIndex((d) => d.id === focus.id)
+    if (idx < 0) return
+    const cur = Math.round(posRef.current)
+    if (mod(cur, n) === idx) return
+    glideTo(cur + wrap(idx - cur, n), 420)
+    // 只在 focus 对象变时跟；docs 变了（筛选）由上面那个范围修正管
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus])
+
+  if (n === 0 || !center) return <div className="shelf-empty">没有符合条件的文档</div>
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 || n < 2) return
@@ -205,7 +254,7 @@ export default function Bookshelf3D({ docs, currentId, onOpen, onStar }: Props) 
   }
 
   return (
-    <div className="shelf">
+    <div className={'shelf' + (variant === 'side' ? ' side' : '')}>
       <div
         ref={stageRef}
         className="shelf-stage"
@@ -223,11 +272,11 @@ export default function Bookshelf3D({ docs, currentId, onOpen, onStar }: Props) 
           {docs.map((d, i) => {
             const off = n > 1 ? wrap(i - pos, n) : 0
             const a = Math.abs(off)
-            if (a > VISIBLE) return null
+            if (a > geo.visible) return null
             const side = Math.sign(off)
-            const rot = Math.max(-62, Math.min(62, -off * 44))
-            const tx = side * (Math.min(a, 1) * 196 + Math.max(0, a - 1) * 84)
-            const tz = -Math.min(a, 1) * 70 - Math.max(0, Math.min(a, 3.5) - 1) * 120
+            const rot = Math.max(-geo.maxRot, Math.min(geo.maxRot, -off * geo.tilt))
+            const tx = side * (Math.min(a, 1) * geo.gap + Math.max(0, a - 1) * geo.far)
+            const tz = -Math.min(a, 1) * geo.zNear - Math.max(0, Math.min(a, 3.5) - 1) * geo.zFar
             const sc = 1 - Math.min(a, 3) * 0.04
             const fade = a > 3 ? Math.max(0, 1 - (a - 3) / 1.2) : 1
             const hue = coverHue(d.id)
@@ -273,41 +322,62 @@ export default function Bookshelf3D({ docs, currentId, onOpen, onStar }: Props) 
         </div>
       </div>
 
-      <div className="shelf-info">
-        <button className="btn ghost icon" onClick={() => step(-1)} title="上一本（←）" disabled={n < 2}>
-          <Icon name="chevleft" />
-        </button>
-        <div className="shelf-meta">
-          <div className="shelf-count">
-            {String(centerIdx + 1).padStart(2, '0')} / {String(n).padStart(2, '0')}
+      {variant === 'side' ? (
+        <div className="shelf-info">
+          <button className="btn ghost icon" onClick={() => step(-1)} title="上一本（←）" disabled={n < 2}>
+            <Icon name="chevleft" />
+          </button>
+          <div className="shelf-meta">
+            <div className="shelf-count">
+              {String(centerIdx + 1).padStart(2, '0')} / {String(n).padStart(2, '0')}
+            </div>
+            <div className="shelf-name" title={center.title}>
+              {center.title || '未命名'}
+            </div>
           </div>
-          <div className="shelf-name" title={center.title}>
-            {center.title || '未命名'}
-          </div>
-          <div className="shelf-sub">
-            {sizeLabel(center.chars)} · 修改于 {shortDate(center.updatedAt)}
-            {(center.tags ?? []).slice(0, 3).map((t) => (
-              <span key={t} className="lr-tag">
-                {t}
-              </span>
-            ))}
-          </div>
+          <button className="btn ghost icon" onClick={() => step(1)} title="下一本（→）" disabled={n < 2}>
+            <Icon name="chevright" />
+          </button>
         </div>
-        <button
-          className={'btn ghost icon' + (center.starred ? ' on' : '')}
-          onClick={() => onStar(center.id, !center.starred)}
-          title={center.starred ? '取消星标' : '加星标'}
-        >
-          <Icon name="star" filled={center.starred} />
-        </button>
-        <button className="btn primary" onClick={() => onOpen(center.id)}>
-          打开
-        </button>
-        <button className="btn ghost icon" onClick={() => step(1)} title="下一本（→）" disabled={n < 2}>
-          <Icon name="chevright" />
-        </button>
-      </div>
-      <div className="shelf-hint">拖动 · 滚轮 · ← → 翻书　点中间那本打开</div>
+      ) : (
+        <div className="shelf-info">
+          <button className="btn ghost icon" onClick={() => step(-1)} title="上一本（←）" disabled={n < 2}>
+            <Icon name="chevleft" />
+          </button>
+          <div className="shelf-meta">
+            <div className="shelf-count">
+              {String(centerIdx + 1).padStart(2, '0')} / {String(n).padStart(2, '0')}
+            </div>
+            <div className="shelf-name" title={center.title}>
+              {center.title || '未命名'}
+            </div>
+            <div className="shelf-sub">
+              {sizeLabel(center.chars)} · 修改于 {shortDate(center.updatedAt)}
+              {(center.tags ?? []).slice(0, 3).map((t) => (
+                <span key={t} className="lr-tag">
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+          <button
+            className={'btn ghost icon' + (center.starred ? ' on' : '')}
+            onClick={() => onStar(center.id, !center.starred)}
+            title={center.starred ? '取消星标' : '加星标'}
+          >
+            <Icon name="star" filled={center.starred} />
+          </button>
+          <button className="btn primary" onClick={() => onOpen(center.id)}>
+            打开
+          </button>
+          <button className="btn ghost icon" onClick={() => step(1)} title="下一本（→）" disabled={n < 2}>
+            <Icon name="chevright" />
+          </button>
+        </div>
+      )}
+      {variant === 'stage' && (
+        <div className="shelf-hint">拖动 · 滚轮 · ← → 翻书　点中间那本打开</div>
+      )}
     </div>
   )
 }

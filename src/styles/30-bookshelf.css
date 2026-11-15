@@ -232,3 +232,127 @@
   align-items: center;
   gap: 5px;
 }
+
+/* ==========================================================================
+   侧栏里的小书架（variant="side"）
+   两侧的书几乎侧过来，只露一道书脊；正中那本抽出来正对着你；
+   它的正下方就是平常的文档列表，两者联动。
+   ========================================================================== */
+.side-shelf {
+  flex: none;
+  margin: 0 10px 2px;
+  border-radius: var(--radius);
+}
+.side-shelf-head {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 6px 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+}
+.side-shelf-head i {
+  flex: 1;
+  height: 1px;
+  background: var(--border-strong);
+}
+.side-shelf-head:hover {
+  color: var(--text-2);
+}
+
+.shelf.side {
+  flex: none;
+  padding: 0;
+}
+.shelf.side .shelf-stage {
+  flex: none;
+  height: 186px;
+  min-height: 0;
+  perspective: 760px;
+  perspective-origin: 50% 38%;
+  border-radius: var(--radius);
+  /* 两头渐隐：书从侧栏边缘「滑出」去，不被硬切 */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+}
+.shelf.side .shelf-floor {
+  width: 150px;
+  height: 22px;
+  margin-left: -75px;
+  bottom: 4px;
+}
+.shelf.side .book {
+  --w: 104px;
+  --h: 146px;
+  margin-top: calc(var(--h) / -2 - 4px);
+}
+.shelf.side .book-cover {
+  padding: 12px 8px 9px 16px;
+  border-radius: 4px 8px 8px 4px;
+}
+.shelf.side .book-spine {
+  width: 9px;
+}
+.shelf.side .book-cover::after {
+  inset: 6px 6px 6px 13px;
+}
+.shelf.side .book-label {
+  font-size: 8px;
+}
+.shelf.side .book-title {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.35;
+  -webkit-line-clamp: 4;
+}
+.shelf.side .book-foot {
+  font-size: 8px;
+}
+.shelf.side .book-star {
+  top: 9px;
+  right: 9px;
+  font-size: 10px;
+}
+.shelf.side .book-ribbon {
+  display: none;
+}
+.shelf.side .shelf-info {
+  padding: 0;
+  gap: 4px;
+}
+.shelf.side .shelf-meta {
+  flex: 1;
+  min-width: 0;
+}
+.shelf.side .shelf-name {
+  font-size: 13px;
+}
+.shelf.side .shelf-count {
+  font-size: 9px;
+}
+.shelf.side .btn.icon {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+}
+
+/* 列表里和书架正中对应的那一条：比「正在写」淡一档的轻提示 */
+.doc-item.shelf-focus {
+  border-color: color-mix(in srgb, var(--accent-1) 30%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-1) 12%, transparent);
+}
+
+/* 小书架的阴影收一收：舞台高度有限，大投影会被裁成一块硬边的色块 */
+.shelf.side .book-cover,
+.shelf.side .book.is-center .book-cover {
+  box-shadow:
+    0 10px 14px -8px rgba(10, 25, 50, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.2) inset;
+}

@@ -61,6 +61,8 @@ const ICONS: Record<string, Paths> = {
   list: ['M8 6h13', 'M8 12h13', 'M8 18h13', 'M3 6h.01', 'M3 12h.01', 'M3 18h.01'],
   chevleft: ['M15 18l-6-6 6-6'],
   chevright: ['M9 18l6-6-6-6'],
+  chevup: ['M18 15l-6-6-6 6'],
+  chevdown: ['M6 9l6 6 6-6'],
   book: ['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'],
 }
 

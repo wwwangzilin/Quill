@@ -5,6 +5,8 @@ import { formatWhen, groupOf } from '../core/time'
 import { storage } from '../core/storage'
 import { TEMPLATES } from '../core/templates'
 import Heatmap from './Heatmap'
+import Bookshelf3D from './Bookshelf3D'
+import { Icon } from './Icon'
 import { activeDays, goalProgress, streakDays } from '../core/stats'
 import type { DocMeta } from '../core/types'
 
@@ -28,6 +30,15 @@ interface Props {
 }
 
 const ORDER = ['今天', '昨天', '七天内', '更早']
+
+const SHELF_KEY = 'quill-sidebar-shelf'
+function readShelfOpen(): boolean {
+  try {
+    return localStorage.getItem(SHELF_KEY) !== 'off'
+  } catch {
+    return true
+  }
+}
 
 function plainOf(node: JSONContent | undefined): string {
   if (!node) return ''
@@ -64,6 +75,24 @@ export default function Sidebar({
   const [tplOpen, setTplOpen] = useState(false)
   const [hits, setHits] = useState<Record<string, string>>({})
   const [searching, setSearching] = useState(false)
+  // 书架 ↔ 列表联动：focus 是「书架该转到哪一本」，centerId 是「书架现在正中的那本」
+  const [shelfOpen, setShelfOpen] = useState(() => readShelfOpen())
+  const [focus, setFocus] = useState<{ id: string } | null>(activeId ? { id: activeId } : null)
+  const [centerId, setCenterId] = useState<string | null>(null)
+  const toggleShelf = () => {
+    setShelfOpen((v) => {
+      try {
+        localStorage.setItem(SHELF_KEY, v ? 'off' : 'on')
+      } catch {
+        /* 记不住也不影响这次 */
+      }
+      return !v
+    })
+  }
+  // 别处切了文档（命令面板、文档库、双链…），书架跟着转过去
+  useEffect(() => {
+    if (activeId) setFocus({ id: activeId })
+  }, [activeId])
 
   const progress = goalProgress(stats, goal)
   const streak = streakDays(stats)
@@ -119,6 +148,16 @@ export default function Sidebar({
   }, [docs, q, hits, activeTag])
 
   const total = groups.reduce((n, g) => n + g.items.length, 0)
+  // 书架上的顺序 = 列表从上到下的顺序，转书就是在列表里上下走
+  const shelfDocs = useMemo(() => groups.flatMap((g) => g.items), [groups])
+
+  // 书架正中换了一本：列表里对应那条滚进视野
+  useEffect(() => {
+    if (!centerId) return
+    document
+      .querySelector(`.doc-list [data-doc-id="${CSS.escape(centerId)}"]`)
+      ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [centerId])
   const kw = q.trim()
   let stagger = 0
 
@@ -184,6 +223,28 @@ export default function Sidebar({
         )}
       </div>
 
+      {total > 0 && (
+        <div className={'side-shelf' + (shelfOpen ? '' : ' closed')}>
+          <button className="side-shelf-head" onClick={toggleShelf} aria-expanded={shelfOpen}>
+            <Icon name="shelf" />
+            <span>书架</span>
+            <i />
+            <Icon name={shelfOpen ? 'chevup' : 'chevdown'} />
+          </button>
+          {shelfOpen && (
+            <Bookshelf3D
+              variant="side"
+              docs={shelfDocs}
+              currentId={activeId}
+              focus={focus}
+              onCenter={setCenterId}
+              onOpen={onSelect}
+              onStar={(id) => onStar(id)}
+            />
+          )}
+        </div>
+      )}
+
       <div className="doc-list">
         {total === 0 && (
           <div className="empty-hint">
@@ -199,10 +260,14 @@ export default function Sidebar({
               return (
                 <div
                   key={d.id}
-                  className={'doc-item' + (d.id === activeId ? ' active' : '')}
+                  className={
+                    'doc-item' + (d.id === activeId ? ' active' : '') + (shelfOpen && d.id === centerId && d.id !== activeId ? ' shelf-focus' : '')
+                  }
+                  data-doc-id={d.id}
                   style={{ animationDelay: delay }}
                   onClick={() => {
                     setConfirmId(null)
+                    setFocus({ id: d.id })
                     onSelect(d.id)
                   }}
                 >
