@@ -42,6 +42,9 @@ function inline(node: JSONContent): string {
   }
   if (node.type === 'hardBreak') return '\\\n'
   if (node.type === 'image') return imageMarkdown(node)
+  // 公式与脚注：latex / label 都是**原样**存的，按原字符写回去
+  if (node.type === 'mathInline') return '$' + String(node.attrs?.latex ?? '') + '$'
+  if (node.type === 'footnoteRef') return '[^' + String(node.attrs?.label ?? '') + ']'
   return (node.content ?? []).map(inline).join('')
 }
 
@@ -84,6 +87,14 @@ function block(node: JSONContent, depth: number): string {
     }
     case 'horizontalRule':
       return '---'
+    case 'mathBlock': {
+      const latex = String(node.attrs?.latex ?? '')
+      // 原样包回去：多行写的保持多行式，单行写的保持单行式
+      const multi = Boolean(node.attrs?.multi) || latex.includes('\n')
+      return multi ? '$$\n' + latex + '\n$$' : '$$' + latex + '$$'
+    }
+    case 'footnoteDef':
+      return '[^' + String(node.attrs?.label ?? '') + ']: ' + String(node.attrs?.text ?? '')
     case 'frontmatter': {
       // YAML 元数据原样写回，不参与正文排版
       const yaml = String(node.attrs?.yaml ?? '')

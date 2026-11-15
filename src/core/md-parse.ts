@@ -108,7 +108,7 @@ function isBlockStart(line: string): boolean {
 /* ----------------------------- 行内 ----------------------------- */
 
 const INLINE_TOKEN =
-  /(\*\*[^*\n]+\*\*|\*[^*\n]+\*|__[^_\n]+__|_[^_\n]+_|~~[^~\n]+~~|`[^`\n]+`|==[^=\n]+==|\[[^\]\n]+\]\([^)\n]+\))/
+  /(\*\*[^*\n]+\*\*|\*[^*\n]+\*|__[^_\n]+__|_[^_\n]+_|~~[^~\n]+~~|`[^`\n]+`|==[^=\n]+==|\[[^\]\n]+\]\([^)\n]+\)|\[\^[^\]\n]+\]|\$(?!\s)(?:\\.|[^$\\\n])*?[^\s$]\$)/
 
 type Mark = { type: string; attrs?: Record<string, unknown> }
 
@@ -132,6 +132,12 @@ function inline(text: string): JSONContent[] {
       out.push({ type: 'text', text: m[1], marks: [mark('code')] })
     } else if ((m = part.match(/^==([^=]+)==$/))) {
       out.push({ type: 'text', text: m[1], marks: [mark('highlight')] })
+    } else if ((m = part.match(/^\[\^([^\]]+)\]$/))) {
+      // 脚注引用：[^label]
+      out.push({ type: 'footnoteRef', attrs: { label: m[1] } })
+    } else if ((m = part.match(/^\$(?!\s)([\s\S]*[^\s$])\$$/))) {
+      // 行内公式：$...$ —— latex 存的是**原样**内文，序列化时一个字符都不改
+      out.push({ type: 'mathInline', attrs: { latex: m[1] } })
     } else if ((m = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/))) {
       out.push({ type: 'text', text: m[1], marks: [{ type: 'link', attrs: { href: m[2] } }] })
     } else {
@@ -228,6 +234,45 @@ function parseBlocks(lines: string[]): JSONContent[] {
     if (!line.trim()) {
       i += 1
       continue
+    }
+
+    // 块级公式：$$ 起头。单行 $$x$$ 和多行 $$\n…\n$$ 都认，
+    // latex 原样保存（含换行），写回去时还是那几行。
+    if (/^\s*\$\$/.test(line)) {
+      const rest = line.replace(/^\s*\$\$/, '')
+      const sameLine = /\$\$\s*$/.test(rest)
+      if (sameLine && rest.trim() !== '') {
+        out.push({ type: 'mathBlock', attrs: { latex: rest.replace(/\s*\$\$\s*$/, '') } })
+        i += 1
+        continue
+      }
+      // 多行：一直吃到单独一行的 $$
+      const buf: string[] = []
+      if (rest.trim()) buf.push(rest)
+      i += 1
+      while (i < lines.length && !/^\s*\$\$\s*$/.test(lines[i])) {
+        buf.push(lines[i])
+        i += 1
+      }
+      if (i < lines.length) i += 1 // 吃掉收尾的 $$
+      out.push({ type: 'mathBlock', attrs: { latex: buf.join('\n'), multi: true } })
+      continue
+    }
+
+    // 脚注定义：[^label]: 说明。
+    // 后续缩进两格以上的行算续行 —— 脚注常常写两行。
+    {
+      const m = /^\s*\[\^([^\]]+)\]\s*:\s?(.*)$/.exec(line)
+      if (m) {
+        const buf = [m[2]]
+        i += 1
+        while (i < lines.length && /^\s{2,}\S/.test(lines[i])) {
+          buf.push(lines[i].replace(/^\s{2,}/, ''))
+          i += 1
+        }
+        out.push({ type: 'footnoteDef', attrs: { label: m[1], text: buf.join('\n') } })
+        continue
+      }
     }
 
     // Setext 标题：正文行 + 下一行整行等号（H1）或减号（H2）。

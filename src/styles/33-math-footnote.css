@@ -1,0 +1,100 @@
+/* ==========================================================================
+   公式（KaTeX）与脚注
+   原则：渲染归渲染，**原文一个字都不改** —— 点一下还能回到源码。
+   ========================================================================== */
+.math-inline .math-render {
+  cursor: pointer;
+  padding: 0 1px;
+  border-radius: 4px;
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.math-inline .math-render:hover {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.math-block {
+  margin: 1.1em 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: center;
+  transition: background var(--dur-fast) var(--ease);
+}
+.math-block:hover {
+  background: var(--surface-hover);
+}
+.math-block .katex-display {
+  margin: 0;
+}
+.math-error {
+  color: var(--accent-3);
+  font-size: 0.9em;
+}
+
+/* 编辑框：贴在公式原来的位置上，回车确认、Esc 取消 */
+.math-edit input {
+  width: 100%;
+  min-width: 160px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  outline: none;
+}
+.math-block .math-edit {
+  display: block;
+  text-align: left;
+}
+
+/* ---------- 脚注 ---------- */
+.fn-ref a {
+  margin-left: 1px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--accent-1);
+  background: var(--accent-soft);
+  text-decoration: none;
+  cursor: pointer;
+  vertical-align: super;
+  line-height: 1;
+}
+.fn-ref a:hover {
+  filter: brightness(1.1);
+}
+.fn-def {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0.5em 0;
+  padding: 6px 10px;
+  border-left: 2px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 0.9em;
+  color: var(--text-2);
+  background: var(--surface-hover);
+}
+.fn-def-label {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent-1);
+}
+.fn-def-text {
+  flex: 1;
+  white-space: pre-wrap;
+}
+.fn-back {
+  flex: none;
+  color: var(--text-3);
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 12px;
+}
+.fn-back:hover {
+  color: var(--accent-1);
+}

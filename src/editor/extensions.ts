@@ -16,6 +16,7 @@ import { MdMarkers } from './mdMarkers'
 import { TableKit } from '@tiptap/extension-table'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { createLowlight, common } from 'lowlight'
+import { MathInline, MathBlock, FootnoteRef, FootnoteDef } from './math'
 
 /** 代码块语法高亮的语言包：常用语言全都有，纯前端、不加其它依赖 */
 const lowlight = createLowlight(common)
@@ -330,6 +331,11 @@ export const Frontmatter = Node.create({
 
 export function buildExtensions(placeholder: string) {
   return [
+    // 公式（KaTeX）与脚注：都按原字符存回 Markdown，点一下能改源码
+    MathInline,
+    MathBlock,
+    FootnoteRef,
+    FootnoteDef,
     // 放最前面：Tab 要优先被「接受续写建议」截走，没建议时才轮到缩进
     AiComplete,
     StarterKit.configure({
