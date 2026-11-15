@@ -30,7 +30,7 @@ jobs:
         run: pnpm build
 
       - name: 核心逻辑断言（Markdown 序列化 / 文件名安全化）
-        run: node test-core.mjs
+        run: node test-core.mjs && node test-math.mjs
 
   rust:
     name: Rust 单元测试（vault）

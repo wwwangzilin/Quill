@@ -73,7 +73,7 @@ jobs:
         run: pnpm typecheck
 
       - name: 核心逻辑断言
-        run: node test-core.mjs
+        run: node test-core.mjs && node test-math.mjs
 
       - name: 构建桌面应用（含 NSIS 安装包 + 签名更新包）
         # 自动更新的包必须签名：公钥在 tauri.conf.json 里，私钥只存在 Secrets
