@@ -1,4 +1,5 @@
 import BacklinksPanel from '../ui/BacklinksPanel'
+import { Glyph } from '../ui/Icon'
 import { goalProgress } from '../core/stats'
 import { clampWidth, PROSE_RANGE } from '../core/fonts'
 import type { Doc, DocMeta } from '../core/types'
@@ -66,7 +67,7 @@ export default function StatusBar({
 
       <label className="width-slider" title="拖动调节正文栏宽度">
         <span className="ws-icon" aria-hidden="true">
-          ⇔
+          <Glyph g="⇔" />
         </span>
         <input
           type="range"

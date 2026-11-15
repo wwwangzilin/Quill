@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Glyph } from './Icon'
 import type { JSONContent } from '@tiptap/core'
 import { formatWhen, groupOf } from '../core/time'
 import { storage } from '../core/storage'
@@ -139,7 +140,7 @@ export default function Sidebar({
                     onCreate(t.id)
                   }}
                 >
-                  <span className="glyph">{t.glyph}</span>
+                  <span className="glyph"><Glyph g={t.glyph} /></span>
                   <span>{t.name}</span>
                   <span className="tips">{t.hint}</span>
                 </button>
@@ -151,7 +152,7 @@ export default function Sidebar({
           {searching ? (
             <span className="spinner" style={{ width: 11, height: 11 }} />
           ) : (
-            <span style={{ color: 'var(--text-3)', fontSize: 12 }}>⌕</span>
+            <span style={{ color: 'var(--text-3)', fontSize: 13, display: 'inline-flex' }}><Glyph g="⌕" /></span>
           )}
           <input
             value={q}
@@ -206,7 +207,7 @@ export default function Sidebar({
                   }}
                 >
                   <div className="row">
-                    {d.starred && <span className="star">★</span>}
+                    {d.starred && <span className="star"><Glyph g="★" filled /></span>}
                     <span className="t">{d.title || '无标题'}</span>
                   </div>
                   <div className="sub">{hits[d.id] ? hits[d.id] : formatWhen(d.updatedAt)}</div>
@@ -229,7 +230,7 @@ export default function Sidebar({
 
                   <div className="tools" onClick={(e) => e.stopPropagation()}>
                     <button title={d.starred ? '取消收藏' : '收藏'} onClick={() => onStar(d.id)}>
-                      {d.starred ? '★' : '☆'}
+                      <Glyph g="★" filled={d.starred} />
                     </button>
                     {confirmId === d.id ? (
                       <button
@@ -244,7 +245,7 @@ export default function Sidebar({
                       </button>
                     ) : (
                       <button title="删除" onClick={() => setConfirmId(d.id)}>
-                        ✕
+                        <Glyph g="✕" />
                       </button>
                     )}
                   </div>
@@ -264,10 +265,10 @@ export default function Sidebar({
             title="文档库 · 浏览与筛选全部文档"
             onClick={onOpenLibrary}
           >
-            ▤
+            <Glyph g="▤" />
           </button>
           <button className="btn ghost icon" title="回收站" onClick={onOpenTrash}>
-            ♻
+            <Glyph g="♻" />
           </button>
         </div>
 

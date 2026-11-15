@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Glyph } from './Icon'
 import { searchVault, type DocSearchHit, type DocSearchResult } from '../core/searchDocs'
 
 interface Props {
@@ -130,7 +131,7 @@ export default function SearchPanel({ onPick }: Props) {
     <div className="palette-mask" onMouseDown={() => setOpen(false)}>
       <div className="palette search-panel" onMouseDown={(e) => e.stopPropagation()}>
         <div className="palette-head">
-          <span className="palette-icon">⌕</span>
+          <span className="palette-icon"><Glyph g="⌕" /></span>
           <input
             ref={inputRef}
             className="palette-input"

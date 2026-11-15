@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Glyph } from './Icon'
 import type { DocMeta } from '../core/types'
 import { formatWhen } from '../core/time'
 
@@ -135,7 +136,7 @@ export default function CommandPalette({ docs, commands, onPickDoc }: Props) {
     <div className="palette-mask" onMouseDown={() => setOpen(false)}>
       <div className="palette" onMouseDown={(e) => e.stopPropagation()}>
         <div className="palette-head">
-          <span className="palette-icon">⌕</span>
+          <span className="palette-icon"><Glyph g="⌕" /></span>
           <input
             ref={inputRef}
             className="palette-input"
@@ -157,7 +158,7 @@ export default function CommandPalette({ docs, commands, onPickDoc }: Props) {
               onMouseEnter={() => setIndex(i)}
               onClick={() => runRow(row)}
             >
-              <span className="palette-kind">{row.kind === 'doc' ? '文' : (row.cmd.icon ?? '⌘')}</span>
+              <span className="palette-kind">{row.kind === 'doc' ? '文' : <Glyph g={row.cmd.icon ?? '⌘'} />}</span>
               <span className="palette-title">
                 {row.kind === 'doc' ? row.doc.title : row.cmd.title}
               </span>

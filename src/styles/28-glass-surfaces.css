@@ -183,3 +183,24 @@
 .theme-card {
   animation-fill-mode: backwards;
 }
+
+/* ---- 线性图标（ui/Icon.tsx）---- */
+.icon-svg {
+  display: inline-block;
+  flex: none;
+  vertical-align: -0.17em;
+  pointer-events: none;
+}
+.star .icon-svg,
+.tools .icon-svg {
+  width: 1em;
+  height: 1em;
+}
+.mi-icon,
+.palette-kind,
+.palette-icon,
+.glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

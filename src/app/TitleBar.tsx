@@ -1,3 +1,4 @@
+import { Glyph } from '../ui/Icon'
 import MoreMenu, { type MenuItem } from '../ui/MoreMenu'
 import WindowControls from '../ui/WindowControls'
 import { openQuickNote } from '../core/windows'
@@ -60,14 +61,14 @@ export default function TitleBar({
         }}
         title={asideShown ? '收起外观栏' : '展开外观栏 · 主题、字体、排版'}
       >
-        🎛
+        <Glyph g="🎛" />
       </button>
       <button
         className="btn ghost icon"
         onClick={() => onToggleSidebar()}
         title={sidebarOpen ? '收起侧栏' : '展开侧栏'}
       >
-        ☰
+        <Glyph g="☰" />
       </button>
       <div className="brand" data-tauri-drag-region>
         <span className="mark" />
@@ -81,7 +82,7 @@ export default function TitleBar({
           title={`文档仓库：${vaultLabel} · 点击打开文件夹`}
           onClick={() => void storage.reveal()}
         >
-          🗀
+          <Glyph g="🗀" />
         </button>
       )}
       <div className="grow" data-tauri-drag-region />
@@ -98,7 +99,7 @@ export default function TitleBar({
         onClick={() => void openQuickNote()}
         title="快捷便签 · Ctrl+Space"
       >
-        ✎
+        <Glyph g="✎" />
       </button>
       <button
         className="btn ghost icon"
@@ -106,7 +107,7 @@ export default function TitleBar({
         title="钉到桌面"
         disabled={!hasDoc}
       >
-        📌
+        <Glyph g="📌" />
       </button>
       {/*
         右侧栏开关摆在**右上角**，不是左上角。

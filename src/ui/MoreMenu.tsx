@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Glyph } from './Icon'
 
 export interface MenuItem {
   key: string
@@ -72,7 +73,7 @@ export default function MoreMenu({ items, title = '更多' }: Props) {
                   item.onSelect()
                 }}
               >
-                <span className="mi-icon">{item.icon}</span>
+                <span className="mi-icon"><Glyph g={item.icon} /></span>
                 <span className="mi-label">{item.label}</span>
                 {item.hint && <span className="mi-hint">{item.hint}</span>}
               </button>

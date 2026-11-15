@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/core'
+import { Glyph } from './Icon'
 
 export interface SlashItem {
   id: string
@@ -195,7 +196,7 @@ export default function SlashMenu({ items, index, x, y, onPick }: Props) {
             onPick(item)
           }}
         >
-          <span className="glyph">{item.glyph}</span>
+          <span className="glyph"><Glyph g={item.glyph} /></span>
           <span className="label">{item.label}</span>
           <span className="hint">{item.hint}</span>
         </button>
