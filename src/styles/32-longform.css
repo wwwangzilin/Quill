@@ -10,18 +10,51 @@
   display: flex;
   flex-direction: column;
   background: var(--bg);
+  /* 建层叠上下文：下面 ::before 的负 z-index 才停在这一层里 */
+  isolation: isolate;
   animation: view-in 0.2s var(--ease-out) both;
+}
+/*
+ * 普通编辑器的「底」不是纯色：body::before 画了淡网格 + 两团环境光，
+ * 长文本模式盖上来之后这块纯色把网格挡掉了 —— 所以两个模式看着不像一套。
+ * 这里照抄同一套背景，圆角和网格都跟主界面一致。
+ */
+.lf::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 28px 28px,
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 28px 28px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 52%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 52%, transparent 100%);
+}
+:is([data-theme="glass"], [data-theme="glass-night"]) .lf::before {
+  background:
+    radial-gradient(780px 520px at 12% -10%, rgba(31, 111, 120, 0.1), transparent 66%),
+    radial-gradient(700px 480px at 92% 4%, rgba(74, 111, 165, 0.09), transparent 62%),
+    linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 28px 28px,
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 28px 28px;
+}
+[data-theme="glass-night"] .lf::before {
+  background:
+    radial-gradient(780px 520px at 12% -10%, rgba(60, 150, 165, 0.14), transparent 66%),
+    radial-gradient(700px 480px at 92% 4%, rgba(90, 120, 190, 0.12), transparent 62%),
+    linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 28px 28px,
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 28px 28px;
 }
 
 .lf-bar {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 44px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  backdrop-filter: var(--glass-blur, blur(18px));
+  height: 42px;
+  padding: 0 20px;
+  /* 普通模式下这一行信息是浮在页面上的，长文本也别糊一条白带子 */
+  border-bottom: none;
+  background: transparent;
   flex: none;
 }
 .lf-title {
@@ -60,23 +93,21 @@
 }
 
 .lf-chapter {
-  max-width: calc(var(--write-width) + 96px);
+  /* 和普通编辑器同一列宽（.editor-inner 也是 var(--write-width)） */
+  max-width: var(--write-width);
   margin: 0 auto;
-  padding: 8px 48px 28px;
+  padding: 8px 0 32px;
 }
 .lf-chapter-head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 0 8px;
-  background: linear-gradient(var(--bg) 70%, transparent);
-  border-bottom: 1px solid transparent;
+  padding: 40px 0 10px;
+  background: none;
+  border-bottom: none;
 }
-.lf-chapter.is-current .lf-chapter-head {
-  border-bottom-color: var(--border);
+.lf-chapter:first-child .lf-chapter-head {
+  padding-top: 28px;
 }
 .lf-chapter-no {
   font-family: var(--font-mono);
