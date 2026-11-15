@@ -486,6 +486,22 @@ async fn search_vault(
         .map_err(|e| format!("搜索任务失败: {e}"))?
 }
 
+/// 全库问答的检索入口：给一句话，回若干「章节片段 + 出处」。
+#[tauri::command]
+async fn ai_context(
+    app: tauri::AppHandle,
+    query: String,
+    limit: Option<usize>,
+) -> Result<Vec<vault::ContextChunk>, String> {
+    let dir = prepare(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        // 8000 字符的材料预算：够三五段上下文，又不至于把请求撑爆
+        vault::context(&dir, &query, limit.unwrap_or(8), 8000)
+    })
+    .await
+    .map_err(|e| format!("检索任务失败: {e}"))?
+}
+
 /// 读一个外部文件的原始字节（base64）。
 ///
 /// 给「拖 .txt 进来」用：文件里可能是 GBK，得先认编码才知道怎么解 ——
@@ -632,6 +648,7 @@ pub fn run() {
             close_self,
             is_sticky,
             window_ready,
+            ai_context,
             ai::ai_status,
             ai::ai_save,
             ai::ai_stream,

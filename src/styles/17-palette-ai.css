@@ -45,3 +45,85 @@
   color: var(--accent-1);
 }
 
+
+/* ---------- 全库问答：范围切换与出处 ---------- */
+.aichat-scope {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  margin-left: 8px;
+}
+.aichat-scope button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 11.5px;
+  padding: 2px 9px;
+  border-radius: calc(var(--radius-sm) - 3px);
+  cursor: pointer;
+}
+.aichat-scope button.on {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.aichat-sources {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.aichat-sources-title {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-bottom: 2px;
+}
+.aichat-source {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  width: 100%;
+  text-align: left;
+  appearance: none;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 7px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.aichat-source:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+  color: var(--text);
+}
+.aichat-source .n {
+  flex: none;
+  width: 16px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--accent-1);
+}
+.aichat-source .t {
+  flex: none;
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aichat-source .c {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: 11.5px;
+}

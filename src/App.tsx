@@ -434,6 +434,11 @@ export default function App() {
       )}
       <AiChatPanel
         open={chatOpen && Boolean(doc)}
+        vaultMode={vaultMode}
+        onOpenSource={(file, needle) =>
+          /* 打开那篇，再用编辑器自己扫一遍这个短语落位 —— 不靠行号换算 */
+          jumpToHit({ file, title: '', nth: 0, line: 0, snippet: '' }, needle)
+        }
         title={doc?.title ?? ''}
         content={doc?.content ?? null}
         onClose={() => setChatOpen(false)}

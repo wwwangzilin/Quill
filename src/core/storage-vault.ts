@@ -3,7 +3,7 @@ import { docToMarkdown } from './markdown'
 import { parseDocument } from './md-parse'
 import type { Comment } from './comments'
 import type { RawChapter } from './rawChapters'
-import type { CommitInfo, DocStorage, RemoteInfo, TrashItem } from './storage'
+import type { CommitInfo, ContextChunk, DocStorage, RemoteInfo, TrashItem } from './storage'
 import { asSaveConflict, type DocStamp } from './docGuard'
 import { emptyContent, type Doc, type DocMeta } from './types'
 
@@ -238,6 +238,16 @@ export const vaultStorage: DocStorage = {
 
   async pushNow() {
     return await invoke<string>('git_push_now')
+  },
+
+  /**
+   * 全库问答：先关键词召回，再由前端拼进提示词。
+   *
+   * 检索放在 Rust 侧（fulltext.rs）：那边只扫文件，不建对象图；
+   * 前端只负责把结果编号、拼成材料、在看答案时把 [n] 换成能点的出处。
+   */
+  async context(query: string, limit = 8) {
+    return await invoke<ContextChunk[]>('ai_context', { query, limit })
   },
 
   async saveAsset(name, data) {

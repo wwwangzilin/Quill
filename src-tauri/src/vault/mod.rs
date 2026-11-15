@@ -24,7 +24,7 @@ pub use trash::{TrashEntry, empty_trash, list_trash, purge_trash, restore_trash}
 pub use chapters::{ChapterMark, DocOutline, outline, read_slice, write_slice};
 pub use stats::{get_stats, record_writing};
 pub use assets::{encode_base64, import_asset, save_asset};
-pub use fulltext::{SearchHit, SearchOut, search};
+pub use fulltext::{context, search, ContextChunk, SearchHit, SearchOut};
 
 use std::path::{Path, PathBuf};
 use serde::Serialize;

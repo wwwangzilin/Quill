@@ -14,6 +14,17 @@ export interface CommitInfo {
   files: string[]
 }
 
+/** 全库问答检索出来的一段材料 */
+export interface ContextChunk {
+  file: string
+  title: string
+  /** 命中位置所在章节标题，找不到就是空串 */
+  chapter: string
+  /** 1 基行号 */
+  line: number
+  text: string
+}
+
 /** 回收站条目 */
 export interface TrashItem {
   name: string
@@ -100,6 +111,8 @@ export interface DocStorage {
   remoteInfo?(): Promise<RemoteInfo>
   saveGitSettings?(url: string, ca?: string, token?: string): Promise<void>
   pushNow?(): Promise<string>
+  /** 全库问答：按关键词召回若干章节片段（只有文件模式有） */
+  context?(query: string, limit?: number): Promise<ContextChunk[]>
   /** 把媒体写进仓库的 assets/，返回相对路径 */
   saveAsset?(name: string, data: string): Promise<string>
   /* ---- 批注（不写进 .md，存元数据） ---- */
