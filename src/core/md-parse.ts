@@ -375,6 +375,20 @@ function parseBlocks(lines: string[]): JSONContent[] {
       continue
     }
 
+    /*
+     * 「长得像表格行，但下一行不是分隔行」——它只是一段普通文字。
+     *
+     * 这一条以前缺失，后果很严重：TABLE_ROW 是块起始（isBlockStart 认它），
+     * 所以下面那个段落循环会**一行都不吃**，i 原地不动 —— 外层 while 于是
+     * 无限往里塞空段落，文档对象越堆越大，应用启动就卡死、内存暴涨。
+     * （真实触发：一份压测用的 md 里，表头和分隔行之间空了一行。）
+     */
+    if (TABLE_ROW.test(line)) {
+      out.push({ type: 'paragraph', content: inline(line) })
+      i += 1
+      continue
+    }
+
     const heading = line.match(HEADING)
     if (heading) {
       out.push({
@@ -429,6 +443,9 @@ function parseBlocks(lines: string[]): JSONContent[] {
       buf.push(lines[i])
       i += 1
     }
+    // 兜底：正常路径下 buf 一定非空；万一哪天又有新的块起始没被上面接住，
+    // 这里也不能让它原地打转（宁可把这一行当普通文字吃掉）
+    if (!buf.length) buf.push(line)
     out.push({ type: 'paragraph', content: inline(buf.join('\n')) })
   }
 

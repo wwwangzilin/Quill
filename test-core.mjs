@@ -179,6 +179,40 @@ cases.push(
   ['切章：没有章节就整篇当一章', rawOne.length === 1 && rawOne[0].title === '我的标题'],
 )
 
+/*
+ * 回归：表格行后面没有分隔行时**不能死循环**。
+ *
+ * 真实触发：一份压测文档里表头和分隔行之间空了一行，应用一启动就卡死、
+ * 内存暴涨 —— 因为「像表格的行」被认成块起始，段落循环一行都不吃，
+ * 外层 while 原地打转往里塞空段落。
+ */
+{
+  const weird = '| 编号 | 类型 |\n\n|---:|---|\n'
+  const t0 = Date.now()
+  const doc = markdownToDoc(weird)
+  const cost = Date.now() - t0
+  cases.push(
+    ['表格行没有分隔行：不卡死', cost < 1000],
+    ['表格行没有分隔行：当成普通段落', (doc.content ?? []).length >= 1],
+    [
+      '表格行没有分隔行：内容没丢',
+      JSON.stringify(doc).includes('编号') && JSON.stringify(doc).includes('类型'),
+    ],
+  )
+}
+
+// 回归：上千行这种「假表格行」也不能把内存撑爆
+{
+  const many = Array.from({ length: 2000 }, (_, i) => `| 第 ${i} 行 | 内容 |`).join('\n')
+  const t0 = Date.now()
+  const doc = markdownToDoc(many)
+  const cost = Date.now() - t0
+  cases.push(
+    ['2000 行假表格：1 秒内解析完', cost < 1000],
+    ['2000 行假表格：块数不爆炸', (doc.content ?? []).length <= 2100],
+  )
+}
+
 let failed = 0
 for (const [name, ok] of cases) {
   console.log(`${ok ? '  PASS' : '  FAIL'}  ${name}`)
