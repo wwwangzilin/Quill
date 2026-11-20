@@ -1,4 +1,5 @@
 mod ai;
+mod backup;
 mod desktop;
 mod git;
 mod vault;
@@ -28,6 +29,103 @@ fn toggle_window(app: &tauri::AppHandle) {
             let _ = win.set_focus();
             let _ = app.emit("quill:quick-capture", ());
         }
+    }
+}
+
+
+/* ------------------------------ 备份与恢复 ------------------------------ */
+
+#[tauri::command]
+fn backup_status(app: tauri::AppHandle) -> backup::BackupStatus {
+    backup::status(&app)
+}
+
+#[tauri::command]
+fn backup_save_prefs(
+    app: tauri::AppHandle,
+    prefs: backup::BackupPrefs,
+) -> Result<backup::BackupStatus, String> {
+    backup::save_prefs_cmd(&app, prefs)
+}
+
+/// 手动备份一次（设置页那个按钮）。失败会把原因留在设置里，不是只弹个 toast。
+#[tauri::command]
+async fn backup_now(app: tauri::AppHandle) -> Result<backup::BackupInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || backup::run_once(&app, ""))
+        .await
+        .map_err(|e| format!("备份任务失败: {e}"))?
+}
+
+#[tauri::command]
+fn backup_list(app: tauri::AppHandle) -> Vec<backup::BackupInfo> {
+    let prefs = backup::load_prefs(&app);
+    backup::list(&backup::dir_of(&app, &prefs))
+}
+
+/// 一份备份里有哪些文档（恢复单篇时给下拉用）
+#[tauri::command]
+async fn backup_docs(app: tauri::AppHandle, name: String) -> Result<Vec<String>, String> {
+    let prefs = backup::load_prefs(&app);
+    let path = backup::dir_of(&app, &prefs).join(name);
+    tauri::async_runtime::spawn_blocking(move || backup::docs_in(&path))
+        .await
+        .map_err(|e| format!("读取备份失败: {e}"))?
+}
+
+/// 恢复整库：会先自动打一份当前快照，再把旧仓库改名留住（不删）
+#[tauri::command]
+async fn backup_restore_all(
+    app: tauri::AppHandle,
+    name: String,
+) -> Result<backup::RestoreReport, String> {
+    let prefs = backup::load_prefs(&app);
+    let dir = backup::dir_of(&app, &prefs);
+    let vault = vault::dir_of(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = dir.join(name);
+        if !path.exists() {
+            return Err("备份文件不存在".to_string());
+        }
+        backup::restore_all(&vault, &path, &dir)
+    })
+    .await
+    .map_err(|e| format!("恢复任务失败: {e}"))?
+}
+
+/// 恢复单篇：覆盖前把现有那篇存成 .md.bak
+#[tauri::command]
+async fn backup_restore_doc(
+    app: tauri::AppHandle,
+    name: String,
+    file: String,
+) -> Result<(), String> {
+    let prefs = backup::load_prefs(&app);
+    let dir = backup::dir_of(&app, &prefs);
+    let vault = vault::dir_of(&app)?;
+    tauri::async_runtime::spawn_blocking(move || backup::restore_doc(&vault, &dir.join(name), &file))
+        .await
+        .map_err(|e| format!("恢复任务失败: {e}"))?
+}
+
+/// 在资源管理器里打开备份目录
+#[tauri::command]
+fn backup_reveal(app: tauri::AppHandle) -> Result<(), String> {
+    let prefs = backup::load_prefs(&app);
+    let dir = backup::dir_of(&app, &prefs);
+    std::fs::create_dir_all(&dir).map_err(|e| format!("创建备份目录失败: {e}"))?;
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new("explorer")
+            .arg(dir.as_os_str())
+            .creation_flags(0x0800_0000)
+            .spawn()
+            .map_err(|e| format!("打开目录失败: {e}"))?;
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(())
     }
 }
 
@@ -581,6 +679,8 @@ pub fn run() {
                 log::warn!("托盘创建失败: {err}");
             }
             desktop::spawn_auto_sync(app.handle().clone());
+            // 自动备份：每分钟看一眼到点没有（关掉应用就不跑，下次打开补齐）
+            backup::spawn_auto(app.handle().clone());
             // 主窗口：Ctrl + Shift + Space
             let toggle = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Space);
             if let Err(err) = app.global_shortcut().register(toggle) {
@@ -649,6 +749,14 @@ pub fn run() {
             is_sticky,
             window_ready,
             ai_context,
+            backup_status,
+            backup_save_prefs,
+            backup_now,
+            backup_list,
+            backup_docs,
+            backup_restore_all,
+            backup_restore_doc,
+            backup_reveal,
             ai::ai_status,
             ai::ai_save,
             ai::ai_stream,

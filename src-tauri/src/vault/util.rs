@@ -88,6 +88,11 @@ pub(super) fn unique_file(dir: &Path, base: &str) -> String {
     }
 }
 
+/// 对外暴露一个「提交一次」的入口：备份恢复这类从仓库外面改动文件的路径要用
+pub fn commit_now(dir: &Path, message: &str) -> Option<String> {
+    commit(dir, message)
+}
+
 pub(super) fn commit(dir: &Path, message: &str) -> Option<String> {
     if !git::has_repo(dir) {
         return None;

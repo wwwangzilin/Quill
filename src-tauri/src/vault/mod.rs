@@ -14,7 +14,7 @@ mod assets;
 mod fulltext;
 
 // 对外路径保持不变：外面仍然写 `vault::save`、`vault::DocEntry`……
-pub use util::title_to_file;
+pub use util::{commit_now, title_to_file};
 pub use meta::{Comment, VaultMeta, all_tags, comments_of, read_meta, set_comments, set_tags, star};
 pub use docs::{
     create, delete, find_by_digest, import_many, list, read, save, stamp, DocEntry,

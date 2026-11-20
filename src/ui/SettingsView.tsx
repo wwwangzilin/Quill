@@ -29,8 +29,9 @@ import AccentPicker from './AccentPicker'
 import { isDesktop, type DesktopPrefs } from '../core/desktop'
 import { checkUpdate, currentVersion, installUpdate, type UpdateInfo } from '../core/update'
 import { toast } from './toast'
+import BackupSection from './BackupSection'
 
-type SectionId = 'appearance' | 'writing' | 'ai' | 'backup' | 'desktop' | 'about'
+type SectionId = 'appearance' | 'writing' | 'ai' | 'backup' | 'localbackup' | 'desktop' | 'about'
 
 interface Props {
   /** 嵌在右侧栏时不给 —— 那种形态没有「返回」 */
@@ -67,6 +68,7 @@ const SECTIONS: { id: SectionId; label: string; en: string; hint: string; deskto
   { id: 'writing', label: '写作', en: 'WRITING', hint: '每日目标' },
   { id: 'ai', label: 'AI 助手', en: 'ASSISTANT', hint: '续写与密钥' },
   { id: 'backup', label: '远程备份', en: 'BACKUP', hint: '推送到 git 仓库' },
+  { id: 'localbackup', label: '自动备份', en: 'SNAPSHOT', hint: '整库快照与恢复' },
   { id: 'desktop', label: '桌面', en: 'DESKTOP', hint: '托盘与同步', desktopOnly: true },
   { id: 'about', label: '关于', en: 'ABOUT', hint: '版本与更新' },
 ]
@@ -965,6 +967,7 @@ export default function SettingsView({
     writing,
     ai: aiSection,
     backup,
+    localbackup: <BackupSection />,
     desktop: desktopSection,
     about,
   }[section]

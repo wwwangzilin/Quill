@@ -571,3 +571,76 @@
 }
 
 
+
+/* ---------- 设置 · 自动备份 ---------- */
+.sc-input,
+.sc-num,
+.sc-select {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
+  outline: none;
+  margin-top: 6px;
+}
+.sc-input {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.sc-num {
+  width: 72px;
+  text-align: center;
+}
+.sc-input:focus,
+.sc-num:focus,
+.sc-select:focus {
+  border-color: color-mix(in srgb, var(--accent-1) 45%, transparent);
+}
+
+.bk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+}
+.bk-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+}
+.bk-main {
+  flex: 1;
+  min-width: 0;
+}
+.bk-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bk-meta {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.bk-acts,
+.bk-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.bk-confirm .sc-select {
+  max-width: 160px;
+  margin-top: 0;
+}
