@@ -1,25 +1,42 @@
-<!-- Quill 应用图标的源设计：金色渐变底 + 深墨羽毛（笔尖朝下）
-     改完重新生成全套图标：
-       node .verify/render-new-icon.mjs && pnpm tauri icon .verify/icon-new.png
-     窗口标题栏那个小标记用的是 src/ui/BrandMark.tsx（同一造型，不带金底）。
-     羽枝刻意少而粗：16px 的任务栏/托盘里，细羽枝会糊成一团黑。
--->
+<!-- Quill 应用图标的源设计：青色玻璃底 + 白色羽毛笔（笔尖朝左下，落下一道墨迹）。
+     配色与界面的「玻璃」主题同源（深青 #1f6f78）。羽枝少而粗、羽面细长带裂口：
+     16px 的任务栏/托盘里仍读得出是羽毛笔，不会糊成一片。
+     重新生成全套图标：
+       python scripts/gen-icons.py   （需要 Pillow 与 Chromium/Playwright，见脚本顶部说明）
+     窗口标题栏的小标记用 src/ui/BrandMark.tsx（同一造型，跟随强调色）。 -->
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f0d8ab" />
-      <stop offset="46%" stop-color="#cba56b" />
-      <stop offset="100%" stop-color="#9c7735" />
+    <linearGradient id="bg" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0%" stop-color="#3aa0aa"/>
+      <stop offset="55%" stop-color="#1f6f78"/>
+      <stop offset="100%" stop-color="#0f3d4a"/>
     </linearGradient>
-    <linearGradient id="ink" x1="0.2" y1="0.05" x2="0.8" y2="0.95">
-      <stop offset="0%" stop-color="#3a3226" />
-      <stop offset="55%" stop-color="#221d16" />
-      <stop offset="100%" stop-color="#12100c" />
+    <radialGradient id="glow" cx="0.28" cy="0.12" r="0.75">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.38"/>
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="vane" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#cdeef0"/>
     </linearGradient>
+    <clipPath id="vc"><path d="M 512 100 C 600 160 668 276 660 396 L 604 450 L 658 500 C 646 582 592 654 530 712 L 512 744 L 486 712 C 434 648 390 556 394 436 C 398 296 448 176 512 100 Z"/></clipPath>
+    <filter id="drop" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="22" stdDeviation="22" flood-color="#06222b" flood-opacity="0.45"/>
+    </filter>
   </defs>
-  <rect width="1024" height="1024" rx="232" fill="url(#gold)" />
-  <g transform="rotate(-30 512 512)">
-    <path d="M 512 150 L 565.8 124.0 L 558.3 223.0 L 666.5 246.7 L 644.8 345.7 L 712.6 369.3 L 684.5 468.4 L 723.5 492.0 L 693.9 591.0 L 700.3 614.7 L 673.9 713.7 L 639.5 737.3 L 621.7 836.4 L 565.8 860.0 L 512 886 L 458.2 860.0 L 402.3 836.4 L 384.5 737.3 L 350.1 713.7 L 323.7 614.7 L 330.1 591.0 L 300.5 492.0 L 339.5 468.4 L 311.4 369.3 L 379.2 345.7 L 357.5 246.7 L 465.7 223.0 L 458.2 124.0 Z" fill="url(#ink)" />
-    <path d="M 512 190 L 512 828" stroke="#e9c98f" stroke-width="13" stroke-linecap="round" />
+  <rect width="1024" height="1024" rx="232" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="232" fill="url(#glow)"/>
+  <rect x="3" y="3" width="1018" height="1018" rx="229" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="6"/>
+  <!-- 落笔后留下的一道墨迹 -->
+  <path d="M 214 898 C 300 930 400 926 500 890" fill="none" stroke="#bfeaee" stroke-opacity="0.75" stroke-width="22" stroke-linecap="round"/>
+  <g transform="rotate(38 512 512)" filter="url(#drop)">
+    <!-- 羽面：细长、不对称，右侧有一道裂口 —— 这才像羽毛笔而不是树叶 -->
+    <path d="M 512 100 C 600 160 668 276 660 396 L 604 450 L 658 500 C 646 582 592 654 530 712 L 512 744 L 486 712 C 434 648 390 556 394 436 C 398 296 448 176 512 100 Z" fill="url(#vane)"/>
+    <!-- 羽枝：向笔尖方向斜着，少而粗，16px 下也不糊 -->
+    <g clip-path="url(#vc)" fill="none" stroke="#1f6f78" stroke-opacity="0.42" stroke-width="15" stroke-linecap="round"><path d="M 512 640 L 604 578"/><path d="M 512 560 L 628 498"/><path d="M 512 400 L 640 338"/><path d="M 512 320 L 624 258"/><path d="M 512 240 L 596 178"/><path d="M 512 650 L 434 588"/><path d="M 512 570 L 408 508"/><path d="M 512 490 L 394 428"/><path d="M 512 410 L 394 348"/><path d="M 512 330 L 412 268"/><path d="M 512 250 L 442 188"/></g>
+    <!-- 羽轴 + 笔尖 -->
+    <path d="M 512 128 L 512 736" stroke="#1f6f78" stroke-opacity="0.8" stroke-width="20" stroke-linecap="round"/>
+    <path d="M 498 700 L 512 932 L 526 700 Z" fill="#ffffff"/>
+    <path d="M 512 846 L 512 916" stroke="#1f6f78" stroke-width="8" stroke-linecap="round"/>
   </g>
 </svg>
