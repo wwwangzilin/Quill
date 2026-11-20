@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
+    "test": "node test-core.mjs && node test-math.mjs && node test-conflict.mjs",
     "preview": "vite preview --port 4173"
   },
   "keywords": [

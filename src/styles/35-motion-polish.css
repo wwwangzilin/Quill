@@ -1,0 +1,152 @@
+/* ==========================================================================
+   动效打磨：把还「硬」的几处补顺
+   · 切主题：整个界面的颜色一起渐变，不再是啪地一下换
+   · 新标签 / 分屏栏 / 提示：带回弹地冒出来
+   · 滑块：自绘拇指，悬停放大、按住收紧
+   · 键盘焦点：描边「长」出来，而不是凭空出现
+   全部沿用 27-motion-flow.css 的弹簧曲线；「跟随系统动画设置」时由 10-motion.css 统一压成瞬时。
+   ========================================================================== */
+
+/* ---- 切主题：颜色渐变 ----
+   theme.ts 的 applyTheme 在换主题那一刻给 <html> 挂 .theme-fading，约 0.5 秒后摘掉。
+   只在这段时间里生效，平时不给所有元素挂颜色过渡（那会拖慢悬停等日常反馈）。 */
+html.theme-fading,
+html.theme-fading *,
+html.theme-fading *::before,
+html.theme-fading *::after {
+  transition-property: background-color, color, border-color, box-shadow, fill, stroke, opacity !important;
+  transition-duration: 0.42s !important;
+  transition-timing-function: ease !important;
+  transition-delay: 0s !important;
+}
+
+/* ---- 新标签：从略小一点长出来 ---- */
+.tab {
+  animation: tab-in 0.34s var(--spring-soft) backwards;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    transform 0.22s var(--spring-soft), box-shadow 0.22s var(--ease);
+}
+@keyframes tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.tab:active {
+  transform: scale(0.97);
+}
+.tab.on {
+  box-shadow: 0 4px 14px -8px color-mix(in srgb, var(--accent-1) 60%, transparent);
+}
+/* 关闭叉：悬停时从缩着的状态弹出来 */
+.tab-x {
+  transition: opacity var(--dur-fast) var(--ease), transform 0.26s var(--spring), background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.tab:not(:hover):not(.on) .tab-x {
+  transform: scale(0.6);
+}
+.tab-x:hover {
+  transform: scale(1.12);
+}
+.tab-x:active {
+  transform: scale(0.9);
+}
+
+/* ---- 分屏的第二栏：从右边滑进来 ---- */
+.split-pane {
+  animation: split-in 0.42s var(--ease-out) backwards;
+}
+@keyframes split-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- 提示：带一点回弹地弹上来 ---- */
+.toast {
+  animation: toast-spring 0.46s var(--spring) both;
+}
+@keyframes toast-spring {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- 滑块：自绘轨道与拇指（原来是浏览器默认的，悬停没有任何回应）---- */
+.field input[type="range"],
+.width-slider input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.field input[type="range"]::-webkit-slider-runnable-track,
+.width-slider input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+.field input[type="range"]::-webkit-slider-thumb,
+.width-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent-1);
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 1px 4px rgba(0, 0, 0, 0.28);
+  transition: transform 0.24s var(--spring), box-shadow 0.2s var(--ease);
+}
+.field input[type="range"]:hover::-webkit-slider-thumb,
+.width-slider input[type="range"]:hover::-webkit-slider-thumb {
+  transform: scale(1.2);
+}
+.field input[type="range"]:active::-webkit-slider-thumb,
+.width-slider input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(0.94);
+  box-shadow: 0 0 0 7px var(--accent-soft), 0 1px 4px rgba(0, 0, 0, 0.28);
+}
+.field input[type="range"]:focus-visible,
+.width-slider input[type="range"]:focus-visible {
+  outline: none;
+}
+.field input[type="range"]:focus-visible::-webkit-slider-thumb,
+.width-slider input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent-1) 30%, transparent);
+}
+
+/* ---- 键盘焦点：描边由近及远「长」出来 ---- */
+.btn:focus-visible,
+.seg button:focus-visible,
+.tab:focus-visible,
+.accent-chip:focus-visible,
+.theme-card:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-1) 60%, transparent);
+  outline-offset: 1px;
+  animation: focus-grow 0.22s var(--ease-out) both;
+}
+@keyframes focus-grow {
+  from {
+    outline-offset: -2px;
+    outline-color: transparent;
+  }
+  to {
+    outline-offset: 1px;
+  }
+}

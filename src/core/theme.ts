@@ -95,8 +95,17 @@ export function readTheme(): Theme {
 }
 
 /** 应用并记住主题 */
+let fadeTimer: number | undefined
+
 export function applyTheme(theme: Theme): void {
-  document.documentElement.dataset.theme = theme
+  const root = document.documentElement
+  // 真换了主题（不是启动时首次贴上）才做颜色渐变：先挂 .theme-fading 再改，样式见 styles/35-motion-polish.css
+  if (root.dataset.theme && root.dataset.theme !== theme) {
+    root.classList.add('theme-fading')
+    window.clearTimeout(fadeTimer)
+    fadeTimer = window.setTimeout(() => root.classList.remove('theme-fading'), 520)
+  }
+  root.dataset.theme = theme
   // 自选的强调色要按新主题的明暗重新推一遍（深底要偏亮，浅底要偏深）
   applyAccent(themeInfo(theme).dark)
   try {

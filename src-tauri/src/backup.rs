@@ -702,4 +702,69 @@ mod tests {
         assert!(err.contains("备份目录") || err.contains("创建备份目录"));
         let _ = std::fs::remove_dir_all(vault.parent().unwrap());
     }
+
+    /// 单篇恢复的文件名校验：任何带路径的写法都得拒绝，只放行「纯文件名.md」
+    #[test]
+    fn safe_md_name_rejects_paths() {
+        for bad in ["", "../x.md", "a/b.md", "a\\b.md", "notes.txt", "..", "a..b.md"] {
+            assert!(safe_md_name(bad).is_err(), "应该拒绝: {bad:?}");
+        }
+        assert_eq!(safe_md_name("ok.md").unwrap(), "ok.md");
+    }
+
+    /// 单篇恢复收到非法文件名：直接报错，仓库里的东西一个字不动
+    #[test]
+    fn restore_doc_with_bad_name_leaves_vault_untouched() {
+        let (vault, dest) = scratch("badname");
+        seed(&vault);
+        let info = create(&vault, &dest, "").unwrap();
+        let before = std::fs::read_to_string(vault.join("a.md")).unwrap();
+
+        let err = restore_doc(&vault, &dest.join(&info.name), "../evil.md");
+        assert!(err.is_err());
+        assert_eq!(std::fs::read_to_string(vault.join("a.md")).unwrap(), before);
+        assert!(!vault.parent().unwrap().join("evil.md").exists());
+        let _ = std::fs::remove_dir_all(vault.parent().unwrap());
+    }
+
+    /// 备份文件损坏（不是 zip）：整库恢复必须在动原仓库之前就失败
+    #[test]
+    fn corrupt_backup_aborts_before_touching_vault() {
+        let (vault, dest) = scratch("corrupt");
+        seed(&vault);
+        let bad = dest.join("quill-bad.zip");
+        std::fs::write(&bad, b"this is not a zip file").unwrap();
+
+        let err = restore_all(&vault, &bad, &dest);
+        assert!(err.is_err(), "坏备份应该报错");
+        assert_eq!(
+            std::fs::read_to_string(vault.join("a.md")).unwrap(),
+            "# A\n\n第一版内容\n",
+            "原仓库不能被动"
+        );
+        let _ = std::fs::remove_dir_all(vault.parent().unwrap());
+    }
+
+    /// zip-slip：条目名带 `../` 时不能写到解压目录外面
+    #[test]
+    fn extract_skips_path_traversal_entries() {
+        let (vault, dest) = scratch("slip");
+        let root = vault.parent().unwrap().to_path_buf();
+        let zip_path = dest.join("evil.zip");
+        {
+            let file = std::fs::File::create(&zip_path).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            let opts: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
+            zip.start_file("../escaped.md", opts).unwrap();
+            zip.write_all(b"escaped").unwrap();
+            zip.start_file("fine.md", opts).unwrap();
+            zip.write_all(b"fine").unwrap();
+            zip.finish().unwrap();
+        }
+        let into = root.join("out");
+        extract_to(&zip_path, &into).unwrap();
+        assert!(into.join("fine.md").exists(), "正常条目照常解出");
+        assert!(!root.join("escaped.md").exists(), "穿越条目不能写到目录外");
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

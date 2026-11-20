@@ -287,7 +287,7 @@ https://github.com/<owner>/<repo>/releases/latest/download/latest.json
 全部通过 CDP 驱动无头 Edge 执行真实断言。
 
 ```powershell
-node test-core.mjs          # Markdown 序列化 / 文件名安全化 / 表格往返（19 项断言）
+pnpm test                   # 纯逻辑断言（无需构建、无需浏览器）：test-core / test-math / test-conflict，CI 每次都跑
 node verify-browser.mjs     # 基础渲染 + 排版 + 导图 + 截图
 node verify-features.mjs    # 折叠 / 专注 / 打字机 / Toast / 正文搜索 / 侧栏动画
 node verify-batch2.mjs      # 斜杠命令 / 模板 / 快捷键面板 / 导图导出
@@ -295,15 +295,8 @@ node verify-batch3.mjs      # 拖拽手柄 / 标签 / 回收站 / 热力图 / �
 node verify-batch7.mjs      # 命令面板 / 反向链接 / 双链
 node verify-batch8.mjs      # 表格 / 代码高亮 / 富文本复制
 node verify-batch9.mjs      # 写作目标 / 连续天数 / 快照 / 便签
-node verify-batch10.mjs     # 托盘偏好 / 自启 / 批量导入 / 每日笔记 / 阅读模式 / 打印样式（26 项）
 node verify-ai.mjs          # AI 续写全链路（内置模拟 OpenAI SSE 服务，无需真实密钥）
 node verify-windows.mjs     # 便签 / 磁贴多窗口
-node verify-light.mjs       # 超大文档分栏阅读（9 项）
-node verify-aside.mjs       # 右侧外观栏（13 项）
-node verify-appearance.mjs  # 外观参数与正文联动（12 项）
-node probe-titlebar.mjs     # 边栏收放规则（5 项）
-node verify-copy.mjs        # 界面文案（9 项，纯文本断言，与窗口尺寸无关）
-node probe-indent.mjs       # 只读排查：段落缩进与阅读分栏的实测状态
 ```
 
 截图输出至 `.verify/`。环境变量：`APP_URL`、`APP_THEME=light`、`SHOT_PREFIX`、`CDP_PORT`。

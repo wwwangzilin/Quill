@@ -29,11 +29,12 @@ jobs:
       - name: 构建前端
         run: pnpm build
 
-      - name: 核心逻辑断言（Markdown 序列化 / 文件名安全化）
-        run: node test-core.mjs && node test-math.mjs
+      # test-core（序列化 / 文件名）、test-math（公式脚注往返）、test-conflict（外部改动比对）
+      - name: 核心逻辑断言
+        run: pnpm test
 
   rust:
-    name: Rust 单元测试（vault）
+    name: Rust 单元测试（vault / 备份）
     # 和发布用同一个系统：Windows 自带 WebView2，不必另装一堆 Linux 图形库
     runs-on: windows-latest
     steps:
@@ -45,7 +46,7 @@ jobs:
         with:
           workspaces: src-tauri
 
-      # vault 里有章节识别、按章写回等破坏性操作的单元测试，之前没人跑
+      # vault 的章节识别、按章写回，以及备份/恢复（含路径穿越、坏压缩包）都是会动用户数据的操作
       - name: cargo test
         working-directory: src-tauri
         run: cargo test --lib
