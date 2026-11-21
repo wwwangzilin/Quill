@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node test-core.mjs && node test-math.mjs && node test-conflict.mjs && node test-merge.mjs && node test-find.mjs && node test-bookmarks.mjs && node test-epub.mjs",
+    "test": "node test-core.mjs && node test-math.mjs && node test-conflict.mjs && node test-merge.mjs && node test-find.mjs && node test-bookmarks.mjs && node test-epub.mjs && node test-chapters.mjs",
     "preview": "vite preview --port 4173"
   },
   "keywords": [

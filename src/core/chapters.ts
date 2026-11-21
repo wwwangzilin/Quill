@@ -32,11 +32,30 @@ export interface Chapter {
   inferred: boolean
 }
 
-/** 「第一章」「第 12 节」—— 只认开头，后面接什么都能忍（见 asChapterLine） */
-const CN_HEAD = /^\s*第\s*[0-9０-９一二三四五六七八九十百千零两]+\s*[章节回卷篇話话部]/
+/** 数字：阿拉伯、全角、小写、大写（壹贰叁…）、〇 */
+const NUM = '[0-9０-９一二三四五六七八九十百千万零〇两壹贰叁肆伍陆柒捌玖拾佰仟]'
 
-/** Chapter 1 / CHAPTER IV */
-const EN_HEAD = /^\s*chapter\s+([0-9]+|[ivxlcdm]+)\b/i
+/** 「第一章」「第 12 节」「第三幕」—— 只认开头，后面接什么都能忍（见 asChapterLine） */
+const CN_HEAD = new RegExp(`^\\s*第\\s*${NUM}+\\s*[章节回卷篇話话部幕集季]`)
+
+/** Chapter 1 / CHAPTER IV / Chapter Twelve / Part 2 */
+const EN_NUM_WORDS =
+  'one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty(?:[- ]\\w+)?|thirty|forty|fifty'
+const EN_HEAD = new RegExp(
+  `^\\s*(?:chapter\\s+([0-9]+|[ivxlcdm]+|${EN_NUM_WORDS})|(?:part|book)\\s+([0-9]+|${EN_NUM_WORDS}))\\b`,
+  'i',
+)
+
+/** 不带「第X章」的特殊章名：序章、楔子、番外、尾声……后面可以跟一个短标题 */
+const SPECIAL_CN =
+  /^\s*(序章|序言|序幕|序|楔子|引子|前言|自序|后记|后序|尾声|终章|最终章|完结感言|完本感言|番外(?:篇|章)?|附录|结语|间章|外传|大结局|卷[一二三四五六七八九十百0-9]+)(?:$|[\s:：·\-—_.、（(【])/
+const SPECIAL_EN = /^\s*(prologue|epilogue|preface|afterword|interlude|foreword)\b/i
+
+/** 句末标点：带着它的多半是正文里的一句话，不是标题 */
+const SENTENCE_END = /[。！？!?；;，,]$/
+
+/** 去掉标题外面套的括号：【第一章】 《第一章》 [第1章] */
+const WRAP_OPEN = /^[\[【《（(〈「『]\s*/
 
 /**
  * 从网页复制来的小说，章节名后面常常直接跟着一串元信息，
@@ -67,7 +86,13 @@ function asChapterLine(raw: string): string | null {
   let line = raw.trim()
   if (!line) return null
   // 有些站会把一句推荐语用【】挂在章名前面
-  line = line.replace(/^【[^】]{0,40}】\s*/, '')
+  // 但【第一章 开端】这种整个章名被括起来的不能当推荐语吃掉
+  const lead = /^【([^】]{0,40})】\s*/.exec(line)
+  if (lead && !CN_HEAD.test(lead[1]) && !EN_HEAD.test(lead[1]) && !SPECIAL_CN.test(lead[1])) {
+    line = line.slice(lead[0].length)
+  }
+
+  line = line.replace(WRAP_OPEN, '')
 
   // 先把跟在章名后面的元信息裁掉
   const cut = line.search(META_TAIL)
@@ -75,12 +100,19 @@ function asChapterLine(raw: string): string | null {
 
   // 章名被夹在正文里（上一章的结尾和它同一行）—— 从里面把它抠出来
   if (cut > 0 && !CN_HEAD.test(head) && !EN_HEAD.test(head)) {
-    const m = head.match(/\s(第\s*[0-9０-９一二三四五六七八九十百千零两]+\s*[章节回卷篇話话部])\s*\S{0,28}$/)
+    const m = head.match(new RegExp(`\\s(第\\s*${NUM}+\\s*[章节回卷篇話话部幕集季])\\s*\\S{0,28}$`))
     if (m) head = m[0].trim()
   }
 
-  if (!CN_HEAD.test(head) && !EN_HEAD.test(head)) return null
-  return head.length <= 40 ? head : null
+  // 收尾的括号也去掉：【第一章 开端】
+  head = head.replace(/\s*[\]】》）)〉」』]$/, '')
+
+  if (CN_HEAD.test(head) || EN_HEAD.test(head)) return head.length <= 40 ? head : null
+  // 序章 / 番外 / Prologue 这类：必须短、不能像一句话，免得把正文里的「序」误当标题
+  if ((SPECIAL_CN.test(head) || SPECIAL_EN.test(head)) && head.length <= 28 && !SENTENCE_END.test(head)) {
+    return head
+  }
+  return null
 }
 
 /**
@@ -91,6 +123,40 @@ function asChapterLine(raw: string): string | null {
  * （靠软换行分隔）。只看段首的话，一篇 22 章的小说他只认得出第 1 章
  * —— 这坑实装机上踩过一次。
  */
+/** 「1、开端」「12. 回乡」这种只有数字序号的标题 */
+const NUMBERED = /^\s*(\d{1,4})\s*[、.．:：]\s*(\S.{0,30})$/
+
+/**
+ * 兜底：整篇找不到「第X章」时，看有没有一串**连续递增**的数字小标题。
+ *
+ * 单看一行「3. 买牛奶」分不出是章名还是清单，所以必须成串：
+ * 至少 3 个、每个比前一个大 1，才当成章节。清单很少会写得这么整齐还不带句末标点。
+ */
+function numberedChapters(top: JSONContent[]): Chapter[] {
+  const cand: { n: number; title: string; i: number; k: number }[] = []
+  top.forEach((node, i) => {
+    if (node.type !== 'paragraph') return
+    textOf(node)
+      .split('\n')
+      .forEach((line, k) => {
+        const m = NUMBERED.exec(line)
+        if (m && !SENTENCE_END.test(line.trim())) {
+          cand.push({ n: Number(m[1]), title: line.trim(), i, k })
+        }
+      })
+  })
+  // 找最长的 +1 递增串
+  let best: typeof cand = []
+  let run: typeof cand = []
+  for (const c of cand) {
+    if (run.length && c.n === run[run.length - 1].n + 1) run.push(c)
+    else run = [c]
+    if (run.length > best.length) best = [...run]
+  }
+  if (best.length < 3) return []
+  return best.map((c) => ({ title: c.title, level: 2, start: c.i, line: c.k, inferred: true }))
+}
+
 export function extractChapters(doc: JSONContent): Chapter[] {
   const out: Chapter[] = []
   const top = doc.content ?? []
@@ -115,6 +181,10 @@ export function extractChapters(doc: JSONContent): Chapter[] {
         if (title) out.push({ title, level: 2, start: i, line: k, inferred: true })
       })
   })
+  if (out.length < 2) {
+    const numbered = numberedChapters(top)
+    if (numbered.length) return numbered
+  }
   return out
 }
 
