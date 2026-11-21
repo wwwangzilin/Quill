@@ -201,3 +201,95 @@ html.perf-no-motion *::after {
 .find-input.invalid {
   box-shadow: 0 0 0 1px #e5646b;
 }
+
+/* Aa 浮层里的字体下拉：跨满后两列 */
+.type-pop-font {
+  grid-column: 2 / 4;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+}
+
+/* ---- 阅读视图：自动翻页 + 书签 ---- */
+.reader-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.reader-auto em {
+  font-style: normal;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.reader-auto.on,
+.reader-bm .btn.on {
+  color: var(--accent-1);
+}
+.reader-bm .btn.on .icon-svg {
+  fill: currentColor;
+}
+.reader-bm {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.reader-bm-count {
+  min-width: 22px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+.reader-bm-list {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: 240px;
+  max-height: 300px;
+  overflow: auto;
+  padding: 6px;
+  border-radius: var(--radius);
+  border: 1px solid var(--glass-border, var(--border));
+  background: var(--glass-bg, var(--surface));
+  box-shadow: var(--glass-shadow, 0 12px 32px rgba(0, 0, 0, 0.28));
+  backdrop-filter: var(--glass-blur, none);
+  -webkit-backdrop-filter: var(--glass-blur, none);
+  animation: type-pop-in 0.24s var(--ease-out, ease-out) backwards;
+  transform-origin: 100% 0;
+}
+.reader-bm-item {
+  display: flex;
+  align-items: center;
+}
+.reader-bm-go,
+.reader-bm-del {
+  font: inherit;
+  font-size: 12.5px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 8px;
+}
+.reader-bm-go {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reader-bm-del {
+  padding: 4px 8px;
+  color: var(--text-3);
+}
+.reader-bm-go:hover,
+.reader-bm-del:hover {
+  background: var(--accent-soft);
+  color: var(--accent-1);
+}

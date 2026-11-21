@@ -7,6 +7,8 @@ import type { RawChapter } from '../core/rawChapters'
 import { parseDocument } from '../core/md-parse'
 import { storage } from '../core/storage'
 import CommentsPanel from './CommentsPanel'
+import { readBookmarks, sameSpot, toggleBookmark, writeBookmarks, type Bookmark } from '../core/bookmarks'
+import { Icon } from './Icon'
 import { toast } from './toast'
 
 interface Props {
@@ -646,6 +648,82 @@ export default function ReaderView({
     [pages, ci, chapters.length],
   )
 
+  /* ---------- 书签 ---------- */
+  const [bms, setBms] = useState<Bookmark[]>(() => readBookmarks(docId))
+  const [bmOpen, setBmOpen] = useState(false)
+  const spot = { chapter: slicing ? chapter.title : undefined, page }
+  const marked = bms.some((b) => sameSpot(b, spot))
+  const flipBookmark = useCallback(() => {
+    setBms((list) => {
+      const next = toggleBookmark(list, { chapter: slicing ? chapter.title : undefined, page })
+      writeBookmarks(docId, next)
+      return next
+    })
+  }, [docId, slicing, chapter, page])
+  const goBookmark = useCallback(
+    (b: Bookmark) => {
+      setBmOpen(false)
+      const idx = b.chapter ? chapters.findIndex((c) => c.title === b.chapter) : 0
+      if (b.chapter && idx < 0) {
+        toast.info('书签的那一章找不到了', '章标题可能改过')
+        return
+      }
+      if (slicing && idx !== ci) {
+        // 和「上次读到哪儿」同一套：先记下要回到的屏，再换章，换章后 measure 兑现
+        wantPage.current = b.page
+        skipReset.current = true
+        setCi(idx)
+      } else {
+        setPage(Math.max(0, Math.min(b.page, pages - 1)))
+      }
+    },
+    [chapters, slicing, ci, pages],
+  )
+  const dropBookmark = useCallback(
+    (id: string) => {
+      setBms((list) => {
+        const next = list.filter((b) => b.id !== id)
+        writeBookmarks(docId, next)
+        return next
+      })
+    },
+    [docId],
+  )
+
+  /* ---------- 自动翻页：关 → 慢 → 中 → 快 ---------- */
+  const AUTO_STEPS = [0, 20, 12, 6] as const
+  const [autoIdx, setAutoIdx] = useState(0)
+  const autoSec = AUTO_STEPS[autoIdx]
+  const atEnd = page + 1 >= pages && (!slicing || ci + 1 >= chapters.length)
+  useEffect(() => {
+    if (!autoSec) return
+    // 在选字、写批注、开着书签单时不翻，免得人正读着页面被抽走
+    if (sel || draft !== null || bmOpen) return
+    if (atEnd) {
+      setAutoIdx(0)
+      toast.info('读完了', '自动翻页已停')
+      return
+    }
+    const t = window.setInterval(() => go(1), autoSec * 1000)
+    return () => window.clearInterval(t)
+  }, [autoSec, sel, draft, bmOpen, atEnd, go])
+
+  /* ---------- 分区点按：点左边缘上一页，点右边缘下一页 ---------- */
+  const onPagesClick = useCallback(
+    (e: { target: EventTarget; currentTarget: HTMLElement; clientX: number }) => {
+      // 选字、点批注标记、点链接/按钮都不算翻页
+      const target = e.target as HTMLElement
+      if (target.closest('a, button, input, textarea, [data-comment], .ai-sel')) return
+      const s = window.getSelection()
+      if (s && !s.isCollapsed) return
+      const box = e.currentTarget.getBoundingClientRect()
+      const x = (e.clientX - box.left) / box.width
+      if (x < 0.22) go(-1)
+      else if (x > 0.78) go(1)
+    },
+    [go],
+  )
+
   /** 关的时候先让出场动画播完再卸 —— 直接 onClose 是一帧硬切 */
   const close = useCallback(() => {
     if (leaveRef.current) return
@@ -789,6 +867,46 @@ export default function ReaderView({
             {page + 1} / {pages}
           </span>
           <button
+            className={'btn ghost icon reader-auto' + (autoSec ? ' on' : '')}
+            onClick={() => setAutoIdx((i) => (i + 1) % AUTO_STEPS.length)}
+            title={autoSec ? `自动翻页：每 ${autoSec} 秒 · 点击切换速度` : '自动翻页（关）· 点击开启'}
+          >
+            <Icon name={autoSec ? 'pause' : 'play'} />
+            {autoSec ? <em>{autoSec}s</em> : null}
+          </button>
+          <div className="reader-bm">
+            <button
+              className={'btn ghost icon' + (marked ? ' on' : '')}
+              onClick={flipBookmark}
+              title={marked ? '取消这一屏的书签' : '给这一屏加书签'}
+            >
+              <Icon name="bookmark" />
+            </button>
+            <button
+              className={'btn ghost reader-bm-count' + (bmOpen ? ' on' : '')}
+              onClick={() => setBmOpen((v) => !v)}
+              disabled={!bms.length}
+              title="书签列表"
+              aria-expanded={bmOpen}
+            >
+              {bms.length}
+            </button>
+            {bmOpen && (
+              <div className="reader-bm-list">
+                {bms.map((b) => (
+                  <div key={b.id} className="reader-bm-item">
+                    <button className="reader-bm-go" onClick={() => goBookmark(b)}>
+                      {b.label}
+                    </button>
+                    <button className="reader-bm-del" onClick={() => dropBookmark(b.id)} title="删除">
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <button
             className={'btn ghost icon' + (notesOpen ? ' on' : '')}
             onClick={() => setNotesOpen((v) => !v)}
             title={comments.length ? `批注 · ${comments.length} 条` : '批注 · 选中文字后加'}
@@ -800,7 +918,7 @@ export default function ReaderView({
           </button>
         </header>
 
-        <div className="reader-pages" ref={viewRef} onMouseUp={pickSelection}>
+        <div className="reader-pages" ref={viewRef} onMouseUp={pickSelection} onClick={onPagesClick}>
           {/* 超大文档：这一章还在取的路上 */}
           {heavy && loadingBlocks && !blocks.length && (
             <div className="reader-loading">正在加载本章…</div>
@@ -863,7 +981,7 @@ export default function ReaderView({
           </button>
           <span className="reader-gap" />
           <span className="reader-hint">
-            {slicing ? '← → 翻页 · [ ] 换章 · 选中加批注 · Esc 退出' : '← → 翻页 · Esc 退出'}
+            {slicing ? '← → 翻页 · 点两侧翻页 · [ ] 换章 · 选中加批注 · Esc 退出' : '← → 翻页 · 点两侧翻页 · Esc 退出'}
           </span>
         </footer>
       </main>

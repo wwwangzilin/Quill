@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { PROSE_DEFAULT, PROSE_RANGE, type ProseStyle } from '../core/fonts'
+import { FONTS, PROSE_DEFAULT, PROSE_RANGE, type ProseStyle } from '../core/fonts'
 
 interface Props {
   prose: ProseStyle
@@ -45,6 +45,20 @@ export default function TypePopover({ prose, onProse }: Props) {
       </button>
       {open && (
         <div className="type-pop-panel" role="dialog" aria-label="排版">
+          <label>
+            <span>字体</span>
+            <select
+              className="type-pop-font"
+              value={prose.font}
+              onChange={(e) => set({ font: e.target.value })}
+            >
+              {FONTS.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <label>
             <span>字号</span>
             <input

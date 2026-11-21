@@ -21,6 +21,7 @@ export interface FontOption {
 
 const WENKAI_CSS =
   'https://cdn.jsdelivr.net/npm/lxgw-wenkai-lite-webfont@1.7.0/lxgwwenkailite-regular.css'
+const NOTO_SERIF_CSS = 'https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5.0.13/index.css'
 const INTER_CSS = 'https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@5.0.18/index.css'
 
 export const FONTS: FontOption[] = [
@@ -38,6 +39,14 @@ export const FONTS: FontOption[] = [
     probe: '"LXGW WenKai Lite"',
     cdn: WENKAI_CSS,
     hint: '楷体笔意，适合长文阅读。首次选用会按需加载字形，只下载用到的字',
+  },
+  {
+    id: 'notoserif',
+    name: '思源宋体 Source Han Serif',
+    stack: '"Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN", "Songti SC", SimSun, serif',
+    probe: '"Noto Serif SC"',
+    cdn: NOTO_SERIF_CSS,
+    hint: '书籍印刷的宋体，长篇小说读起来最舒服。首次选用会按需加载字形（本机装了会直接用）',
   },
   {
     id: 'inter',
