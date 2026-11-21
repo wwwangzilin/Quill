@@ -154,7 +154,12 @@ export function useDocSession(ui: SessionUi) {
     async (force = false): Promise<boolean> => {
       const base = docRef.current
       const live = liveRef.current
-      if (!base || !live) return false
+      /*
+       * 「没有当前文档」不是保存失败，是**没什么可存**。
+       * 这个分支以前返回 false，于是启动时那次 canLeave() 被当成存不下，
+       * 直接把「自动打开第一篇」拦了下来（表现出来就是：有文档、却没有标签）。
+       */
+      if (!base || !live) return true
       // 冲突没解决之前不写 —— 否则「暂停自动保存」只是一句空话
       if (!force && conflictRef.current) return false
       const candidate: Doc = {
@@ -220,12 +225,18 @@ export function useDocSession(ui: SessionUi) {
     }, 1400)
   }, [persist])
 
-  const flush = useCallback(async () => {
+  /**
+   * 立刻落盘，并把结果交出去。
+   *
+   * 以前它只返回 void，「存失败了没有」只能靠内部状态猜 —— 切文档时就没法拦。
+   * 现在返回布尔：调用方（切文档 / 关标签）必须先拿到 true 才允许走。
+   */
+  const flush = useCallback(async (): Promise<boolean> => {
     if (timerRef.current) {
       window.clearTimeout(timerRef.current)
       timerRef.current = null
     }
-    await persist()
+    return await persist()
   }, [persist])
 
   /* ---------------- 初始化 ---------------- */
@@ -294,7 +305,11 @@ export function useDocSession(ui: SessionUi) {
         return
       }
       try {
-        await flush() // 先把这一篇存好，下面序列化的才是刚存下去的内容
+        // 先把这一篇存好，下面序列化的才是刚存下去的内容；存不下就别合并
+        if (!(await flush())) {
+          toast.error('合并失败', '这一篇还没能存下来，先处理保存问题')
+          return
+        }
         if (!storage.writeSlice) throw new Error('这个版本不支持合并')
         /*
          * **不传 title**：docToMarkdown 一旦拿到标题就会在最前面塞一行 `# 书名`，
@@ -439,6 +454,32 @@ export function useDocSession(ui: SessionUi) {
     setConflict(null)
   }, [])
 
+  /**
+   * 能不能离开当前这一篇（切文档、关标签之前必须问一次）。
+   *
+   * 为什么要有它：`flush()` 失败时以前是「记一笔 + toast 一下」就继续往下走，
+   * 切走的那一刻，编辑器里没落盘的内容就没了 —— 磁盘满、文件被占用、
+   * 目录只读，都会走到这条路上。现在离开前必须拿到明确的 true。
+   *
+   * 失败时不静默：给三个出口（重试保存 / 另存为 / 取消），并且**默认不离开**。
+   */
+  const canLeave = useCallback(async (): Promise<boolean> => {
+    // 冲突没解决：先把对比框叫回来，等用户拍板
+    if (conflictRef.current) {
+      setConflict(conflictRef.current)
+      toast.error('这篇还有未保存的冲突', '先处理完再离开')
+      return false
+    }
+    const ok = await flush()
+    if (ok) return true
+    toast.ask('无法保存当前文档', '内容还留在编辑器里；换一篇或关掉标签就会丢', [
+      { label: '重试保存', primary: true, run: () => void flush() },
+      { label: '另存为', run: () => void saveAsNew() },
+      { label: '取消', run: () => {} },
+    ])
+    return false
+  }, [flush, saveAsNew])
+
   /*
    * 窗口重新聚焦时对一眼磁盘。
    *
@@ -507,13 +548,8 @@ export function useDocSession(ui: SessionUi) {
 
   const openDoc = useCallback(
     async (id: string) => {
-      await flush()
-      // 刚存的一下被判了冲突：先把决定做完再切，否则切走就丢字
-      if (conflictRef.current && docRef.current?.id !== id) {
-        setConflict(conflictRef.current)
-        toast.error('这篇还有未保存的冲突', '先处理完再切换文档')
-        return
-      }
+      // 存不下就不切：宁可这一下没反应，也不能把没落盘的内容带走
+      if (docRef.current?.id !== id && !(await canLeave())) return
 
       /*
        * 先问 Rust 要一份「章节目录 + 文件大小」，**不搬正文**。
@@ -538,12 +574,12 @@ export function useDocSession(ui: SessionUi) {
       }
       await openInEditor(id)
     },
-    [flush, openInEditor],
+    [canLeave, openInEditor],
   )
 
   const createNew = useCallback(
     async (templateId = 'blank') => {
-      await flush()
+      if (!(await canLeave())) return
       const tpl = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0]
       const fresh = await storage.create(tpl.id === 'blank' ? '未命名' : tpl.name)
       const withBody = { ...fresh, content: tpl.build() }
@@ -561,7 +597,7 @@ export function useDocSession(ui: SessionUi) {
       setSaving('idle')
       toast.success('已新建', tpl.name)
     },
-    [flush, showConflict, syncDiskMark],
+    [canLeave, showConflict, syncDiskMark],
   )
 
   /**
@@ -574,7 +610,7 @@ export function useDocSession(ui: SessionUi) {
   const editChapterFromReader = useCallback(
     async (title: string, markdown: string, range: { from: number; to: number }) => {
       try {
-        await flush()
+        if (!(await canLeave())) return
         const fresh = await storage.create(title)
         const withBody = { ...fresh, content: parseDocument(markdown).doc }
         await storage.put(withBody)
@@ -610,7 +646,7 @@ export function useDocSession(ui: SessionUi) {
         toast.error('摘出失败', String(err).slice(0, 120))
       }
     },
-    [flush, heavyOutline, showConflict, syncDiskMark],
+    [canLeave, heavyOutline, showConflict, syncDiskMark],
   )
 
   /** Ctrl+D：跳到今天的日记，没有就按「日记」模板建一篇 */
@@ -624,7 +660,7 @@ export function useDocSession(ui: SessionUi) {
         toast.info('今天的日记', key)
         return
       }
-      await flush()
+      if (!(await canLeave())) return
       const tpl = TEMPLATES.find((t) => t.id === 'daily') ?? TEMPLATES[0]
       const fresh = await storage.create(key)
       const withBody = { ...fresh, content: tpl.build() }
@@ -644,7 +680,7 @@ export function useDocSession(ui: SessionUi) {
     } catch (err) {
       toast.error('日记打开失败', String(err).slice(0, 120))
     }
-  }, [flush, openDoc, showConflict, syncDiskMark])
+  }, [canLeave, openDoc, showConflict, syncDiskMark])
 
   const removeDoc = useCallback(
     async (id: string) => {
@@ -833,6 +869,7 @@ export function useDocSession(ui: SessionUi) {
     docRef,
     liveRef,
     flush,
+    canLeave,
     openDoc,
     openInEditor,
     createNew,

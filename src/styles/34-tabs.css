@@ -132,3 +132,67 @@
   font-size: calc(var(--prose-size) - 1px);
   opacity: 0.92;
 }
+
+/* ---------- 固定 / 拖动 / 右键菜单 ---------- */
+.tab.pinned {
+  background: color-mix(in srgb, var(--accent-soft) 70%, transparent);
+}
+.tab-pin {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  color: var(--accent-1);
+  flex: none;
+}
+.tab-pin svg {
+  width: 12px;
+  height: 12px;
+}
+/* 拖动中：源标签淡一点，落点画一条竖线 */
+.tab.dragging {
+  opacity: 0.45;
+}
+.tab.drop-before {
+  box-shadow: inset 2px 0 0 var(--accent-1);
+}
+.tab.drop-after {
+  box-shadow: inset -2px 0 0 var(--accent-1);
+}
+/* 键盘焦点要看得见（方向键在标签之间移动焦点） */
+.tab:focus-visible {
+  outline: 2px solid var(--accent-1);
+  outline-offset: -2px;
+}
+
+.tab-menu {
+  position: fixed;
+  z-index: 90;
+  min-width: 168px;
+  padding: 5px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  animation: menu-spring 0.16s var(--ease-out) both;
+}
+.tab-menu button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.tab-menu button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.tab-menu button:disabled {
+  color: var(--text-3);
+  cursor: default;
+}

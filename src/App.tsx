@@ -42,6 +42,28 @@ import { buildMoreItems, buildPaletteCommands } from './app/menus'
 import TitleBar from './app/TitleBar'
 import StatusBar from './app/StatusBar'
 
+/**
+ * 本地记住的字符串数组（标签、固定、最近使用）。
+ * 存不下就当没有 —— 这些是「体验」，不该影响能不能用。
+ */
+function readList(key: string): string[] {
+  try {
+    const raw = localStorage.getItem(key)
+    const arr = raw ? (JSON.parse(raw) as unknown) : []
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function writeList(key: string, list: string[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify(list))
+  } catch {
+    /* 存不下就算了 */
+  }
+}
+
 export default function App() {
   const [view, setView] = useState<ViewMode>('write')
   /*
@@ -98,6 +120,13 @@ export default function App() {
   })
   /** 分屏右栏对照哪一篇（null = 不分屏） */
   const [splitId, setSplitId] = useState<string | null>(null)
+  /** 固定住的标签：排在前面，重启后还在 */
+  const [pinned, setPinned] = useState<string[]>(() => readList('quill:pins'))
+  /**
+   * 最近使用顺序（MRU）。**和标签排列是两回事**：标签按你的排法，MRU 按你实际打开的先后。
+   * 关掉当前标签时先回最近用过的那篇，而不是标签栏里相邻的那篇。
+   */
+  const [mru, setMru] = useState<string[]>(() => readList('quill:mru'))
   /** 小说阅读视图：左边章节目录，右边正文按栏排（跟编辑模式完全分开，只读） */
   const [readerOpen, setReaderOpen] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
@@ -132,6 +161,7 @@ export default function App() {
     docRef,
     liveRef,
     flush,
+    canLeave,
     openDoc,
     openInEditor,
     createNew,
@@ -157,6 +187,15 @@ export default function App() {
     forcePersist,
   } = useDocSession({ setView, heavyOutline, setHeavyOutline, setReaderOpen, openLongform })
 
+  /** 标签的展示顺序：固定的在前，其余按用户排的顺序 */
+  const orderedTabs = useMemo(
+    () => [
+      ...pinned.filter((id) => tabs.includes(id)),
+      ...tabs.filter((id) => !pinned.includes(id)),
+    ],
+    [tabs, pinned],
+  )
+
   /** 打开一篇并把它挂进标签栏（已经在标签里就只是切过去） */
   const openInTab = useCallback(
     (id: string) => {
@@ -166,22 +205,87 @@ export default function App() {
     [openDoc],
   )
 
-  const closeTab = useCallback(
-    (id: string) => {
-      setTabs((prev) => {
-        const next = prev.filter((x) => x !== id)
-        // 关的是当前这篇：顺手切到还开着的最后一篇
-        if (docRef.current?.id === id) {
-          const fallback = next[next.length - 1]
-          if (fallback) void openDoc(fallback)
-        }
-        return next
-      })
-      setSplitId((cur) => (cur === id ? null : cur))
+  /**
+   * 关一批标签。**所有**关闭入口（× / 中键 / Ctrl+W / 右键菜单 / 关闭其他）都走这里。
+   *
+   * 关到当前这篇时先问一句「存得下去吗」：存不下就整批取消，内容和标签都留着。
+   * 关完切到哪篇？按 MRU 挑最近用过的（而不是标签栏里相邻的）。
+   */
+  const closeMany = useCallback(
+    async (ids: string[]) => {
+      const drop = ids.filter((id) => tabs.includes(id))
+      if (!drop.length) return
+      const active = docRef.current?.id
+      if (active && drop.includes(active) && !(await canLeave())) return
+      const remaining = orderedTabs.filter((id) => !drop.includes(id))
+      setTabs(remaining)
+      setSplitId((cur) => (cur && drop.includes(cur) ? null : cur))
+      if (active && drop.includes(active)) {
+        const fallback =
+          mru.find((id) => remaining.includes(id)) ?? remaining[remaining.length - 1]
+        if (fallback) await openDoc(fallback)
+      }
     },
-    [openDoc],
+    [tabs, orderedTabs, canLeave, mru, openDoc],
   )
 
+  const closeTab = useCallback((id: string) => void closeMany([id]), [closeMany])
+  /** 关闭其他：固定的标签不关（固定的意义就是别被批量带走） */
+  const closeOthers = useCallback(
+    (id: string) => void closeMany(orderedTabs.filter((x) => x !== id && !pinned.includes(x))),
+    [closeMany, orderedTabs, pinned],
+  )
+  const closeRight = useCallback(
+    (id: string) => {
+      const i = orderedTabs.indexOf(id)
+      if (i >= 0) void closeMany(orderedTabs.slice(i + 1).filter((x) => !pinned.includes(x)))
+    },
+    [closeMany, orderedTabs, pinned],
+  )
+
+  const togglePin = useCallback((id: string) => {
+    setPinned((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }, [])
+
+  /** 拖动排序：固定组仍排在最前，两组内部保持拖后的相对顺序 */
+  const reorderTabs = useCallback(
+    (from: number, to: number) => {
+      const list = [...orderedTabs]
+      if (from < 0 || to < 0 || from >= list.length || to >= list.length || from === to) return
+      const [moved] = list.splice(from, 1)
+      list.splice(to, 0, moved)
+      const head = list.filter((id) => pinned.includes(id))
+      const tail = list.filter((id) => !pinned.includes(id))
+      setTabs([...head, ...tail])
+    },
+    [orderedTabs, pinned],
+  )
+
+  const cycleTab = useCallback(
+    (delta: number) => {
+      const list = orderedTabs
+      if (list.length < 2) return
+      const cur = docRef.current?.id ?? ''
+      const i = Math.max(0, list.indexOf(cur))
+      openInTab(list[(i + delta + list.length) % list.length])
+    },
+    [orderedTabs, openInTab],
+  )
+
+  const selectTab = useCallback(
+    (index: number) => {
+      const id = orderedTabs[index]
+      if (id) openInTab(id)
+    },
+    [orderedTabs, openInTab],
+  )
+
+  /** 回到上一个用过的文档（MRU 里第一条不是当前、且还存在的） */
+  const prevDoc = useCallback(() => {
+    const cur = docRef.current?.id
+    const target = mru.find((id) => id !== cur && docs.some((d) => d.id === id))
+    if (target) openInTab(target)
+  }, [mru, docs, openInTab])
 
   // 底部状态栏要用：今日写了多少、离目标还差多少
   const progress = useMemo(() => goalProgress(stats, dailyGoal), [stats, dailyGoal])
@@ -258,14 +362,23 @@ export default function App() {
   const { desk, autostart, applyDesk, applyAutostart } = useDesktopPrefs()
   useUpdateCheck()
 
-  // 标签栏记在本地：下次打开还是那几篇（不存在的会在下面被剔掉）
+  // 标签栏 / 固定 / MRU 都记在本地：下次打开还是那几篇、那几篇是固定的
   useEffect(() => {
-    try {
-      localStorage.setItem('quill:tabs', JSON.stringify(tabs))
-    } catch {
-      /* 存不下就算了，不影响使用 */
-    }
+    writeList('quill:tabs', tabs)
   }, [tabs])
+  useEffect(() => {
+    writeList('quill:pins', pinned)
+  }, [pinned])
+  useEffect(() => {
+    writeList('quill:mru', mru)
+  }, [mru])
+
+  // 当前这篇进 MRU 头部（关标签时的回退顺序就靠它）
+  useEffect(() => {
+    const id = doc?.id
+    if (!id) return
+    setMru((prev) => [id, ...prev.filter((x) => x !== id)].slice(0, 30))
+  }, [doc?.id])
 
   // 文档列表变了：把已经不存在的标签剔掉（删掉的、改名的）
   useEffect(() => {
@@ -360,6 +473,14 @@ export default function App() {
     createNew,
     dailyNote,
     toggleReading,
+    closeTab: () => {
+      const cur = docRef.current?.id
+      if (cur) closeTab(cur)
+    },
+    nextTab: () => cycleTab(1),
+    prevTab: () => cycleTab(-1),
+    selectTab,
+    prevDoc,
     settingsOpen,
     setSettingsOpen,
     setChatOpen,
@@ -546,12 +667,17 @@ export default function App() {
         <div className="main">
           {!libraryOpen && !settingsOpen && (
             <TabBar
-              tabs={tabs}
+              tabs={orderedTabs}
               docs={docs}
+              pinned={pinned}
               activeId={doc?.id ?? null}
               splitId={splitId}
               onSelect={openInTab}
               onClose={closeTab}
+              onCloseOthers={closeOthers}
+              onCloseRight={closeRight}
+              onTogglePin={togglePin}
+              onReorder={reorderTabs}
               onToggleSplit={() =>
                 setSplitId((cur) => (cur ? null : (docRef.current?.id ?? null)))
               }

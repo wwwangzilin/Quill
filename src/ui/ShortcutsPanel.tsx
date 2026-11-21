@@ -1,6 +1,26 @@
+import { hintOf } from '../core/shortcuts'
+
 interface Props {
   open: boolean
   onClose: () => void
+}
+
+/* 应用级快捷键的文案**从清单里取**（core/shortcuts.ts）——
+   散着写「Ctrl + W」的结果就是：改了键位忘了改这里，面板上写着有、按了没反应。 */
+const K = {
+  save: hintOf('save'),
+  newDoc: hintOf('newDoc'),
+  daily: hintOf('daily'),
+  shortcuts: hintOf('shortcuts'),
+  sidebar: hintOf('sidebar'),
+  palette: hintOf('palette'),
+  searchAll: hintOf('searchAll'),
+  closeTab: hintOf('closeTab'),
+  nextTab: hintOf('nextTab'),
+  prevTab: hintOf('prevTab'),
+  prevDoc: hintOf('prevDoc'),
+  reading: hintOf('reading'),
+  zen: hintOf('zen'),
 }
 
 const GROUPS: { title: string; rows: [string, string][] }[] = [
@@ -29,12 +49,27 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
   {
     title: '文档',
     rows: [
-      ['Ctrl + S', '立即保存；平时自动保存'],
-      ['Ctrl + N', '新建文档'],
-      ['Ctrl + D', '打开今天的日记，不存在则按「日记」模板新建'],
+      [K.save, '立即保存；平时自动保存'],
+      [K.newDoc, '新建文档'],
+      [K.daily, '打开今天的日记，不存在则按「日记」模板新建'],
       ['选中文字 → ＋ 批注', '为选中文字添加批注 · 存于元数据，不写入正文'],
-      ['Ctrl + /', '打开 / 关闭本面板'],
-      ['Ctrl + \\', '收起 / 展开侧栏'],
+      [K.palette, '命令面板 / 全局搜索'],
+      [K.searchAll, '全库搜索'],
+      [K.shortcuts, '打开 / 关闭本面板'],
+      [K.sidebar, '收起 / 展开侧栏'],
+    ],
+  },
+  {
+    title: '标签页',
+    rows: [
+      [K.nextTab, '下一个标签页'],
+      [K.prevTab, '上一个标签页'],
+      ['Ctrl + 1 … 9', '切换到第 N 个标签页'],
+      [K.closeTab, '关闭当前标签页（会先确认能存下来）'],
+      [K.prevDoc, '回到上一个用过的文档'],
+      ['← / →', '在标签之间移动焦点（不切换文档）'],
+      ['Enter / Delete', '打开聚焦的标签 / 关闭它'],
+      ['右键标签', '关闭其他、关闭右侧、固定'],
     ],
   },
   {
@@ -44,8 +79,8 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['顶部 ◉', '专注模式：只亮当前段落'],
       ['顶部 ⇅', '打字机模式：光标锁定视口'],
       ['顶部 ⏱', '版本历史：预览与回滚'],
-      ['F9', '阅读模式：收起周边界面，正文只读'],
-      ['F11', '禅模式：全屏，仅保留正文'],
+      [K.reading, '阅读模式：收起周边界面，正文只读'],
+      [K.zen, '禅模式：全屏，仅保留正文'],
     ],
   },
   {
