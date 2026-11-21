@@ -1,0 +1,86 @@
+/* ==========================================================================
+   性能设置的降级样式。开关状态由 core/perf.ts 挂在 <html> 上：
+   .perf-no-blur / .perf-no-texture / .perf-no-motion
+   ========================================================================== */
+
+/* ---- 关闭毛玻璃模糊：去掉所有 backdrop-filter，玻璃底色改成不透明，否则字会压在花背景上 ---- */
+html.perf-no-blur *,
+html.perf-no-blur *::before,
+html.perf-no-blur *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html.perf-no-blur[data-theme="glass"] {
+  --glass-bg: #ffffff;
+  --surface: #fbfcfe;
+}
+html.perf-no-blur[data-theme="glass-night"] {
+  --glass-bg: #18222d;
+  --surface: #141c26;
+}
+
+/* ---- 关闭质感层：颗粒、顶部高光、聚光、漂浮羽毛 ---- */
+html.perf-no-texture {
+  --grain: none;
+  --glass-hi: transparent;
+}
+html.perf-no-texture .doc-item::after,
+html.perf-no-texture .theme-card::after,
+html.perf-no-texture .list-row::after,
+html.perf-no-texture .wiki-card::after,
+html.perf-no-texture .settings-nav-item::after {
+  display: none !important;
+}
+html.perf-no-texture .welcome-mark,
+html.perf-no-texture .empty-mark {
+  animation: none !important;
+}
+
+/* ---- 关闭动效：和「跟随系统」同一套做法，动画压成一帧、过渡归零 ---- */
+html.perf-no-motion *,
+html.perf-no-motion *::before,
+html.perf-no-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}
+
+/* ---- 设置页里的性能块 ---- */
+.perf-box {
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.perf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.perf-lite {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.perf-lite.on,
+.perf-lite:hover {
+  border-color: var(--accent-1);
+  color: var(--accent-1);
+}
+.perf-hint {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--text-3);
+  opacity: 0.75;
+}

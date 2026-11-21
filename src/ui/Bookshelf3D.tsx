@@ -75,9 +75,10 @@ function sizeLabel(n?: number): string {
 /** 系统要求减少动效、且用户在设置里选了跟随时，翻书不做滑动动画 */
 function motionReduced(): boolean {
   try {
+    const c = document.documentElement.classList
     return (
-      document.documentElement.classList.contains('respect-motion') &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      c.contains('perf-no-motion') ||
+      (c.contains('respect-motion') && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
     )
   } catch {
     return false

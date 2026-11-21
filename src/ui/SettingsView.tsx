@@ -26,6 +26,7 @@ import { AI_TUNING_RANGE, resetAiTuning, useAiTuning } from '../core/aiPrefs'
 import { applyRespectMotion, readRespectMotion } from '../core/motion'
 import { THEMES, type Theme } from '../core/theme'
 import AccentPicker from './AccentPicker'
+import { PERF_FULL, PERF_LITE, applyPerf, isLite, usePerf } from '../core/perf'
 import { isDesktop, type DesktopPrefs } from '../core/desktop'
 import { checkUpdate, currentVersion, installUpdate, type UpdateInfo } from '../core/update'
 import { toast } from './toast'
@@ -118,6 +119,8 @@ export default function SettingsView({
   const [aiLog, setAiLog] = useState('')
   /** 是否跟随系统的「减少动效」—— 默认否，动画照常播 */
   const [respectMotion, setRespectMotion] = useState(readRespectMotion)
+  /** 性能设置：模糊 / 质感 / 动效 / 3D 书架各自可关 */
+  const perf = usePerf()
 
   /** 生成参数：拖一下即时生效，不必等「保存设置」 */
   const [tuning, setTuning] = useAiTuning()
@@ -384,6 +387,38 @@ export default function SettingsView({
         默认关闭：过渡动画是界面设计的一部分，系统关闭动效后这里仍照常播放 ——
         否则面板会直接跳出、列表会硬切，观感如同未完成。确有需要（例如对动效敏感）时再开启。
       </p>
+
+      <div className="perf-box">
+        <div className="perf-head">
+          <span className="sc-text">性能</span>
+          <button
+            type="button"
+            className={'perf-lite' + (isLite(perf) ? ' on' : '')}
+            onClick={() => applyPerf(isLite(perf) ? PERF_FULL : PERF_LITE)}
+          >
+            {isLite(perf) ? '恢复完整效果' : '低性能模式'}
+          </button>
+        </div>
+        {(
+          [
+            ['blur', '毛玻璃模糊', '最吃显卡的一项，老机器卡顿先关它'],
+            ['texture', '质感层', '颗粒、顶部高光、鼠标聚光、漂浮图标'],
+            ['motion', '过渡与动画', '关掉后面板直接出现，最省电'],
+            ['shelf', '3D 书架', '关掉后侧栏不显示书架，只留文档列表'],
+          ] as const
+        ).map(([k, label, hint]) => (
+          <label key={k} className="sc-row" style={{ cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={perf[k]}
+              onChange={(e) => applyPerf({ ...perf, [k]: e.target.checked })}
+              style={{ width: 14, height: 14 }}
+            />
+            <span className="sc-text">{label}</span>
+            <span className="perf-hint">{hint}</span>
+          </label>
+        ))}
+      </div>
 
       <label className="field">
         <span>

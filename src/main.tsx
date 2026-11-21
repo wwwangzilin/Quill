@@ -4,6 +4,7 @@ import QuickNote from './windows/QuickNote'
 import Sticky from './windows/Sticky'
 import { applyAppearance } from './core/fonts'
 import { initMotion } from './core/motion'
+import { initPerf } from './core/perf'
 import { initSpotlight } from './core/spotlight'
 import { initTheme } from './core/theme'
 import { windowRole } from './core/windows'
@@ -21,6 +22,8 @@ boot.push('boot ' + location.href)
 initTheme()
 // 动效同理：默认不跟随系统的「减少动效」，这一步决定要不要让系统设置生效
 initMotion()
+// 性能开关（模糊 / 质感 / 动效）：同样要在渲染前贴到 <html> 上
+initPerf()
 // 卡片悬停的鼠标跟随柔光（只写 --mx/--my 两个变量）
 initSpotlight()
 applyAppearance()

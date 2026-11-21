@@ -6,6 +6,7 @@ import { storage } from '../core/storage'
 import { TEMPLATES } from '../core/templates'
 import Heatmap from './Heatmap'
 import Bookshelf3D from './Bookshelf3D'
+import { usePerf } from '../core/perf'
 import BrandMark from './BrandMark'
 import { Icon } from './Icon'
 import { activeDays, goalProgress, streakDays } from '../core/stats'
@@ -78,6 +79,7 @@ export default function Sidebar({
   const [searching, setSearching] = useState(false)
   // 书架 ↔ 列表联动：focus 是「书架该转到哪一本」，centerId 是「书架现在正中的那本」
   const [shelfOpen, setShelfOpen] = useState(() => readShelfOpen())
+  const perf = usePerf()
   const [focus, setFocus] = useState<{ id: string } | null>(activeId ? { id: activeId } : null)
   const [centerId, setCenterId] = useState<string | null>(null)
   const toggleShelf = () => {
@@ -224,7 +226,7 @@ export default function Sidebar({
         )}
       </div>
 
-      {total > 0 && (
+      {total > 0 && perf.shelf && (
         <div className={'side-shelf' + (shelfOpen ? '' : ' closed')}>
           <button className="side-shelf-head" onClick={toggleShelf} aria-expanded={shelfOpen}>
             <Icon name="shelf" />
