@@ -488,6 +488,26 @@ export default function App() {
     setSidebarOpen,
   })
 
+  /**
+   * 自动合并：把合并结果塞回编辑器，再按「我的版本」落盘。
+   *
+   * 只在两边改的是不同段落时出现（conflicts === 0）—— 真正撞车的那几段
+   * 还是交给用户选，避免把冲突标记悄悄写进 .md。
+   */
+  const autoMergeConflict = useCallback(async () => {
+    const merged = conflict?.merge?.merged
+    const ed = editorRef.current
+    if (!merged || !ed || ed.isDestroyed) return
+    ed.commands.setContent(parseDocument(merged).doc)
+    // setContent 不一定触发 update，显式喂一次，保证 liveRef / 字数统计都跟上
+    onChange(ed)
+    const ok = await forcePersist()
+    if (ok) {
+      clearConflict()
+      toast.success('已自动合并', '两边改的是不同段落，合成了一份并保存')
+    }
+  }, [conflict, onChange, forcePersist, clearConflict])
+
   const switchView = useCallback((next: ViewMode) => {
     if (next === 'mindmap') {
       setMapSnap({
@@ -588,7 +608,13 @@ export default function App() {
         onClose={() => setQuickOpen(false)}
         onSubmit={(text) => void quickCapture(text)}
       />
-      <CommandPalette docs={docs} commands={paletteCommands} onPickDoc={(id) => void openDoc(id)} />
+      <CommandPalette
+        docs={docs}
+        commands={paletteCommands}
+        recent={mru}
+        onPickDoc={(id) => openInTab(id)}
+        onPickHit={(hit, q) => jumpToHit(hit, q)}
+      />
       <SearchPanel onPick={jumpToHit} />
       {/*
         阅读视图只有这一个入口。普通文档给 doc，超大文档给 outline ——
@@ -823,6 +849,7 @@ export default function App() {
           onKeepMine={() => void keepMine()}
           onTakeDisk={() => void takeDisk()}
           onMerge={() => void resolveMerge()}
+          onAutoMerge={() => void autoMergeConflict()}
           onAdoptRename={() => void adoptRename()}
           onSaveAsNew={() => void saveAsNew()}
           onRestoreHistory={() => {

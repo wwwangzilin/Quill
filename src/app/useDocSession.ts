@@ -12,6 +12,7 @@ import { WELCOME } from '../core/welcome'
 import { setAssetResolver } from '../core/asset'
 import type { Saving, HeavyOutline } from './types'
 import { toMeta, sortDocs, countChars, todayKey } from './docUtils'
+import { merge3 } from '../core/merge3'
 import {
   SaveConflictError,
   asSaveConflict,
@@ -65,6 +66,8 @@ export function useDocSession(ui: SessionUi) {
   const lastCharsRef = useRef(0)
   /** 磁盘上这一篇的摘要（我最后见到的那一版）—— 保存时的 baseDigest 就从这儿来 */
   const diskMarkRef = useRef<DiskMark | null>(null)
+  /** 上次成功保存（或打开）时的正文，三方合并的 base */
+  const baseMdRef = useRef('')
   /** 有没有还没落盘的改动：窗口重新聚焦时据此决定「静默跟上」还是「弹冲突」 */
   const dirtyRef = useRef(false)
   /** 冲突的即时版本（persist / scheduleSave 是稳定回调，闭包里读 state 会读到旧值） */
@@ -129,13 +132,31 @@ export function useDocSession(ui: SessionUi) {
       if (err.code === 'conflict' && disk == null && storage.raw) {
         disk = await storage.raw(base.id).catch(() => null)
       }
+      const mineMd = docToMarkdown(live.content, live.title)
+      /*
+       * 三方合并：base 是上次保存时的样子。
+       *
+       * 磁盘那份先过一遍「解析 → 序列化」再比 —— 不然它带着原始的空行和
+       * 标记写法，和编辑器产出的文本天然不同，会把整篇都算成改动。
+       * 只有真正撞车的行段才留冲突标记。
+       */
+      let merge: { merged: string; conflicts: number } | undefined
+      if (err.code === 'conflict' && disk != null) {
+        try {
+          const diskNorm = docToMarkdown(parseDocument(disk).doc)
+          merge = merge3(baseMdRef.current || mineMd, mineMd, diskNorm)
+        } catch {
+          merge = undefined
+        }
+      }
       showConflict({
         code: err.code,
         docId: base.id,
         title: live.title,
-        mine: docToMarkdown(live.content, live.title),
+        mine: mineMd,
         disk,
         renamedTo,
+        merge,
         at: Date.now(),
       })
       dirtyRef.current = true
@@ -177,6 +198,7 @@ export function useDocSession(ui: SessionUi) {
         }
         const next = { ...candidate, id: res.id }
         docRef.current = next
+        baseMdRef.current = docToMarkdown(candidate.content)
         dirtyRef.current = false
         const meta = toMeta(next)
         setDocs((prev) =>
@@ -337,6 +359,7 @@ export function useDocSession(ui: SessionUi) {
     if (!next) return
     // 进门先记住磁盘这一版是什么样：之后每次保存都拿它当 baseDigest 去核对
     await syncDiskMark(id)
+    baseMdRef.current = docToMarkdown(next.content)
     dirtyRef.current = false
     showConflict(null)
     docRef.current = next

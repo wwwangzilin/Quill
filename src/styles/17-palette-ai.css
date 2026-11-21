@@ -127,3 +127,40 @@
   color: var(--text-3);
   font-size: 11.5px;
 }
+
+/* ---------- 命令面板：分组、正文片段、快捷键角标 ---------- */
+.palette-group {
+  padding: 8px 14px 4px;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+.palette-snippet {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-row.on .palette-snippet {
+  color: var(--text-2);
+}
+.palette-snippet mark,
+.palette-title mark {
+  background: var(--accent-soft);
+  color: var(--accent-1);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.palette-kbd {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 6px;
+}

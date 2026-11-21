@@ -35,6 +35,11 @@ export interface ConflictInfo {
   disk: string | null
   /** 外部改名后按摘要认回的新文件名 */
   renamedTo: string | null
+  /**
+   * 三方合并的结果（base = 上次保存时的样子）。
+   * `conflicts === 0` 表示两边改的是不同段落，可以直接合。
+   */
+  merge?: { merged: string; conflicts: number }
   at: number
 }
 

@@ -20,6 +20,8 @@ interface Props {
   onTakeDisk: () => void
   /** 把磁盘版本接到文末，之后按我的版本保存 */
   onMerge: () => void
+  /** 自动合并（只在两边改的是不同段落时出现） */
+  onAutoMerge?: () => void
   /** 外部改名：换成新文件名继续写 */
   onAdoptRename: () => void
   /** 另存为一篇新文档 */
@@ -35,6 +37,7 @@ export default function ConflictDialog({
   onKeepMine,
   onTakeDisk,
   onMerge,
+  onAutoMerge,
   onAdoptRename,
   onSaveAsNew,
   onRestoreHistory,
@@ -125,7 +128,15 @@ export default function ConflictDialog({
             </>
           ) : (
             <>
-              <button className="btn primary" onClick={onKeepMine}>
+              {info.merge && info.merge.conflicts === 0 && onAutoMerge && (
+                <button className="btn primary" onClick={onAutoMerge}>
+                  自动合并并保存
+                </button>
+              )}
+              <button
+                className={'btn' + (info.merge && info.merge.conflicts === 0 ? '' : ' primary')}
+                onClick={onKeepMine}
+              >
                 保存我的版本
               </button>
               <button className="btn" onClick={onTakeDisk}>
@@ -144,7 +155,11 @@ export default function ConflictDialog({
         <p className="conflict-hint">
           {deleted
             ? '选「稍后处理」不会丢内容：这篇会一直暂停保存，状态栏会挂一条提示。'
-            : '「接到文末」会把两份都留下（以你的版本为主），适合两边都有想保留的段落。'}
+            : info.merge
+              ? info.merge.conflicts === 0
+                ? '两边改的是不同段落，可以自动合上；合出来的结果会先过一遍检查再落盘。'
+                : `有 ${info.merge.conflicts} 处改到了同一段，需要你自己定：可以「接到文末」两份都留，或选一边。`
+              : '「接到文末」会把两份都留下（以你的版本为主），适合两边都有想保留的段落。'}
         </p>
       </div>
     </div>
