@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { newCommentId, whenOf, type Comment } from '../core/comments'
+import { HI_COLORS, commentsToMarkdown, newCommentId, whenOf, type Comment, type HiColor } from '../core/comments'
+import { toast } from './toast'
 
 interface Props {
   open: boolean
@@ -13,6 +14,10 @@ interface Props {
   onJump: (c: Comment) => void
   /** 从正文点底纹进来时要高亮的那条 */
   focusId: string | null
+  /** 新建批注用的荧光笔颜色（阅读视图选的；编辑器里不传就是旧样式） */
+  color?: HiColor
+  /** 导出文件名里用的文档标题 */
+  docTitle?: string
 }
 
 /**
@@ -31,6 +36,8 @@ export default function CommentsPanel({
   onDelete,
   onJump,
   focusId,
+  color,
+  docTitle,
 }: Props) {
   const [newText, setNewText] = useState('')
   const [editId, setEditId] = useState<string | null>(null)
@@ -61,15 +68,14 @@ export default function CommentsPanel({
   const submitNew = () => {
     const note = newText.trim()
     if (!note || !draft) return
-    onSave({ id: newCommentId(), quote: draft, note, created: Date.now(), resolved: false })
+    onSave({ id: newCommentId(), quote: draft, note, created: Date.now(), resolved: false, ...(color ? { color } : {}) })
     setNewText('')
     onDraftDone()
   }
 
   const submitEdit = (c: Comment) => {
-    const note = editText.trim()
-    if (!note) return
-    onSave({ ...c, note })
+    // 允许改成空：那就是一条纯高亮
+    onSave({ ...c, note: editText.trim() })
     setEditId(null)
   }
 
@@ -79,6 +85,21 @@ export default function CommentsPanel({
         <span>批注</span>
         <span className="comments-count">{comments.length}</span>
         <span className="grow" />
+        <button
+          className="btn ghost mini"
+          disabled={!comments.length}
+          title="把所有批注和高亮复制成 Markdown"
+          onClick={() => {
+            void navigator.clipboard
+              .writeText(commentsToMarkdown(docTitle ?? '文档', comments))
+              .then(
+                () => toast.success('已复制批注', `共 ${comments.length} 条，粘贴到任何地方都是 Markdown`),
+                () => toast.error('复制失败', '浏览器不允许访问剪贴板'),
+              )
+          }}
+        >
+          导出
+        </button>
         <button className="btn ghost icon" onClick={onClose} title="关闭">
           ×
         </button>
@@ -154,11 +175,7 @@ export default function CommentsPanel({
                   }}
                 />
                 <div className="comment-actions">
-                  <button
-                    className="btn primary"
-                    disabled={!editText.trim()}
-                    onClick={() => submitEdit(c)}
-                  >
+                  <button className="btn primary" onClick={() => submitEdit(c)}>
                     保存
                   </button>
                   <button className="btn ghost" onClick={() => setEditId(null)}>
@@ -168,8 +185,26 @@ export default function CommentsPanel({
               </>
             ) : (
               <>
-                <div className="comment-note">{c.note}</div>
+                {c.note ? (
+                  <div className="comment-note">{c.note}</div>
+                ) : (
+                  <div className="comment-note comment-note-empty">仅高亮</div>
+                )}
                 <div className="comment-foot">
+                  <span className="comment-dots" role="radiogroup" aria-label="荧光笔颜色">
+                    {HI_COLORS.map((h) => (
+                      <button
+                        key={h.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={c.color === h.id}
+                        className={'hi-dot' + (c.color === h.id ? ' on' : '')}
+                        style={{ background: h.hex }}
+                        title={h.name}
+                        onClick={() => onSave({ ...c, color: h.id })}
+                      />
+                    ))}
+                  </span>
                   <span className="comment-when">{whenOf(c.created)}</span>
                   <span className="grow" />
                   <button className="btn ghost mini" onClick={() => onJump(c)}>

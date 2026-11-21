@@ -13,14 +13,43 @@
 import type { Node as PMNode } from '@tiptap/pm/model'
 import type { JSONContent } from '@tiptap/core'
 
+/** 荧光笔颜色 */
+export type HiColor = 'yellow' | 'green' | 'blue' | 'pink' | 'purple'
+
+export const HI_COLORS: { id: HiColor; name: string; hex: string }[] = [
+  { id: 'yellow', name: '黄', hex: '#f2c94c' },
+  { id: 'green', name: '绿', hex: '#6fcf97' },
+  { id: 'blue', name: '蓝', hex: '#56b4f0' },
+  { id: 'pink', name: '粉', hex: '#f08fb4' },
+  { id: 'purple', name: '紫', hex: '#b394f0' },
+]
+
+export function isHiColor(v: unknown): v is HiColor {
+  return HI_COLORS.some((c) => c.id === v)
+}
+
 export interface Comment {
   id: string
   /** 选中的原文（定位锚点） */
   quote: string
-  /** 批注内容 */
+  /** 批注内容；为空就是单纯的高亮 */
   note: string
   created: number
   resolved: boolean
+  /** 荧光笔颜色；没有就是主题色的老样式（旧批注不用迁移） */
+  color?: HiColor
+}
+
+/** 导出成 Markdown：每条一个引用块，有批注的接在下面 */
+export function commentsToMarkdown(title: string, list: Comment[]): string {
+  const lines = [`# ${title} · 批注与高亮`, '']
+  for (const c of list) {
+    const quote = c.quote.replace(/\s*\n\s*/g, ' ').trim()
+    lines.push(`> ${quote}`)
+    if (c.note.trim()) lines.push('', c.note.trim())
+    lines.push('')
+  }
+  return lines.join('\n').trimEnd() + '\n'
 }
 
 export function newCommentId(): string {

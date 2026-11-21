@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { guessNovel, splitChapters, type NovelGuess } from '../core/chapters'
-import { MAX_QUOTE, blockOffsets, findIn, flatText, nodeText, type Comment } from '../core/comments'
+import {
+  HI_COLORS,
+  MAX_QUOTE,
+  blockOffsets,
+  findIn,
+  flatText,
+  newCommentId,
+  nodeText,
+  type Comment,
+  type HiColor,
+} from '../core/comments'
 import { posLabel, readPos, writePos } from '../core/lastPos'
 import type { RawChapter } from '../core/rawChapters'
 import { parseDocument } from '../core/md-parse'
@@ -9,6 +19,7 @@ import { storage } from '../core/storage'
 import CommentsPanel from './CommentsPanel'
 import { readBookmarks, sameSpot, toggleBookmark, writeBookmarks, type Bookmark } from '../core/bookmarks'
 import { Icon } from './Icon'
+import { useSetting } from '../core/settings'
 import ReaderStylePanel from './ReaderStylePanel'
 import { layoutSig, readerVars, useReaderStyle } from '../core/readerStyle'
 import { toast } from './toast'
@@ -65,6 +76,7 @@ interface Mark {
   id: string
   note: string
   resolved: boolean
+  color?: HiColor
   from: number
   to: number
 }
@@ -98,9 +110,9 @@ function sliced(
       out.push(
         <mark
           key={`${m.id}-${s}`}
-          className={'has-comment' + (m.resolved ? ' is-resolved' : '')}
+          className={'has-comment' + (m.resolved ? ' is-resolved' : '') + (m.color ? ` c-${m.color}` : '') + (m.note ? '' : ' no-note')}
           data-comment={m.id}
-          title={m.note.slice(0, 120)}
+          title={m.note ? m.note.slice(0, 120) : '高亮'}
           onClick={onPick ? () => onPick(m.id) : undefined}
         >
           {text.slice(s - at, e - at)}
@@ -455,7 +467,7 @@ export default function ReaderView({
     () =>
       comments.flatMap((c) => {
         const at = findIn(text, c.quote)
-        return at ? [{ id: c.id, note: c.note, resolved: c.resolved, ...at }] : []
+        return at ? [{ id: c.id, note: c.note, resolved: c.resolved, color: c.color, ...at }] : []
       }),
     [comments, text],
   )
@@ -499,6 +511,26 @@ export default function ReaderView({
       flip,
     })
   }, [])
+
+  /** 荧光笔颜色：选中后点色点直接高亮；「加批注」也用这个颜色，并记住下次接着用 */
+  const [pen, setPen] = useSetting<HiColor>('readerPen', 'yellow')
+  const quickHighlight = useCallback(
+    (color: HiColor) => {
+      if (!sel) return
+      setPen(color)
+      onSaveComment({
+        id: newCommentId(),
+        quote: sel.quote,
+        note: '',
+        created: Date.now(),
+        resolved: false,
+        color,
+      })
+      setSel(null)
+      window.getSelection()?.removeAllRanges()
+    },
+    [sel, onSaveComment, setPen],
+  )
 
   const startNote = useCallback(() => {
     if (!sel) return
@@ -996,6 +1028,19 @@ export default function ReaderView({
             >
               <div className="ai-sel-row">
                 <span className="ai-sel-tag">批注</span>
+                <span className="hi-dots" role="group" aria-label="高亮颜色">
+                  {HI_COLORS.map((h) => (
+                    <button
+                      key={h.id}
+                      type="button"
+                      className={'hi-dot' + (pen === h.id ? ' on' : '')}
+                      style={{ background: h.hex }}
+                      title={`${h.name}色高亮`}
+                      onClick={() => quickHighlight(h.id)}
+                    />
+                  ))}
+                </span>
+                <span className="ai-sel-sep" />
                 <button className="ai-sel-btn" onClick={startNote}>
                   ＋ 加批注
                 </button>
@@ -1080,6 +1125,8 @@ export default function ReaderView({
         onDelete={onRemoveComment}
         onJump={(c) => jumpTo(c.id)}
         focusId={focusId}
+        color={pen}
+        docTitle={title}
       />
     </div>
   )

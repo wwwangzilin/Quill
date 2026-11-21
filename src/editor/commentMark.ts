@@ -47,7 +47,7 @@ export const CommentMarks = Extension.create({
               if (!at) continue // 原文被改没了，正文就不标了（列表里会提示）
               decos.push(
                 Decoration.inline(at.from, at.to, {
-                  class: `has-comment${c.resolved ? ' is-resolved' : ''}`,
+                  class: `has-comment${c.resolved ? ' is-resolved' : ''}${c.color ? ` c-${c.color}` : ''}`,
                   'data-comment': c.id,
                   title: c.note.slice(0, 120),
                 }),

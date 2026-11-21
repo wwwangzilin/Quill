@@ -27,6 +27,10 @@ pub struct Comment {
     pub created: i64,
     #[serde(default)]
     pub resolved: bool,
+    /// 荧光笔颜色（yellow / green / blue / pink / purple）。老批注没有这个字段，
+    /// 读出来是 None、写回去也不出现，所以不影响已有的 .quill-meta.json。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]

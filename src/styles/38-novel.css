@@ -197,3 +197,58 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* ==========================================================================
+   批注：荧光笔配色（阅读视图和编辑器共用 .has-comment）
+   没有 c-xxx 的是老批注，保持原来的主题色样式。
+   ========================================================================== */
+.has-comment.c-yellow { --hi: #f2c94c; }
+.has-comment.c-green  { --hi: #6fcf97; }
+.has-comment.c-blue   { --hi: #56b4f0; }
+.has-comment.c-pink   { --hi: #f08fb4; }
+.has-comment.c-purple { --hi: #b394f0; }
+.has-comment[class*='c-'] {
+  background: color-mix(in srgb, var(--hi) 30%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--hi) 75%, transparent);
+}
+.has-comment[class*='c-']:hover {
+  background: color-mix(in srgb, var(--hi) 46%, transparent);
+}
+/* 纯高亮（没写批注）：只留底色，不要下划线，读起来更像荧光笔 */
+.has-comment.no-note {
+  border-bottom-color: transparent;
+  border-radius: 3px;
+}
+
+/* 选中浮条和批注面板里的色点 */
+.hi-dots,
+.comment-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.hi-dot {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  transition: transform 0.22s var(--spring, ease-out), border-color 0.18s;
+}
+.hi-dot:hover {
+  transform: scale(1.25);
+}
+.hi-dot.on {
+  border-color: var(--text);
+}
+.comment-dots .hi-dot {
+  width: 11px;
+  height: 11px;
+  border-width: 1.5px;
+}
+.comment-note-empty {
+  color: var(--text-3);
+  font-style: italic;
+}
