@@ -1,8 +1,11 @@
-// EPUB 解析：用 python 现场打一个小 epub（deflate + stored 混合），走完整条链路
-import { execFileSync } from 'node:child_process'
-import { readFileSync, mkdtempSync } from 'node:fs'
+// EPUB 解析：在 Node 里现场打一个小 epub（deflate + stored 混合），走完整条链路
+//
+// 以前这段是用 python3 现场打 zip —— Windows 上 `python3` 常常是应用商店的壳子，
+// 在 CI 里直接失败。现在自己按 ZIP 规范写几十行，不引依赖、哪儿都能跑。
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { deflateRawSync } from 'node:zlib'
 import { parseEpub, bookToMarkdown, htmlToText, decodeEntities } from './src/core/epub.ts'
 
 let ok = 0
@@ -14,22 +17,116 @@ function eq(name, got, want) {
   ok++
 }
 
+/** CRC32（ZIP 每个条目都要） */
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256)
+  for (let i = 0; i < 256; i += 1) {
+    let c = i
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    t[i] = c >>> 0
+  }
+  return t
+})()
+
+function crc32(buf) {
+  let c = 0xffffffff
+  for (const b of buf) c = CRC_TABLE[(c ^ b) & 0xff] ^ (c >>> 8)
+  return (c ^ 0xffffffff) >>> 0
+}
+
+/**
+ * 打一个最小可用的 zip。`store: true` 的条目原样存，其余 deflate。
+ * 只为测试用：不写时间戳、不加密、不跨卷。
+ */
+function makeZip(entries) {
+  const locals = []
+  const centrals = []
+  let offset = 0
+  for (const e of entries) {
+    const name = Buffer.from(e.name, 'utf8')
+    const raw = Buffer.from(e.text, 'utf8')
+    const method = e.store ? 0 : 8
+    const body = e.store ? raw : deflateRawSync(raw)
+    const crc = crc32(raw)
+
+    const local = Buffer.alloc(30)
+    local.writeUInt32LE(0x04034b50, 0)
+    local.writeUInt16LE(20, 4)
+    local.writeUInt16LE(0x0800, 6) // 文件名是 UTF-8
+    local.writeUInt16LE(method, 8)
+    local.writeUInt16LE(0, 10)
+    local.writeUInt16LE(0, 12)
+    local.writeUInt32LE(crc, 14)
+    local.writeUInt32LE(body.length, 18)
+    local.writeUInt32LE(raw.length, 22)
+    local.writeUInt16LE(name.length, 26)
+    local.writeUInt16LE(0, 28)
+    locals.push(local, name, body)
+
+    const cen = Buffer.alloc(46)
+    cen.writeUInt32LE(0x02014b50, 0)
+    cen.writeUInt16LE(20, 4)
+    cen.writeUInt16LE(20, 6)
+    cen.writeUInt16LE(0x0800, 8)
+    cen.writeUInt16LE(method, 10)
+    cen.writeUInt16LE(0, 12)
+    cen.writeUInt16LE(0, 14)
+    cen.writeUInt32LE(crc, 16)
+    cen.writeUInt32LE(body.length, 20)
+    cen.writeUInt32LE(raw.length, 24)
+    cen.writeUInt16LE(name.length, 28)
+    cen.writeUInt32LE(offset, 42)
+    centrals.push(cen, name)
+
+    offset += local.length + name.length + body.length
+  }
+  const cd = Buffer.concat(centrals)
+  const eocd = Buffer.alloc(22)
+  eocd.writeUInt32LE(0x06054b50, 0)
+  eocd.writeUInt16LE(entries.length, 8)
+  eocd.writeUInt16LE(entries.length, 10)
+  eocd.writeUInt32LE(cd.length, 12)
+  eocd.writeUInt32LE(offset, 16)
+  return Buffer.concat([...locals, cd, eocd])
+}
+
 const dir = mkdtempSync(join(tmpdir(), 'epub-'))
 const out = join(dir, 'a.epub')
-execFileSync('python3', ['-c', `
-import zipfile,sys
-z=zipfile.ZipFile(sys.argv[1],'w')
-z.writestr(zipfile.ZipInfo('mimetype'),'application/epub+zip',compress_type=zipfile.ZIP_STORED)
-z.writestr('META-INF/container.xml','<container><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>',compress_type=zipfile.ZIP_DEFLATED)
-z.writestr('OEBPS/content.opf','''<package><metadata><dc:title>月下潮声</dc:title><dc:creator>某作者</dc:creator></metadata>
-<manifest><item id="c0" href="cover.xhtml" media-type="application/xhtml+xml"/><item id="a" href="text/ch1.xhtml" media-type="application/xhtml+xml"/><item id="b" href="text/ch2.xhtml" media-type="application/xhtml+xml"/><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest>
-<spine><itemref idref="c0"/><itemref idref="a"/><itemref idref="b"/></spine></package>''',compress_type=zipfile.ZIP_DEFLATED)
-z.writestr('OEBPS/cover.xhtml','<html><body><img src="c.jpg"/></body></html>',compress_type=zipfile.ZIP_DEFLATED)
-z.writestr('OEBPS/text/ch1.xhtml','<html><head><title>x</title><style>p{}</style></head><body><h1>第一章 潮起</h1><p>他走到海边，&ldquo;风很大&rdquo;。</p><p>第二段&amp;结尾。<br/>换行。</p></body></html>',compress_type=zipfile.ZIP_DEFLATED)
-z.writestr('OEBPS/text/ch2.xhtml','<html><body><p>没有标题的一章，正文足够长足够长足够长。</p></body></html>',compress_type=zipfile.ZIP_STORED)
-z.writestr('OEBPS/toc.ncx','<ncx><navMap><navPoint id="1"><navLabel><text>第一章 潮起</text></navLabel><content src="text/ch1.xhtml"/></navPoint><navPoint id="2"><navLabel><text>第二章 落潮</text></navLabel><content src="text/ch2.xhtml"/></navPoint></navMap></ncx>',compress_type=zipfile.ZIP_DEFLATED)
-z.close()
-`, out])
+writeFileSync(
+  out,
+  makeZip([
+    { name: 'mimetype', text: 'application/epub+zip', store: true },
+    {
+      name: 'META-INF/container.xml',
+      text: '<container><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>',
+    },
+    {
+      name: 'OEBPS/content.opf',
+      text: '<package><metadata><dc:title>月下潮声</dc:title><dc:creator>某作者</dc:creator></metadata>'
+        + '<manifest><item id="c0" href="cover.xhtml" media-type="application/xhtml+xml"/>'
+        + '<item id="a" href="text/ch1.xhtml" media-type="application/xhtml+xml"/>'
+        + '<item id="b" href="text/ch2.xhtml" media-type="application/xhtml+xml"/>'
+        + '<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest>'
+        + '<spine><itemref idref="c0"/><itemref idref="a"/><itemref idref="b"/></spine></package>',
+    },
+    { name: 'OEBPS/cover.xhtml', text: '<html><body><img src="c.jpg"/></body></html>' },
+    {
+      name: 'OEBPS/text/ch1.xhtml',
+      text: '<html><head><title>x</title><style>p{}</style></head><body><h1>第一章 潮起</h1>'
+        + '<p>他走到海边，&ldquo;风很大&rdquo;。</p><p>第二段&amp;结尾。<br/>换行。</p></body></html>',
+    },
+    {
+      name: 'OEBPS/text/ch2.xhtml',
+      text: '<html><body><p>没有标题的一章，正文足够长足够长足够长。</p></body></html>',
+      store: true,
+    },
+    {
+      name: 'OEBPS/toc.ncx',
+      text: '<ncx><navMap><navPoint id="1"><navLabel><text>第一章 潮起</text></navLabel><content src="text/ch1.xhtml"/></navPoint>'
+        + '<navPoint id="2"><navLabel><text>第二章 落潮</text></navLabel><content src="text/ch2.xhtml"/></navPoint></navMap></ncx>',
+    },
+  ]),
+)
 
 const buf = readFileSync(out)
 const book = await parseEpub(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength))
