@@ -9,6 +9,8 @@ import { storage } from '../core/storage'
 import CommentsPanel from './CommentsPanel'
 import { readBookmarks, sameSpot, toggleBookmark, writeBookmarks, type Bookmark } from '../core/bookmarks'
 import { Icon } from './Icon'
+import ReaderStylePanel from './ReaderStylePanel'
+import { layoutSig, readerVars, useReaderStyle } from '../core/readerStyle'
 import { toast } from './toast'
 
 interface Props {
@@ -441,6 +443,12 @@ export default function ReaderView({
   /* ---------------- 批注 ---------------- */
 
   const text = useMemo(() => flatText(blocks), [blocks])
+  /** 阅读自己的配色与排版（独立于编辑器）；放这么靠前是因为分页要认它 */
+  const [rstyle, setRstyle] = useReaderStyle()
+  const styleOpenRef = useRef(false)
+  const onStyleOpen = useCallback((o: boolean) => {
+    styleOpenRef.current = o
+  }, [])
   /** 每个顶层块的起始下标 —— 少了这个，第二块之后的批注全都切不准 */
   const offsets = useMemo(() => blockOffsets(blocks), [blocks])
   const marks = useMemo<Mark[]>(
@@ -545,6 +553,7 @@ export default function ReaderView({
    * 直接把 blocks 放进依赖会转成死循环。
    */
   const blockCount = blocks.length
+  const sig = layoutSig(rstyle)
   useEffect(() => {
     measure()
     // 落定后再补一次：content-visibility 的占位尺寸要等一帧才准
@@ -559,7 +568,7 @@ export default function ReaderView({
       window.clearTimeout(t)
       ro?.disconnect()
     }
-  }, [measure, ci, blockCount])
+  }, [measure, ci, blockCount, sig])
 
   /*
    * 换章回到第一屏。
@@ -648,6 +657,24 @@ export default function ReaderView({
     [pages, ci, chapters.length],
   )
 
+  /* ---------- 阅读外观 / 沉浸 / 进度 ---------- */
+  const [immersive, setImmersive] = useState(false)
+  /** 拖章节滑块时先只显示目标章名，松手才真正跳 */
+  const [scrub, setScrub] = useState<number | null>(null)
+  const commitScrub = useCallback(() => {
+    setScrub((to) => {
+      if (to !== null && to !== ci) setCi(to)
+      return null
+    })
+  }, [ci])
+  const nCh = chapters.length
+  const bookPct = Math.min(
+    100,
+    Math.round((((slicing ? ci : 0) + (page + 1) / Math.max(1, pages)) / (slicing ? Math.max(1, nCh) : 1)) * 100),
+  )
+  /** 中文阅读速度按每分钟 500 字估，只是个大概 */
+  const minsLeft = Math.ceil((text.length * ((pages - page) / Math.max(1, pages))) / 500)
+
   /* ---------- 书签 ---------- */
   const [bms, setBms] = useState<Bookmark[]>(() => readBookmarks(docId))
   const [bmOpen, setBmOpen] = useState(false)
@@ -720,6 +747,7 @@ export default function ReaderView({
       const x = (e.clientX - box.left) / box.width
       if (x < 0.22) go(-1)
       else if (x > 0.78) go(1)
+      else setImmersive((v) => !v)
     },
     [go],
   )
@@ -751,6 +779,18 @@ export default function ReaderView({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 外观面板自己会收（它在同一个 Esc 里先于关闭阅读视图处理），这里让路
+      if (e.key === 'Escape' && styleOpenRef.current) return
+      if (e.key === 'Escape' && bmOpen) {
+        e.preventDefault()
+        setBmOpen(false)
+        return
+      }
+      if (e.key === 'Escape' && immersive) {
+        e.preventDefault()
+        setImmersive(false)
+        return
+      }
       // 抽屉开着的时候，Esc 先收抽屉
       if (e.key === 'Escape' && notesOpen) {
         e.preventDefault()
@@ -760,6 +800,13 @@ export default function ReaderView({
       if (e.key === 'Escape') {
         e.preventDefault()
         close()
+        return
+      }
+      // 焦点在滑块 / 下拉上时，方向键归它们自己用，别拿去翻页
+      if ((e.target as HTMLElement | null)?.closest?.('input[type="range"], select')) return
+      if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault()
+        setImmersive((v) => !v)
         return
       }
       if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
@@ -784,10 +831,14 @@ export default function ReaderView({
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [go, close, ci, chapters.length, slicing, notesOpen])
+  }, [go, close, ci, chapters.length, slicing, notesOpen, bmOpen, immersive])
 
   return (
-    <div className={'reader' + (leaving ? ' leaving' : '')}>
+    <div
+      className={'reader' + (leaving ? ' leaving' : '') + (immersive ? ' immersive' : '')}
+      data-rtheme={rstyle.theme}
+      style={readerVars(rstyle) as React.CSSProperties}
+    >
       {slicing && tocOpen && (
         <aside className="reader-toc">
           <div className="reader-toc-head">
@@ -866,6 +917,18 @@ export default function ReaderView({
           <span className="reader-page">
             {page + 1} / {pages}
           </span>
+          <ReaderStylePanel
+            style={rstyle}
+            onChange={setRstyle}
+            onOpenChange={onStyleOpen}
+          />
+          <button
+            className={'btn ghost icon' + (immersive ? ' on' : '')}
+            onClick={() => setImmersive((v) => !v)}
+            title="沉浸阅读 · 点页面中间或按 F"
+          >
+            <Icon name="expand" />
+          </button>
           <button
             className={'btn ghost icon reader-auto' + (autoSec ? ' on' : '')}
             onClick={() => setAutoIdx((i) => (i + 1) % AUTO_STEPS.length)}
@@ -969,9 +1032,27 @@ export default function ReaderView({
           <button className="btn" disabled={!slicing || ci === 0} onClick={() => setCi(ci - 1)}>
             上一章
           </button>
-          <span className="reader-pos">
-            {slicing ? `第 ${ci + 1} / ${chapters.length} 章` : '整篇'}
-          </span>
+          {slicing && nCh > 1 ? (
+            <div className="reader-scrub">
+              <input
+                type="range"
+                min={0}
+                max={nCh - 1}
+                step={1}
+                value={scrub ?? ci}
+                aria-label="章节"
+                onChange={(e) => setScrub(Number(e.target.value))}
+                onPointerUp={commitScrub}
+                onKeyUp={commitScrub}
+                onBlur={commitScrub}
+              />
+              <span className="reader-scrub-tip">
+                {scrub !== null ? chapters[scrub]?.title : `第 ${ci + 1} / ${nCh} 章`}
+              </span>
+            </div>
+          ) : (
+            <span className="reader-pos">整篇</span>
+          )}
           <button
             className="btn"
             disabled={!slicing || ci + 1 >= chapters.length}
@@ -979,9 +1060,11 @@ export default function ReaderView({
           >
             下一章
           </button>
-          <span className="reader-gap" />
+          <span className="reader-meta">
+            全书 {bookPct}% · 本章约剩 {minsLeft > 0 ? `${minsLeft} 分钟` : '不到 1 分钟'}
+          </span>
           <span className="reader-hint">
-            {slicing ? '← → 翻页 · 点两侧翻页 · [ ] 换章 · 选中加批注 · Esc 退出' : '← → 翻页 · 点两侧翻页 · Esc 退出'}
+            {slicing ? '← → 翻页 · 点两侧翻页 · 点中间沉浸 · Esc 退出' : '← → 翻页 · 点中间沉浸 · Esc 退出'}
           </span>
         </footer>
       </main>

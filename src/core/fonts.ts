@@ -22,6 +22,18 @@ export interface FontOption {
 const WENKAI_CSS =
   'https://cdn.jsdelivr.net/npm/lxgw-wenkai-lite-webfont@1.7.0/lxgwwenkailite-regular.css'
 const NOTO_SERIF_CSS = 'https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5.0.13/index.css'
+const FS = 'https://cdn.jsdelivr.net/npm/@fontsource'
+const NOTO_SANS_CSS = `${FS}/noto-sans-sc@5.0.13/index.css`
+const NOTO_SERIF_TC_CSS = `${FS}/noto-serif-tc@5.0.13/index.css`
+const NOTO_SANS_TC_CSS = `${FS}/noto-sans-tc@5.0.13/index.css`
+const WENKAI_SCREEN_CSS = 'https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/lxgwwenkaiscreen.css'
+const WENKAI_TC_CSS = `${FS}/lxgw-wenkai-tc@5.3.1/index.css`
+const MARKER_CSS = `${FS}/lxgw-marker-gothic@5.3.1/index.css`
+const ZHUQUE_CSS = 'https://cdn.jsdelivr.net/npm/@free-fonts/zhuque-fangsong@1.0.0/zhuque-fangsong.css'
+const IANSUI_CSS = `${FS}/iansui@5.3.1/index.css`
+const HUNINN_CSS = `${FS}/huninn@5.3.1/index.css`
+const XIAOLAI_CSS = 'https://cdn.jsdelivr.net/npm/@proj-airi/font-xiaolai@0.17.0/dist/index.css'
+const YOZAI_CSS = 'https://cdn.jsdelivr.net/npm/cn-fontsource-yozai-regular@1.0.9/font.css'
 const INTER_CSS = 'https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@5.0.18/index.css'
 
 export const FONTS: FontOption[] = [
@@ -47,6 +59,94 @@ export const FONTS: FontOption[] = [
     probe: '"Noto Serif SC"',
     cdn: NOTO_SERIF_CSS,
     hint: '书籍印刷的宋体，长篇小说读起来最舒服。首次选用会按需加载字形（本机装了会直接用）',
+  },
+  {
+    id: 'notosans',
+    name: '思源黑体 Source Han Sans',
+    stack: '"Noto Sans SC", "Source Han Sans SC", "Source Han Sans CN", "Microsoft YaHei", var(--font-ui)',
+    probe: '"Noto Sans SC"',
+    cdn: NOTO_SANS_CSS,
+    hint: '简体黑体，简洁利落。按需加载字形',
+  },
+  {
+    id: 'wenkai-screen',
+    name: '霞鹜文楷 屏幕版',
+    stack: '"LXGW WenKai Screen", "LXGW WenKai", var(--font-ui)',
+    probe: '"LXGW WenKai Screen"',
+    cdn: WENKAI_SCREEN_CSS,
+    hint: '为屏幕阅读调整过笔画的文楷，小字号更清楚',
+  },
+  {
+    id: 'zhuque',
+    name: '朱雀仿宋',
+    stack: '"Zhuque Fangsong", "FangSong", "STFangsong", serif',
+    probe: '"Zhuque Fangsong"',
+    cdn: ZHUQUE_CSS,
+    hint: '简体仿宋，轻盈有书卷气（预览版字体）',
+  },
+  {
+    id: 'iansui',
+    name: '芫荽 Iansui',
+    stack: '"Iansui", "Kaiti TC", "KaiTi", serif',
+    probe: '"Iansui"',
+    cdn: IANSUI_CSS,
+    hint: '繁体楷书，台湾字形，笔意温润',
+  },
+  {
+    id: 'marker-gothic',
+    name: '霞鹜漫黑',
+    stack: '"LXGW Marker Gothic", var(--font-ui)',
+    probe: '"LXGW Marker Gothic"',
+    cdn: MARKER_CSS,
+    hint: '马克笔笔触的轻快黑体，简繁都有',
+  },
+  {
+    id: 'xiaolai',
+    name: '小赖 Xiaolai',
+    stack: '"Xiaolai SC", var(--font-ui)',
+    probe: '"Xiaolai SC"',
+    cdn: XIAOLAI_CSS,
+    hint: '简繁手写体，字库较全。注意：整包约 21 MB，首次选用要下载一会儿',
+  },
+  {
+    id: 'yozai',
+    name: '悠哉',
+    stack: '"Yozai", var(--font-ui)',
+    probe: '"Yozai"',
+    cdn: YOZAI_CSS,
+    hint: '简繁手写体，自然舒展',
+  },
+  {
+    id: 'notoserif-tc',
+    name: '思源宋体 · 繁体',
+    stack: '"Noto Serif TC", "Source Han Serif TC", "PMingLiU", serif',
+    probe: '"Noto Serif TC"',
+    cdn: NOTO_SERIF_TC_CSS,
+    hint: '繁体宋体，台湾字形',
+  },
+  {
+    id: 'notosans-tc',
+    name: '思源黑体 · 繁体',
+    stack: '"Noto Sans TC", "Source Han Sans TC", "Microsoft JhengHei", var(--font-ui)',
+    probe: '"Noto Sans TC"',
+    cdn: NOTO_SANS_TC_CSS,
+    hint: '繁体黑体，台湾字形，清晰均衡',
+  },
+  {
+    id: 'wenkai-tc',
+    name: '霞鹜文楷 TC',
+    stack: '"LXGW WenKai TC", "LXGW WenKai", serif',
+    probe: '"LXGW WenKai TC"',
+    cdn: WENKAI_TC_CSS,
+    hint: '繁体文楷，传承字形，柔和书写感',
+  },
+  {
+    id: 'huninn',
+    name: 'jf open 粉圆 (Huninn)',
+    stack: '"Huninn", var(--font-ui)',
+    probe: '"Huninn"',
+    cdn: HUNINN_CSS,
+    hint: '繁体圆体，台湾常用字，轻盈亲切',
   },
   {
     id: 'inter',

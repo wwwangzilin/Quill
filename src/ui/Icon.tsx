@@ -49,6 +49,7 @@ const ICONS: Record<string, Paths> = {
   search: ['M4 11a7 7 0 1 0 14 0 7 7 0 1 0-14 0', 'M21 21l-5-5'],
   star: ['M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4 6.1 20.5l1.2-6.5L2.5 9.4l6.6-.9z'],
   close: ['M18 6L6 18', 'M6 6l12 12'],
+  expand: ['M4 9V4h5', 'M20 9V4h-5', 'M4 15v5h5', 'M20 15v5h-5'],
   bookmark: ['M6 3h12v18l-6-4-6 4z'],
   play: ['M7 4.5v15l12-7.5z'],
   pause: ['M8 5v14', 'M16 5v14'],

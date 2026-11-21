@@ -1,0 +1,199 @@
+/* ==========================================================================
+   小说阅读：独立配色 / 独立排版 / 沉浸 / 全书进度
+   阅读视图的变量全挂在 .reader 上（core/readerStyle.ts），不碰 <html>。
+   ========================================================================== */
+
+/* ---- 排版：吃 .reader 上的 --r-* 变量，没有就回落到原来的值 ---- */
+.reader-pages {
+  padding: 10px var(--r-margin, 44px) 18px;
+}
+.reader-track p {
+  margin: 0 0 var(--r-gap, 0.85em);
+  text-indent: var(--r-indent, 2em);
+  text-align: var(--r-align, start);
+}
+/* 窄窗口始终单栏（19 里的规则），所以栏数只在宽屏生效 */
+@media (min-width: 981px) {
+  .reader-track {
+    column-count: var(--r-cols, 2);
+  }
+}
+
+/* ---- 配色主题：glass 就是原样，不写规则 ---- */
+.reader[data-rtheme='paper'],
+.reader[data-rtheme='green'],
+.reader[data-rtheme='dark'] {
+  --glass-bg: var(--surface-solid);
+  --glass-border: var(--border);
+  --glass-blur: none;
+  --panel-bg: var(--surface-solid);
+  color: var(--text);
+}
+.reader[data-rtheme='paper'] {
+  color-scheme: light;
+  --bg: #f3ead7;
+  --surface-solid: #f8f1e1;
+  --surface-hover: rgba(120, 90, 40, 0.08);
+  --surface-active: rgba(120, 90, 40, 0.14);
+  --text: #3a3126;
+  --text-2: #5b5043;
+  --text-3: #85796a;
+  --border: rgba(80, 60, 30, 0.16);
+  --border-strong: rgba(80, 60, 30, 0.3);
+  --accent-1: #a85a1a;
+  --accent-3: #8f4a12;
+  --accent-soft: rgba(168, 90, 26, 0.14);
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255, 252, 240, 0.7), transparent 62%),
+    var(--bg);
+}
+.reader[data-rtheme='green'] {
+  color-scheme: light;
+  --bg: #d9e8d3;
+  --surface-solid: #e4f0de;
+  --surface-hover: rgba(40, 90, 50, 0.08);
+  --surface-active: rgba(40, 90, 50, 0.14);
+  --text: #2a3a2b;
+  --text-2: #435544;
+  --text-3: #68806a;
+  --border: rgba(40, 80, 50, 0.16);
+  --border-strong: rgba(40, 80, 50, 0.3);
+  --accent-1: #2f7a47;
+  --accent-3: #256339;
+  --accent-soft: rgba(47, 122, 71, 0.14);
+}
+.reader[data-rtheme='dark'] {
+  color-scheme: dark;
+  --bg: #14171c;
+  --surface-solid: #1b1f26;
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --surface-active: rgba(255, 255, 255, 0.1);
+  --text: #c9cdd3;
+  --text-2: #a0a6af;
+  --text-3: #7a818c;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --accent-1: #6fb7c4;
+  --accent-3: #8fcbd6;
+  --accent-soft: rgba(111, 183, 196, 0.16);
+}
+/* 切配色时背景和字一起淡过去，不要「啪」地换 */
+.reader {
+  transition: background-color 0.4s var(--ease-out), color 0.4s var(--ease-out);
+}
+
+/* ---- 沉浸：工具栏和页脚淡出，但仍占着位置 —— 页面尺寸不变，不会触发重新分页 ---- */
+.reader-bar,
+.reader-foot {
+  transition: opacity 0.3s var(--ease-out);
+}
+.reader.immersive .reader-bar,
+.reader.immersive .reader-foot {
+  opacity: 0;
+}
+/* 鼠标挪到上下边缘，或键盘聚焦进去，就临时露出来 */
+.reader.immersive .reader-bar:hover,
+.reader.immersive .reader-foot:hover,
+.reader.immersive .reader-bar:focus-within,
+.reader.immersive .reader-foot:focus-within {
+  opacity: 1;
+}
+
+/* ---- 页脚：章节滑块 + 全书进度 ---- */
+.reader-scrub {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.reader-scrub input[type='range'] {
+  flex: 1;
+  min-width: 80px;
+}
+.reader-scrub-tip {
+  flex: 0 1 auto;
+  max-width: 220px;
+  min-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.reader-meta {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+@media (max-width: 1240px) {
+  .reader-hint {
+    display: none;
+  }
+}
+
+/* ---- 阅读外观面板 ---- */
+.rstyle-panel {
+  top: calc(100% + 10px);
+  bottom: auto;
+  width: 292px;
+  transform-origin: 100% 0;
+}
+.rstyle-themes {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.rstyle-theme {
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 0 4px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 11.5px;
+  transition: border-color 0.18s, color 0.18s, background 0.18s;
+}
+.rstyle-theme i {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+  transition: transform 0.28s var(--spring, ease-out);
+}
+.rstyle-theme:hover i {
+  transform: scale(1.1);
+}
+.rstyle-theme.on {
+  color: var(--accent-1);
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+}
+.rstyle-cols {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.rstyle-cols button {
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.rstyle-cols button.on {
+  background: var(--accent-soft);
+  color: var(--accent-1);
+}
+.rstyle .type-pop-foot {
+  flex-wrap: wrap;
+  gap: 8px;
+}
