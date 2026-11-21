@@ -2,6 +2,32 @@ import { useEffect, useState } from 'react'
 import { readAutoHide } from '../core/chrome'
 import type { ViewMode } from '../core/types'
 
+/** 离右边缘多少像素算「靠近」—— 比滚动条宽一点，留出可用的触发带 */
+const PEEK_EDGE = 24
+/** 在边缘停多久才算「想打开」。抓滚动条通常是到边就按，比这个短 */
+const PEEK_DWELL = 320
+
+/**
+ * 指针是不是压在某个滚动条的轨道上。
+ *
+ * 浏览器不直接给这个信息，只能自己推：找到指针底下最近的可滚动元素，
+ * 它的 `offsetWidth - clientWidth` 就是竖直滚动条的宽度，
+ * 指针落在右边缘这么宽的一条里，就是在滚动条上。
+ */
+function overScrollbar(x: number, y: number): boolean {
+  let node = document.elementFromPoint(x, y) as HTMLElement | null
+  while (node && node !== document.body) {
+    if (node.scrollHeight > node.clientHeight + 1) {
+      const rect = node.getBoundingClientRect()
+      const bar = node.offsetWidth - node.clientWidth
+      if (bar > 0 && x >= rect.right - bar) return true
+      return false
+    }
+    node = node.parentElement
+  }
+  return false
+}
+
 /**
  * 上 / 下 / 左三个栏「写作时自动收起、鼠标一动就回来」，以及右栏「鼠标靠近才打开」。
  *
@@ -89,28 +115,63 @@ export function useChromeBars(opts: {
     }
   }, [canAutoHide, barsPinned])
 
-  /*
-   * 右栏：**鼠标靠近右边缘才打开**。
+  /**
+   * 右栏：**鼠标在右边缘停一下才打开**。
    *
-   * 它是「边看边调」的外观设置，常驻会把正文挤窄，所以不进「鼠标一动就出」那一组。
-   * 判据用坐标而不是元素 —— 无边框窗口最右边那几像素归系统的缩放边框管
-   * （WM_NCHITTEST 直接吃掉，WebView 压根收不到事件），所以留 16px 余量。
-   * 鼠标一旦进了右栏就留着（closest('.aside')），不会点着点着自己收走。
+   * 这里以前是「一进右边 16px 就展开」，和编辑区那条滚动条打架：
+   * 想去拖滚动条 = 把鼠标推到最右边 = 右栏展开 → 正文变窄、滚动条被挤到左边，
+   * 手还停在原处，结果拖了个空。展开的是同一块区域，谁先谁后都别扭。
+   *
+   * 现在的规则（三条一起用）：
+   *   1. **悬停意图**：在边缘停够 `PEEK_DWELL` 才展开。抓滚动条是「到边就按」，
+   *      按下去之后就不再触发（见第 2 条），不会误开。
+   *   2. **不抢滚动条**：指针落在任何滚动条的轨道上时，一律不改状态；
+   *      按住鼠标拖动期间也一律不改状态 —— 拖滚动条时布局不能跳。
+   *   3. **已经在栏里/正在滚**：保持展开，不启动收起计时；只有真的移开才收。
    */
   useEffect(() => {
     let leave = 0
+    let dwell = 0
+    const cancelLeave = () => {
+      if (leave) {
+        window.clearTimeout(leave)
+        leave = 0
+      }
+    }
+    const cancelDwell = () => {
+      if (dwell) {
+        window.clearTimeout(dwell)
+        dwell = 0
+      }
+    }
     const onMove = (e: MouseEvent) => {
-      const near = e.clientX >= window.innerWidth - 16
-      const on =
-        near || Boolean(document.elementFromPoint(e.clientX, e.clientY)?.closest('.aside'))
-      if (on) {
-        if (leave) {
-          window.clearTimeout(leave)
-          leave = 0
-        }
+      // 按住鼠标 = 正在拖滚动条/选文字：这时候改布局，等于把人手里的东西抽走
+      if (e.buttons !== 0) return
+      const hit = document.elementFromPoint(e.clientX, e.clientY)
+      if (hit?.closest('.aside')) {
+        cancelDwell()
+        cancelLeave()
         setAsidePeek(true)
         return
       }
+      if (overScrollbar(e.clientX, e.clientY)) {
+        // 指针在滚动条上：不展开、也不收起 —— 就是「别动」
+        cancelDwell()
+        cancelLeave()
+        return
+      }
+      const near = e.clientX >= window.innerWidth - PEEK_EDGE
+      if (near) {
+        cancelLeave()
+        if (!dwell) {
+          dwell = window.setTimeout(() => {
+            dwell = 0
+            setAsidePeek(true)
+          }, PEEK_DWELL)
+        }
+        return
+      }
+      cancelDwell()
       if (leave) return
       leave = window.setTimeout(() => {
         leave = 0
@@ -120,7 +181,8 @@ export function useChromeBars(opts: {
     window.addEventListener('mousemove', onMove)
     return () => {
       window.removeEventListener('mousemove', onMove)
-      if (leave) window.clearTimeout(leave)
+      cancelLeave()
+      cancelDwell()
     }
   }, [])
 
