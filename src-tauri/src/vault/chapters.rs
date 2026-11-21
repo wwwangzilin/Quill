@@ -116,6 +116,42 @@ fn is_en_head(s: &str) -> bool {
     }
 }
 
+/**
+ * 「## 一、开场段落」这种 Markdown 标题返回级别；不是标题返回 None。
+ *
+ * 为什么要单独认：编号列表 `1. xxx` 与「1.标题」这种小说分节在文本上
+ * 完全一样。一篇正经用 `#` 分章的 Markdown，正文里的有序列表会被
+ * `is_num_head` 当成章节 —— 实测一篇压测稿切出 13 章，全是列表项。
+ */
+fn heading_level(line: &str) -> Option<usize> {
+    let t = line.trim_start();
+    let n = t.bytes().take_while(|b| *b == b'#').count();
+    if n == 0 || n > 6 {
+        return None;
+    }
+    let rest = &t[n..];
+    // CommonMark：井号后面要么空白、要么行尾
+    if !(rest.is_empty() || rest.starts_with(' ') || rest.starts_with('\t')) {
+        return None;
+    }
+    Some(n)
+}
+
+/** 标题行去掉井号与尾部元信息，剩下的当章名 */
+fn heading_title(line: &str) -> String {
+    let bare = line.trim_start_matches('#').trim();
+    let mut cut = bare.len();
+    for k in META_KEYS {
+        if let Some(i) = bare.find(k) {
+            let after = &bare[i + k.len()..];
+            if (after.starts_with(':') || after.starts_with('：')) && i < cut {
+                cut = i;
+            }
+        }
+    }
+    bare[..cut].trim().to_string()
+}
+
 /** 这一行如果是章名，返回干净的名字 */
 fn head_of_line(line: &str) -> Option<String> {
     let t = line.trim();
@@ -156,6 +192,8 @@ pub fn outline(dir: &Path, file: &str) -> Result<DocOutline, String> {
     let mut buf: Vec<u8> = Vec::new();
     let mut at: u64 = 0;
     let mut marks: Vec<ChapterMark> = Vec::new();
+    /** Markdown 标题章：(级别, 位置) —— 标题本身当章名，正文从下一行开始 */
+    let mut heads: Vec<(usize, ChapterMark)> = Vec::new();
 
     loop {
         buf.clear();
@@ -167,7 +205,21 @@ pub fn outline(dir: &Path, file: &str) -> Result<DocOutline, String> {
         // 只对短行做判断：正文段落动辄几百字，先按长度切掉绝大多数
         if buf.len() <= MAX_HEAD_BYTES {
             if let Ok(line) = std::str::from_utf8(&buf) {
-                if let Some(title) = head_of_line(line) {
+                if let Some(level) = heading_level(line) {
+                    let title = heading_title(line);
+                    if !title.is_empty() {
+                        // 正文从标题行**之后**开始：标题已经在章头上显示了，
+                        // 再让正文以「## 一、…」开头就是重复一遍
+                        heads.push((
+                            level,
+                            ChapterMark {
+                                title,
+                                from: at + n as u64,
+                                to: 0,
+                            },
+                        ));
+                    }
+                } else if let Some(title) = head_of_line(line) {
                     marks.push(ChapterMark {
                         title,
                         from: at,
@@ -178,6 +230,25 @@ pub fn outline(dir: &Path, file: &str) -> Result<DocOutline, String> {
         }
         at += n as u64;
     }
+
+    /*
+     * 有 Markdown 标题就只按标题分：取**出现次数 ≥ 2 的最浅一级**。
+     * 「# 书名 / ## 第一章 / ### 小节」取的是 `##`：书名不会被切成一章，
+     * 小节也不会切得过碎。没有标题时才退回「第X章 / 1.标题」那套。
+     */
+    let mut counts = [0usize; 7];
+    for (level, _) in &heads {
+        counts[*level] += 1;
+    }
+    let use_level = (1..=3).find(|l| counts[*l] >= 2);
+    let mut marks: Vec<ChapterMark> = match use_level {
+        Some(level) => heads
+            .into_iter()
+            .filter(|(l, _)| *l == level)
+            .map(|(_, m)| m)
+            .collect(),
+        None => marks,
+    };
 
     for i in 0..marks.len() {
         marks[i].to = if i + 1 < marks.len() {
@@ -473,6 +544,58 @@ mod chunk_tests {
         let o = outline(&dir, file).unwrap();
         assert_eq!(o.marks.len(), 2);
         assert_eq!(o.marks[0].title, "第一章 甲");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod heading_tests {
+    use super::*;
+
+    /// 用 `#` 分章的 Markdown 里，**编号列表不能被当成章节**。
+    ///
+    /// 真实触发：压测稿用 `## 一、开场段落` 分节，正文里一堆
+    /// `1. 快速滚动到顶部。` 的步骤 —— 以前的规则把它们全认成章节，
+    /// 目录里一章一个列表项，标题还和正文重复一遍。
+    #[test]
+    fn markdown_headings_win_over_numbered_lists() {
+        let dir = std::env::temp_dir().join(format!("quill-mdhead-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = "stress.md";
+        let body = [
+            "# 压力测试",
+            "",
+            "## 一、开场段落",
+            "",
+            "风从屏幕边缘吹来。",
+            "",
+            "## 二、列表",
+            "",
+            "1. 快速滚动到顶部。",
+            "2. 搜索关键词。",
+            "3. 替换部分关键词。",
+            "",
+        ]
+        .join("\n");
+        std::fs::write(dir.join(file), &body).unwrap();
+
+        let o = outline(&dir, file).unwrap();
+        assert_eq!(o.marks.len(), 2, "应该只切出两个章节，实际 {}", o.marks.len());
+        assert_eq!(o.marks[0].title, "一、开场段落");
+        assert_eq!(o.marks[1].title, "二、列表");
+
+        // 正文里不能再出现标题行，也不能把编号列表切出来
+        let all = std::fs::read(dir.join(file)).unwrap();
+        let first =
+            std::str::from_utf8(&all[o.marks[0].from as usize..o.marks[0].to as usize]).unwrap();
+        assert!(!first.contains("## 一、"), "标题行不该跟着正文进来：{first:?}");
+        assert!(first.contains("风从屏幕边缘吹来"));
+
+        // 区间首尾相接、末章到文末
+        assert_eq!(o.marks[0].to, o.marks[1].from);
+        assert_eq!(o.marks[1].to, o.bytes);
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

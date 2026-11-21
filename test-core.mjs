@@ -213,6 +213,54 @@ cases.push(
   )
 }
 
+/*
+ * 回归：用 `#` 分章的 Markdown 里，**编号列表不能被当成章节**。
+ *
+ * 真实触发：一篇压测文档用 `## 一、开场段落` 分节，正文里有一堆
+ * `1. 快速滚动到顶部。` 的步骤列表 —— 以前的规则把它们全认成了章节，
+ * 目录里一章一个列表项，标题还和正文重复。
+ */
+{
+  const md = [
+    '# 压力测试',
+    '',
+    '## 一、开场段落',
+    '',
+    '风从屏幕边缘吹来。',
+    '',
+    '## 二、列表',
+    '',
+    '1. 快速滚动到顶部。',
+    '2. 搜索关键词。',
+    '3. 替换部分关键词。',
+    '',
+  ].join('\n')
+  const chs = splitRawChapters(md, '整篇')
+  cases.push(
+    ['标题分章：只切出两个章节', chs.length === 2],
+    ['标题分章：章名取标题文字', chs[0]?.title === '一、开场段落' && chs[1]?.title === '二、列表'],
+    [
+      '标题分章：标题行不进正文',
+      (() => {
+        const body = md.slice(chs[0].from, chs[0].to)
+        return !body.includes('## 一、开场段落') && body.includes('风从屏幕边缘吹来')
+      })(),
+    ],
+    ['标题分章：编号列表不算章节', !chs.some((c) => c.title.startsWith('1.'))],
+    [
+      '标题分章：章节区间首尾相接',
+      chs[0]?.to === chs[1]?.from && chs[1]?.to === md.length,
+    ],
+  )
+}
+
+// 没有 Markdown 标题时，仍按「第X章 / 1.标题」那套认（扒下来的小说）
+{
+  const md = ['第一章 开始', '', '正文一段。', '', '第二章 继续', '', '正文两段。'].join('\n')
+  const chs = splitRawChapters(md, '整篇')
+  cases.push(['无标题：仍按「第X章」切', chs.length === 2 && chs[0]?.title === '第一章 开始'])
+}
+
 let failed = 0
 for (const [name, ok] of cases) {
   console.log(`${ok ? '  PASS' : '  FAIL'}  ${name}`)

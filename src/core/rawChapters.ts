@@ -41,6 +41,31 @@ const META_TAIL = /(作者|更新时间|字数|来源|本章|链接|简介|标�
 /** 章名不会长过这么多个字符 */
 const MAX_HEAD = 64
 
+/**
+ * 「## 一、开场段落」这种 Markdown 标题返回级别；不是标题返回 0。
+ *
+ * 为什么要单独认它：编号列表 `1. xxx` 和「1.标题」这种小说分节在文本上
+ * 长得一模一样。一篇正经用 `#` 分章的 Markdown，正文里的有序列表会被
+ * 以前那套 NUM_HEAD 规则当成章节 —— 一百多个列表项就切出一百多章。
+ * 只要文档里有**至少两个同级标题**，就按标题分章，别再猜编号。
+ */
+function headingLevel(line: string): number {
+  let i = 0
+  while (i < line.length && line[i] === '#') i += 1
+  if (i === 0 || i > 6) return 0
+  const rest = line.slice(i)
+  // CommonMark：井号后面要么空白、要么行尾，`#标签` 不算标题
+  if (rest && rest[0] !== ' ' && rest[0] !== '\t') return 0
+  return i
+}
+
+/** 标题行去掉井号和尾部元信息，留下的就是章名 */
+function headingTitle(line: string): string {
+  const bare = line.replace(/^#{1,6}\s+/, '').trim()
+  const cut = bare.search(META_TAIL)
+  return (cut > 0 ? bare.slice(0, cut) : bare).trim().slice(0, MAX_HEAD)
+}
+
 /** 行里有没有章节标题？有就把干净的标题返回去 */
 function headOf(line: string): string | null {
   /*
@@ -68,6 +93,9 @@ function headOf(line: string): string | null {
  * 反复回溯，慢得没有上限。indexOf 是原生扫描，一趟到底，没有回溯这回事。
  */
 export function splitRawChapters(md: string, fallbackTitle: string): RawChapter[] {
+  /** 标题章：at 是**标题之后**那一行的起点（标题本身当章名，不进正文） */
+  const heads: { level: number; title: string; at: number }[] = []
+  /** 老规则认出来的章（「第X章」「1.标题」…），只在没有 Markdown 标题时用 */
   const marks: { title: string; at: number }[] = []
   const len = md.length
   let start = 0
@@ -76,20 +104,46 @@ export function splitRawChapters(md: string, fallbackTitle: string): RawChapter[
     let end = md.indexOf('\n', start)
     if (end < 0) end = len
     if (end - start <= MAX_HEAD) {
-      const title = headOf(md.slice(start, end))
-      if (title) marks.push({ title, at: start })
+      const line = md.slice(start, end)
+      const level = headingLevel(line)
+      if (level) {
+        heads.push({ level, title: headingTitle(line), at: end < len ? end + 1 : end })
+      } else {
+        const title = headOf(line)
+        if (title) marks.push({ title, at: start })
+      }
     }
     if (end >= len) break
     start = end + 1
   }
 
-  if (!marks.length) {
+  /*
+   * 有 Markdown 标题就只按标题分：取**出现次数 ≥ 2 的最浅一级**。
+   * 这样「# 书名 / ## 第一章 / ### 小节」取的是 `##`，
+   * 而不是把书名也切成一章、也不把小节切得过碎。
+   */
+  const counts = new Array<number>(7).fill(0)
+  for (const h of heads) counts[h.level] += 1
+  let useLevel = 0
+  for (let l = 1; l <= 3; l += 1) {
+    if (counts[l] >= 2) {
+      useLevel = l
+      break
+    }
+  }
+
+  const picked =
+    useLevel > 0
+      ? heads.filter((h) => h.level === useLevel).map((h) => ({ title: h.title, at: h.at }))
+      : marks
+
+  if (!picked.length) {
     return [{ title: fallbackTitle, from: 0, to: md.length }]
   }
 
-  return marks.map((mk, i) => ({
-    title: mk.title,
+  return picked.map((mk, i) => ({
+    title: mk.title || `片段 ${i + 1}`,
     from: mk.at,
-    to: i + 1 < marks.length ? marks[i + 1].at : md.length,
+    to: i + 1 < picked.length ? picked[i + 1].at : md.length,
   }))
 }
