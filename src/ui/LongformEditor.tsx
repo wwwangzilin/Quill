@@ -69,6 +69,13 @@ export default function LongformEditor({ file, title, onExit, onSavingChange }: 
 
   const chapsRef = useRef<Chap[]>([])
   const currentRef = useRef(0)
+  /**
+   * 手动点了某一章之后，锁住「按视口中心切换」一会儿。
+   *
+   * 点一下会把邻章挂载/卸载，高度变化会触发一次 scroll —— 不锁住的话，
+   * 刚切过去的章立刻被「中心」抢回去，点了等于没点。
+   */
+  const lockRef = useRef<{ i: number; top: number } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef(new Map<number, HTMLElement>())
   const saveTimer = useRef<number | null>(null)
@@ -165,8 +172,14 @@ export default function LongformEditor({ file, title, onExit, onSavingChange }: 
       if (raf) return
       raf = window.requestAnimationFrame(() => {
         raf = 0
+        // 手动切章后、用户还没真正滚动时，别按中心抢回去
+        if (lockRef.current) {
+          if (Math.abs(el.scrollTop - lockRef.current.top) < 8) return
+          lockRef.current = null
+        }
         const center = el.scrollTop + el.clientHeight / 2
-        let hit = currentRef.current
+        // 贴着顶部：就是第一章（短章的视口中心可能已经落进第二章了）
+        let hit = el.scrollTop <= 2 ? 0 : currentRef.current
         for (const [i, node] of sectionRefs.current) {
           if (!node) continue
           const top = node.offsetTop
@@ -271,6 +284,25 @@ export default function LongformEditor({ file, title, onExit, onSavingChange }: 
 
   /* ---------------- 章节导航 ---------------- */
 
+  /**
+   * 把某一章切成「编辑中」。
+   *
+   * 原来只按**视口中心**决定哪一章可编辑：第 1 章短、第 2 章长的时候，
+   * 滚到顶视口中心也落在第 2 章 —— 第 1 章永远进不了编辑态，最上面那块「编辑不了」。
+   * 现在点一下那一章就能切过去，不用先把它滚到屏幕正中。
+   */
+  const activate = useCallback(
+    async (i: number) => {
+      if (i === currentRef.current) return
+      await flushDirty()
+      lockRef.current = { i, top: scrollRef.current?.scrollTop ?? 0 }
+      currentRef.current = i
+      setCurrent(i)
+      await loadWindow(i)
+    },
+    [flushDirty, loadWindow],
+  )
+
   const jumpTo = useCallback(
     async (i: number) => {
       setSidebarOpen(false)
@@ -331,7 +363,7 @@ export default function LongformEditor({ file, title, onExit, onSavingChange }: 
                 <span className="lf-chapter-no">{String(c.index + 1).padStart(2, '0')}</span>
                 <span className="lf-chapter-title">{c.title}</span>
                 <span className="lf-chapter-badge">
-                  {editable ? '编辑中' : isMounted ? '已预载' : '未加载'}
+                  {editable ? '编辑中' : isMounted ? '点一下编辑' : '未加载'}
                 </span>
               </header>
               {isMounted && c.md !== undefined ? (
@@ -339,6 +371,7 @@ export default function LongformEditor({ file, title, onExit, onSavingChange }: 
                   index={c.index}
                   md={c.md}
                   editable={editable}
+                  onActivate={() => void activate(c.index)}
                   onChange={(md) => onChapterMd(c.index, md)}
                 />
               ) : (
@@ -397,11 +430,14 @@ function ChapterPane({
   md,
   editable,
   onChange,
+  onActivate,
 }: {
   index: number
   md: string
   editable: boolean
   onChange: (md: string) => void
+  /** 只读章被点一下：切成可编辑 */
+  onActivate?: () => void
 }) {
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
@@ -423,7 +459,12 @@ function ChapterPane({
   }, [editor, editable])
 
   return (
-    <div className={'lf-body' + (editable ? '' : ' is-readonly')}>
+    <div
+      className={'lf-body' + (editable ? '' : ' is-readonly')}
+      // 只读章：点一下就切到这一章编辑（不用先把它滚到视口正中）
+      onClick={editable ? undefined : onActivate}
+      title={editable ? undefined : '点一下切到这一章编辑'}
+    >
       <EditorContent editor={editor} />
     </div>
   )

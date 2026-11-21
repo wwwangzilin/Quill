@@ -170,7 +170,11 @@
 }
 .lf-body.is-readonly .ProseMirror {
   opacity: 0.82;
-  cursor: default;
+  /* 只读章点一下就能切过来编辑，所以光标要给出「能点」的信号 */
+  cursor: pointer;
+}
+.lf-body.is-readonly:hover .ProseMirror {
+  opacity: 0.94;
 }
 
 /* ---------- 章节浮层：绝对定位，不挤压正文 ---------- */
