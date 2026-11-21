@@ -1,0 +1,205 @@
+/* ==========================================================================
+   质感：颗粒、高光、跟随鼠标的柔光、细滚动条、进度环、空状态与换文档的过渡
+   这一层只加「材质」，不改任何布局尺寸，所以可以整个删掉而不影响功能。
+   ========================================================================== */
+
+:root {
+  /* 磨砂颗粒：feTurbulence 生成的灰色噪点，alpha 压到 ~4%，肉眼只觉得「不平」而看不见点。
+     能消掉大面积渐变的色带，也让玻璃不像塑料 */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n' x='0' y='0' width='100%25' height='100%25'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0.14 -0.015'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  /* 玻璃上沿的高光：上亮下透 */
+  --glass-hi: rgba(255, 255, 255, 0.07);
+}
+[data-theme="glass"] {
+  --glass-hi: rgba(255, 255, 255, 0.62);
+}
+
+/* ---- 颗粒 + 上沿高光：叠在所有玻璃层的背景上（背景色由各处自己定，这里只加图层） ---- */
+:is([data-theme="glass"], [data-theme="glass-night"]) .titlebar::before,
+:is([data-theme="glass"], [data-theme="glass-night"]) .statusbar::before,
+:is([data-theme="glass"], [data-theme="glass-night"]) .sidebar::before,
+:is([data-theme="glass"], [data-theme="glass-night"]) .modal,
+:is([data-theme="glass"], [data-theme="glass-night"]) .palette,
+:is([data-theme="glass"], [data-theme="glass-night"]) .menu,
+:is([data-theme="glass"], [data-theme="glass-night"]) .tpl-menu,
+:is([data-theme="glass"], [data-theme="glass-night"]) .model-menu,
+:is([data-theme="glass"], [data-theme="glass-night"]) .toast,
+:is([data-theme="glass"], [data-theme="glass-night"]) .settings-nav,
+:is([data-theme="glass"], [data-theme="glass-night"]) .settings-content,
+:is([data-theme="glass"], [data-theme="glass-night"]) .aside,
+:is([data-theme="glass"], [data-theme="glass-night"]) .wiki-panel {
+  background-image: linear-gradient(180deg, var(--glass-hi), transparent 46%), var(--grain);
+  background-size: 100% 100%, 160px 160px;
+}
+
+/* ---- 鼠标跟随聚光（脚本：core/spotlight.ts，只写 --mx / --my）---- */
+.doc-item,
+.theme-card,
+.list-row,
+.wiki-card,
+.settings-nav-item {
+  position: relative;
+}
+.doc-item::after,
+.theme-card::after,
+.list-row::after,
+.wiki-card::after,
+.settings-nav-item::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    190px circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in srgb, var(--accent-1) 17%, transparent),
+    transparent 72%
+  );
+  transition: opacity 0.28s var(--ease);
+}
+.doc-item:hover::after,
+.theme-card:hover::after,
+.list-row:hover::after,
+.wiki-card:hover::after,
+.settings-nav-item:hover::after {
+  opacity: 1;
+}
+
+/* ---- 滚动条：细、圆角，平时隐形，鼠标进到那块区域才浮出来 ----
+   ⚠️ Chromium 里只要元素设了 scrollbar-width / scrollbar-color，::-webkit-scrollbar 就整个失效，
+   所以把 28 里那两处 scrollbar-width: thin 收回成 auto。 */
+.doc-list,
+.settings-content {
+  scrollbar-width: auto;
+}
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-3) 42%, transparent);
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+  background: color-mix(in srgb, var(--accent-1) 72%, transparent);
+  background-clip: content-box;
+}
+
+/* ---- 光标：跟强调色走（原来是 accent-2，在奶白底上偏灰） ---- */
+.ProseMirror {
+  caret-color: var(--accent-1);
+}
+
+/* ---- 底栏写作目标：进度环 ---- */
+:is([data-theme="glass"], [data-theme="glass-night"]) .sb-goal,
+.sb-goal {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  background: none;
+  border-radius: 50%;
+  overflow: visible;
+}
+.goal-ring {
+  display: block;
+  overflow: visible;
+}
+.goal-track {
+  stroke: var(--border-strong);
+}
+.goal-fill {
+  stroke: var(--accent-1);
+  transition: stroke-dasharray 0.6s var(--ease-out);
+}
+.goal-tick {
+  stroke: #2f8a5a;
+  stroke-dasharray: 14;
+  animation: ico-draw 0.5s 0.15s var(--ease-out) both;
+}
+.goal-ring.done .goal-fill {
+  stroke: #2f8a5a;
+}
+/* 达成：一圈光从环上向外扩散 */
+.goal-ring.done {
+  animation: goal-pop 0.5s var(--spring) both;
+}
+.sb-goal:has(.goal-ring.done)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid #2f8a5a;
+  pointer-events: none;
+  animation: goal-burst 0.9s var(--ease-out) both;
+}
+@keyframes goal-pop {
+  from {
+    transform: scale(0.8);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes goal-burst {
+  from {
+    opacity: 0.7;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+
+/* ---- 空状态：羽毛轻轻飘 ---- */
+.welcome-mark,
+.empty-mark {
+  display: grid;
+  place-items: center;
+  animation: mark-float 5.2s ease-in-out infinite;
+  filter: drop-shadow(0 10px 18px color-mix(in srgb, var(--accent-1) 30%, transparent));
+}
+.empty-mark {
+  margin: 0 auto 10px;
+}
+@keyframes mark-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(2deg);
+  }
+}
+
+/* ---- 换文档：新编辑器挂上来时，整页淡入上浮，标题与正文错开一点 ----
+   EditorPane 由 App.tsx 用 sessionKey 做 key，换文档就是重新挂载，所以纯 CSS 就够了 */
+.editor-inner {
+  animation: doc-in 0.34s var(--ease-out) backwards;
+}
+.editor-inner .doc-title {
+  animation: doc-in 0.4s 0.03s var(--ease-out) backwards;
+}
+.editor-inner .ProseMirror {
+  animation: doc-in 0.42s 0.08s var(--ease-out) backwards;
+}
+@keyframes doc-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

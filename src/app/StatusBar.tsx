@@ -1,5 +1,6 @@
 import BacklinksPanel from '../ui/BacklinksPanel'
 import { Glyph } from '../ui/Icon'
+import GoalRing from '../ui/GoalRing'
 import { goalProgress } from '../core/stats'
 import { clampWidth, PROSE_RANGE } from '../core/fonts'
 import type { Doc, DocMeta } from '../core/types'
@@ -71,7 +72,7 @@ export default function StatusBar({
       {progress.goal > 0 && (
         <>
           <span className="sb-goal" title={`目标 ${progress.goal} 字`}>
-            <span style={{ width: `${Math.round(progress.ratio * 100)}%` }} />
+            <GoalRing ratio={progress.ratio} done={progress.done} />
           </span>
           <span className={'sb-item' + (progress.done ? ' done' : '')}>
             {progress.done ? '已达标 ✓' : `还差 ${progress.remain} 字`}

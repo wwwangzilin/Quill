@@ -1,3 +1,5 @@
+import { useId } from 'react'
+
 /**
  * 标题栏左侧的品牌标记：一根羽毛笔。
  *
@@ -13,6 +15,11 @@ const VANE =
   'M 512 100 C 600 160 668 276 660 396 L 604 450 L 658 500 C 646 582 592 654 530 712 L 512 744 L 486 712 C 434 648 390 556 394 436 C 398 296 448 176 512 100 Z'
 
 export default function BrandMark({ size = 20 }: { size?: number }) {
+  // 同一页里可能同时有好几个（标题栏、空状态…）：渐变和裁剪的 id 必须各用各的，
+  // 否则后面的会去引用前面那个，前面那个一旦不在渲染树里就整个消失
+  const uid = useId().replace(/:/g, '')
+  const fillId = `quill-mark-fill-${uid}`
+  const clipId = `quill-mark-vane-${uid}`
   return (
     <svg
       className="brand-mark"
@@ -24,19 +31,19 @@ export default function BrandMark({ size = 20 }: { size?: number }) {
     >
       <defs>
         {/* 用主题变量而不是写死颜色：两套玻璃主题 + 自选强调色下都跟着走 */}
-        <linearGradient id="quill-mark-fill" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={fillId} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="var(--accent-1)" />
           <stop offset="100%" stopColor="var(--accent-2)" />
         </linearGradient>
-        <clipPath id="quill-mark-vane">
+        <clipPath id={clipId}>
           <path d={VANE} />
         </clipPath>
       </defs>
       <g transform="rotate(38 512 512)">
-        <path d={VANE} fill="url(#quill-mark-fill)" />
+        <path d={VANE} fill={`url(#${fillId})`} />
         {/* 羽枝与羽轴：用底色压一道，小尺寸下羽面才不是一整块实心 */}
         <g
-          clipPath="url(#quill-mark-vane)"
+          clipPath={`url(#${clipId})`}
           fill="none"
           stroke="var(--bg)"
           strokeWidth="20"
@@ -47,7 +54,7 @@ export default function BrandMark({ size = 20 }: { size?: number }) {
           <path d="M 512 650 L 434 588 M 512 570 L 408 508 M 512 490 L 394 428 M 512 410 L 394 348" />
         </g>
         <path d="M 512 128 L 512 736" stroke="var(--bg)" strokeWidth="24" strokeLinecap="round" opacity="0.6" />
-        <path d="M 498 700 L 512 932 L 526 700 Z" fill="url(#quill-mark-fill)" />
+        <path d="M 498 700 L 512 932 L 526 700 Z" fill={`url(#${fillId})`} />
       </g>
     </svg>
   )

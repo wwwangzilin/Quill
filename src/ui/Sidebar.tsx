@@ -6,6 +6,7 @@ import { storage } from '../core/storage'
 import { TEMPLATES } from '../core/templates'
 import Heatmap from './Heatmap'
 import Bookshelf3D from './Bookshelf3D'
+import BrandMark from './BrandMark'
 import { Icon } from './Icon'
 import { activeDays, goalProgress, streakDays } from '../core/stats'
 import type { DocMeta } from '../core/types'
@@ -248,6 +249,9 @@ export default function Sidebar({
       <div className="doc-list">
         {total === 0 && (
           <div className="empty-hint">
+            <div className="empty-mark">
+              <BrandMark size={40} />
+            </div>
             {kw ? '没搜到东西，杂鱼～' : '尚无文档 · 点上方「＋」新建一篇'}
           </div>
         )}

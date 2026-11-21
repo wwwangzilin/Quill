@@ -4,6 +4,7 @@ import QuickNote from './windows/QuickNote'
 import Sticky from './windows/Sticky'
 import { applyAppearance } from './core/fonts'
 import { initMotion } from './core/motion'
+import { initSpotlight } from './core/spotlight'
 import { initTheme } from './core/theme'
 import { windowRole } from './core/windows'
 import './style.css'
@@ -20,6 +21,8 @@ boot.push('boot ' + location.href)
 initTheme()
 // 动效同理：默认不跟随系统的「减少动效」，这一步决定要不要让系统设置生效
 initMotion()
+// 卡片悬停的鼠标跟随柔光（只写 --mx/--my 两个变量）
+initSpotlight()
 applyAppearance()
 
 // 同一份前端产物，靠窗口 label 分成三种窗口：

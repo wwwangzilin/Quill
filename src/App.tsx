@@ -1,3 +1,4 @@
+import BrandMark from './ui/BrandMark'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import EditorPane from './editor/EditorPane'
@@ -583,6 +584,9 @@ export default function App() {
             />
           ) : !ready ? null : !doc ? (
             <div className="welcome">
+              <div className="welcome-mark">
+                <BrandMark size={76} />
+              </div>
               <h2>
                 欢迎来到 <em>Quill</em>
               </h2>
