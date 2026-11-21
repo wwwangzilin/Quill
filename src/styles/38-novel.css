@@ -12,10 +12,88 @@
   text-indent: var(--r-indent, 2em);
   text-align: var(--r-align, start);
 }
-/* 窄窗口始终单栏（19 里的规则），所以栏数只在宽屏生效 */
+/* 栏数：19 里默认 2 栏、≤980px 单栏。这里让它可选 ——
+   auto 随宽度（宽 2 栏、超宽 3 栏），固定 1/2/3 栏只在 >980px 生效（窄窗口再多栏也挤成一团）。 */
+.reader-track {
+  column-rule: var(--r-rule, 1px solid var(--border));
+}
 @media (min-width: 981px) {
-  .reader-track {
-    column-count: var(--r-cols, 2);
+  .reader-track[data-cols='1'] {
+    column-count: 1;
+  }
+  .reader-track[data-cols='2'],
+  .reader-track[data-cols='auto'] {
+    column-count: 2;
+  }
+  .reader-track[data-cols='3'] {
+    column-count: 3;
+    column-gap: 44px;
+  }
+}
+@media (min-width: 1600px) {
+  .reader-track[data-cols='auto'] {
+    column-count: 3;
+    column-gap: 44px;
+  }
+}
+
+/* ---- 翻页动画 ---- */
+.reader-pages {
+  perspective: 1800px;
+}
+/* 淡入 / 翻页 / 无：位移瞬时完成，不要 19 里那条 0.38s 的滑动过渡 */
+.reader-track[data-turn='fade'],
+.reader-track[data-turn='flip'],
+.reader-track[data-turn='none'] {
+  transition: none;
+}
+.reader-track[data-turn='fade'].turning {
+  animation: turn-fade 0.42s var(--ease-out) both;
+}
+@keyframes turn-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* 书页翻折：新一页以书脊为轴「落」下来。用独立的 rotate / scale 属性，
+   不碰 inline 的 translateX（它决定翻到第几屏），两者叠加互不覆盖。 */
+.reader-track[data-turn='flip'] {
+  transform-origin: 0% 50%;
+}
+.reader-track[data-turn='flip'][data-dir='prev'] {
+  transform-origin: 100% 50%;
+}
+.reader-track[data-turn='flip'].turning {
+  animation: turn-flip-next 0.52s var(--ease-out) both;
+}
+.reader-track[data-turn='flip'][data-dir='prev'].turning {
+  animation-name: turn-flip-prev;
+}
+@keyframes turn-flip-next {
+  from {
+    opacity: 0.2;
+    rotate: y -16deg;
+    scale: 0.985;
+  }
+  to {
+    opacity: 1;
+    rotate: y 0deg;
+    scale: 1;
+  }
+}
+@keyframes turn-flip-prev {
+  from {
+    opacity: 0.2;
+    rotate: y 16deg;
+    scale: 0.985;
+  }
+  to {
+    opacity: 1;
+    rotate: y 0deg;
+    scale: 1;
   }
 }
 
@@ -251,4 +329,16 @@
 .comment-note-empty {
   color: var(--text-3);
   font-style: italic;
+}
+
+.rstyle-row {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.rstyle-row .rstyle-cols {
+  justify-self: start;
 }

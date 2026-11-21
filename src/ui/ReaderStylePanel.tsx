@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { FONTS } from '../core/fonts'
 import {
   READER_RANGE as R,
+  PAGE_TURNS,
   READER_THEMES,
   defaultReaderStyle,
   type ReaderStyle,
@@ -112,9 +113,10 @@ export default function ReaderStylePanel({ style, onChange, onOpenChange }: Prop
           {slider('段距', style.gap, R.minGap, R.maxGap, 0.05, 'gap', style.gap.toFixed(2))}
           {slider('缩进', style.indent, 0, R.maxIndent, 1, 'indent', style.indent ? `${style.indent} 字` : '顶格')}
           {slider('边距', style.margin, R.minMargin, R.maxMargin, 4, 'margin', `${style.margin}`)}
-          <div className="type-pop-foot">
+          <div className="rstyle-row">
+            <span>分栏</span>
             <div className="rstyle-cols" role="radiogroup" aria-label="栏数">
-              {([1, 2] as const).map((n) => (
+              {(['auto', 1, 2, 3] as const).map((n) => (
                 <button
                   key={n}
                   type="button"
@@ -123,10 +125,33 @@ export default function ReaderStylePanel({ style, onChange, onOpenChange }: Prop
                   className={style.cols === n ? 'on' : ''}
                   onClick={() => set({ cols: n })}
                 >
-                  {n === 1 ? '单栏' : '双栏'}
+                  {n === 'auto' ? '自动' : `${n} 栏`}
                 </button>
               ))}
             </div>
+          </div>
+          <div className="rstyle-row">
+            <span>翻页</span>
+            <div className="rstyle-cols" role="radiogroup" aria-label="翻页动画">
+              {PAGE_TURNS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={style.turn === t.id}
+                  className={style.turn === t.id ? 'on' : ''}
+                  onClick={() => set({ turn: t.id })}
+                >
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="type-pop-foot">
+            <label className="type-pop-check">
+              <input type="checkbox" checked={style.rule} onChange={(e) => set({ rule: e.target.checked })} />
+              栏线
+            </label>
             <label className="type-pop-check">
               <input
                 type="checkbox"

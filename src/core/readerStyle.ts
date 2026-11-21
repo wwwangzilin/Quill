@@ -33,9 +33,22 @@ export interface ReaderStyle {
   justify: boolean
   /** 左右留白（px） */
   margin: number
-  /** 栏数：1 单栏 / 2 双栏（窄窗口始终单栏） */
-  cols: 1 | 2
+  /** 栏数：auto 随窗口宽度（窄 1 栏 / 宽 2 栏 / 超宽 3 栏），或固定 1/2/3（窄窗口始终单栏） */
+  cols: 'auto' | 1 | 2 | 3
+  /** 栏与栏之间的竖线 */
+  rule: boolean
+  /** 翻页动画：滑动 / 淡入 / 书页翻折 / 无 */
+  turn: PageTurn
 }
+
+export type PageTurn = 'slide' | 'fade' | 'flip' | 'none'
+
+export const PAGE_TURNS: { id: PageTurn; name: string }[] = [
+  { id: 'slide', name: '滑动' },
+  { id: 'fade', name: '淡入' },
+  { id: 'flip', name: '翻页' },
+  { id: 'none', name: '无' },
+]
 
 export const READER_RANGE = {
   minSize: 14,
@@ -63,6 +76,8 @@ export function defaultReaderStyle(): ReaderStyle {
     justify: false,
     margin: 44,
     cols: 2,
+    rule: true,
+    turn: 'slide',
   }
 }
 
@@ -85,7 +100,9 @@ export function readReaderStyle(): ReaderStyle {
       indent: clamp(o.indent ?? d.indent, 0, R.maxIndent),
       justify: typeof o.justify === 'boolean' ? o.justify : d.justify,
       margin: clamp(o.margin ?? d.margin, R.minMargin, R.maxMargin),
-      cols: o.cols === 1 ? 1 : 2,
+      cols: o.cols === 'auto' || o.cols === 1 || o.cols === 2 || o.cols === 3 ? o.cols : d.cols,
+      rule: typeof o.rule === 'boolean' ? o.rule : d.rule,
+      turn: PAGE_TURNS.some((t) => t.id === o.turn) ? (o.turn as PageTurn) : d.turn,
     }
   } catch {
     return d
@@ -102,13 +119,13 @@ export function readerVars(s: ReaderStyle): Record<string, string> {
     '--r-indent': `${s.indent}em`,
     '--r-align': s.justify ? 'justify' : 'start',
     '--r-margin': `${s.margin}px`,
-    '--r-cols': String(s.cols),
+    '--r-rule': s.rule ? '1px solid var(--border)' : 'none',
   }
 }
 
 /** 影响分页的那几项拼成一个签名：变了就得重新量页数 */
 export function layoutSig(s: ReaderStyle): string {
-  return [s.font, s.size, s.leading, s.gap, s.indent, s.justify, s.margin, s.cols].join('|')
+  return [s.font, s.size, s.leading, s.gap, s.indent, s.justify, s.margin, s.cols, s.rule].join('|')
 }
 
 export function useReaderStyle(): [ReaderStyle, (next: ReaderStyle) => void] {

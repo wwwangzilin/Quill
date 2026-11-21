@@ -669,6 +669,24 @@ export default function ReaderView({
     })
   }, [docId, slicing, chapter, page])
 
+  /**
+   * 翻页动画（淡入 / 翻页两种）：位移仍是瞬时的，动画叠在上面。
+   * 用「摘掉 class → 强制回流 → 再加上」让同一个动画能连着播；
+   * 方向存在 data-dir 上，翻页动画据此决定书页往哪边落。
+   * 滑动模式走原来的 transform 过渡，不经过这里。
+   */
+  const prevPageRef = useRef(0)
+  useEffect(() => {
+    const el = trackRef.current
+    const prev = prevPageRef.current
+    prevPageRef.current = page
+    if (!el || prev === page || (rstyle.turn !== 'fade' && rstyle.turn !== 'flip')) return
+    el.dataset.dir = page > prev ? 'next' : 'prev'
+    el.classList.remove('turning')
+    void el.offsetWidth
+    el.classList.add('turning')
+  }, [page, rstyle.turn])
+
   const go = useCallback(
     (delta: number) => {
       setPage((p) => {
@@ -1055,6 +1073,8 @@ export default function ReaderView({
             key={ci}
             className={'reader-track' + (heavy ? ' is-heavy' : '')}
             ref={trackRef}
+            data-turn={rstyle.turn}
+            data-cols={rstyle.cols}
             style={{ transform: `translateX(-${page * step}px)` }}
           >
             {blocks.map((b, i) => {
