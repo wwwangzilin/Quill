@@ -27,10 +27,10 @@ const INTER_CSS = 'https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@5.0.1
 export const FONTS: FontOption[] = [
   {
     id: 'system',
-    name: '默认字体',
+    name: '界面字体（鸿蒙 HarmonyOS Sans）',
     stack: 'var(--font-ui)',
     probe: '',
-    hint: '跟随系统界面字体，兼容性最好',
+    hint: '和界面统一：鸿蒙 HarmonyOS Sans，本机没有时用系统字体兜底',
   },
   {
     id: 'wenkai',

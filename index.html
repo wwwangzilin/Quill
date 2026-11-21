@@ -4,6 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Quill</title>
+    <!--
+      界面字体：鸿蒙 HarmonyOS Sans（华为开源，可商用）。
+      按字重分片、unicode-range 分包，浏览器只下用到的那些字块；
+      这里**不放在 <head> 里阻塞首屏** —— 离线时不该让应用干等一个外链 CSS，
+      先用系统字体画出来，字体到位再换（font-display: swap）。
+      本机已经装了这套字体的，@font-face 里的 local() 会直接命中，一个字节都不下。
+    -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <script>
+      window.addEventListener('load', function () {
+        var base =
+          'https://cdn.jsdelivr.net/npm/harmonyos-sans-sc-webfont-splitted@1.1.0/dist/'
+        ;['Regular', 'Medium', 'Semibold'].forEach(function (w) {
+          var l = document.createElement('link')
+          l.rel = 'stylesheet'
+          l.href = base + w + '.css'
+          document.head.appendChild(l)
+        })
+      })
+    </script>
   </head>
   <body>
     <div id="root"></div>
