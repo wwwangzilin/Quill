@@ -85,12 +85,12 @@ export function useExportImport(opts: {
       try {
         const items = await readMarkdownFolder(files)
         if (!items.length) {
-          toast.info('未找到可导入的文本文件', '支持 .md / .markdown / .txt')
+          toast.info('未找到可导入的文本文件', '支持 .md / .markdown / .txt / .epub')
           return
         }
         const n = await importMarkdown(items)
         await refreshDocs()
-        toast.success(`已导入 ${n} 篇文档`, '同名文件自动加序号，不会覆盖')
+        toast.success(`已导入 ${n} 篇文档`, '同名文件自动加序号，不会覆盖；EPUB 按整本书导入，每章一个二级标题')
       } catch (err) {
         toast.error('导入失败', String(err).slice(0, 120))
       }
@@ -115,7 +115,7 @@ export function useExportImport(opts: {
         input.setAttribute('webkitdirectory', '')
         input.setAttribute('directory', '')
       } else {
-        input.accept = '.txt,.text,.md,.markdown,text/plain'
+        input.accept = '.txt,.text,.md,.markdown,.epub,text/plain,application/epub+zip'
       }
       input.onchange = () => void runImport(input.files)
       input.click()
@@ -140,12 +140,12 @@ export function useExportImport(opts: {
       try {
         const items = await readPathsAsDocs(paths)
         if (!items.length) {
-          toast.info('不支持的文件类型', '仅支持 .md / .markdown / .txt')
+          toast.info('不支持的文件类型', '仅支持 .md / .markdown / .txt / .epub')
           return
         }
         const n = await importMarkdown(items)
         await refreshDocs()
-        toast.success(`已导入 ${n} 篇文档`, '同名文件自动加序号，不会覆盖')
+        toast.success(`已导入 ${n} 篇文档`, '同名文件自动加序号，不会覆盖；EPUB 按整本书导入，每章一个二级标题')
       } catch (err) {
         toast.error('导入失败', String(err).slice(0, 120))
       }

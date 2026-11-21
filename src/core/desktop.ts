@@ -95,7 +95,7 @@ export async function readPathsAsDocs(paths: string[]): Promise<ImportedDoc[]> {
       const bin = atob(b64)
       const bytes = new Uint8Array(bin.length)
       for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i)
-      out.push(docFromBytes(bytes.buffer, p))
+      out.push(await docFromBytes(bytes.buffer, p))
     } catch {
       /* 一个读不了不影响其它的 */
     }

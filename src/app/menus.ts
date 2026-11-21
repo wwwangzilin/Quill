@@ -109,8 +109,8 @@ export function buildMoreItems(c: MenuCtx): MenuItem[] {
     {
       key: 'import-files',
       icon: '⇧',
-      label: '导入文本文件',
-      hint: '.txt / .md',
+      label: '导入文本 / 小说',
+      hint: '.txt / .md / .epub',
       disabled: !vaultMode,
       onSelect: () => void importFiles(),
     },

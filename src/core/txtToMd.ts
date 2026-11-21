@@ -13,6 +13,8 @@
  *    猜错了比不猜更糟（会把好好的一篇文章切得七零八落），留给人到编辑器里调。
  *    唯一主动做的是「首行看着像标题就拿它当标题」，而且只在它真的像的时候。
  */
+import { bookToMarkdown, parseEpub } from './epub'
+
 
 export interface ImportedDoc {
   title: string
@@ -21,15 +23,16 @@ export interface ImportedDoc {
 
 const PLAIN = /\.(txt|text)$/i
 const MARKDOWN = /\.(md|markdown)$/i
+const EPUB = /\.epub$/i
 
 /** 这个文件名是我们认识的文本吗 */
 export function isImportable(name: string): boolean {
-  return PLAIN.test(name) || MARKDOWN.test(name)
+  return PLAIN.test(name) || MARKDOWN.test(name) || EPUB.test(name)
 }
 
 /** 去掉扩展名，留作标题兜底 */
 export function baseName(name: string): string {
-  return name.replace(/\.(txt|text|md|markdown)$/i, '')
+  return name.replace(/\.(txt|text|md|markdown|epub)$/i, '')
 }
 
 /**
@@ -152,10 +155,17 @@ export function txtToMarkdown(raw: string, fallbackTitle: string): ImportedDoc {
   return { title, content: `# ${title}\n\n${merged}\n` }
 }
 
-/** 读一个 File 并转成待落盘的文档（.txt 走转换，.md 原样） */
+/** EPUB 整本 → 一篇文档（书名做标题，每章一个 ##） */
+async function epubToDoc(buf: ArrayBuffer, fallbackTitle: string): Promise<ImportedDoc> {
+  const book = await parseEpub(buf)
+  return { title: book.title || fallbackTitle, content: bookToMarkdown(book) }
+}
+
+/** 读一个 File 并转成待落盘的文档（.txt 走转换，.epub 解包成书，.md 原样） */
 export async function readImportFile(file: File): Promise<ImportedDoc> {
-  const { text } = await readTextFile(file)
   const name = baseName(file.name)
+  if (EPUB.test(file.name)) return epubToDoc(await file.arrayBuffer(), name)
+  const { text } = await readTextFile(file)
   return PLAIN.test(file.name) ? txtToMarkdown(text, name) : { title: name, content: text }
 }
 
@@ -164,10 +174,12 @@ export async function readImportFile(file: File): Promise<ImportedDoc> {
  *
  * 路径可能长这样：`C:\Users\JJ\Desktop\我的笔记.txt` —— 取文件名那一步要按
  * 两种分隔符都切，Windows 上反斜杠是主分隔符。
+ * EPUB 要异步解压，所以这个函数是 async 的。
  */
-export function docFromBytes(buf: ArrayBuffer, path: string): ImportedDoc {
-  const { text } = decodeText(buf)
+export async function docFromBytes(buf: ArrayBuffer, path: string): Promise<ImportedDoc> {
   const file = path.split(/[\\/]/).pop() ?? path
   const name = baseName(file)
+  if (EPUB.test(file)) return epubToDoc(buf, name)
+  const { text } = decodeText(buf)
   return PLAIN.test(file) ? txtToMarkdown(text, name) : { title: name, content: text }
 }
