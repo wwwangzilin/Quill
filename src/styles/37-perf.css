@@ -84,3 +84,94 @@ html.perf-no-motion *::after {
   color: var(--text-3);
   opacity: 0.75;
 }
+
+/* ---- 状态栏「Aa」排版浮层 ---- */
+.type-pop {
+  position: relative;
+  display: inline-flex;
+}
+.type-pop-btn {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: color 0.18s, background 0.18s, border-color 0.18s;
+}
+.type-pop-btn:hover,
+.type-pop.open .type-pop-btn {
+  color: var(--accent-1);
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+}
+.type-pop-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 40;
+  width: 252px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  border-radius: var(--radius);
+  border: 1px solid var(--glass-border, var(--border));
+  background: var(--glass-bg, var(--surface));
+  box-shadow: var(--glass-shadow, 0 12px 32px rgba(0, 0, 0, 0.28));
+  backdrop-filter: var(--glass-blur, none);
+  -webkit-backdrop-filter: var(--glass-blur, none);
+  animation: type-pop-in 0.26s var(--ease-out, ease-out) backwards;
+  transform-origin: 100% 100%;
+}
+@keyframes type-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+}
+.type-pop-panel label {
+  display: grid;
+  grid-template-columns: 34px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.type-pop-panel label em {
+  font-style: normal;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+.type-pop-panel input[type='range'] {
+  width: 100%;
+}
+.type-pop-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.type-pop-panel .type-pop-check {
+  display: flex;
+  grid-template-columns: none;
+  gap: 6px;
+  cursor: pointer;
+}
+.type-pop-reset {
+  font: inherit;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.type-pop-reset:hover {
+  color: var(--accent-1);
+}

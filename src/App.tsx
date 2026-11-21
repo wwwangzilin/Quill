@@ -871,6 +871,8 @@ export default function App() {
         onOpenDoc={(id) => void openDoc(id)}
         proseWidth={prose.width}
         onProseWidth={(width) => setProse((p) => ({ ...p, width }))}
+        prose={prose}
+        onProse={setProse}
       />
     </div>
   )

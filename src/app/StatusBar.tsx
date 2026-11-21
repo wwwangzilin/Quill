@@ -2,7 +2,8 @@ import BacklinksPanel from '../ui/BacklinksPanel'
 import { Glyph } from '../ui/Icon'
 import GoalRing from '../ui/GoalRing'
 import { goalProgress } from '../core/stats'
-import { clampWidth, PROSE_RANGE } from '../core/fonts'
+import TypePopover from '../ui/TypePopover'
+import { clampWidth, PROSE_RANGE, type ProseStyle } from '../core/fonts'
 import type { Doc, DocMeta } from '../core/types'
 import type { Saving } from './types'
 
@@ -14,6 +15,9 @@ interface Props {
   onOpenDoc: (id: string) => void
   proseWidth: number
   onProseWidth: (width: number) => void
+  /** 给「Aa」排版浮层用：整份正文排版和它的修改函数 */
+  prose?: ProseStyle
+  onProse?: (next: ProseStyle) => void
   /** 外部改动还没处理：保存是停着的，状态栏要一直挂着入口 */
   hasConflict?: boolean
   onOpenConflict?: () => void
@@ -28,6 +32,8 @@ export default function StatusBar({
   onOpenDoc,
   proseWidth,
   onProseWidth,
+  prose,
+  onProse,
   hasConflict,
   onOpenConflict,
 }: Props) {
@@ -90,6 +96,8 @@ export default function StatusBar({
           onOpen={onOpenDoc}
         />
       )}
+
+      {prose && onProse && <TypePopover prose={prose} onProse={onProse} />}
 
       <label className="width-slider" title="拖动调节正文栏宽度">
         <span className="ws-icon" aria-hidden="true">
