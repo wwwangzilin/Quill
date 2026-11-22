@@ -46,6 +46,7 @@ export interface MenuCtx {
   setSettingsOpen: Dispatch<SetStateAction<boolean>>
   setChatOpen: Dispatch<SetStateAction<boolean>>
   setShortcutsOpen: Dispatch<SetStateAction<boolean>>
+  setStatsOpen: Dispatch<SetStateAction<boolean>>
   setSidebarOpen: Dispatch<SetStateAction<boolean>>
   setTrashOpen: Dispatch<SetStateAction<boolean>>
 }
@@ -84,6 +85,7 @@ export function buildMoreItems(c: MenuCtx): MenuItem[] {
     setSettingsOpen,
     setChatOpen,
     setShortcutsOpen,
+    setStatsOpen,
   } = c
 
   return [
@@ -206,6 +208,13 @@ export function buildMoreItems(c: MenuCtx): MenuItem[] {
       onSelect: () => setLibraryOpen(true),
     },
     {
+      key: 'stats',
+      icon: '▥',
+      label: '阅读统计',
+      hint: '时长 · 日历 · 节律',
+      onSelect: () => setStatsOpen(true),
+    },
+    {
       key: 'settings',
       icon: '⚙',
       label: '设置',
@@ -258,6 +267,7 @@ export function buildPaletteCommands(c: MenuCtx): PaletteCommand[] {
     setSettingsOpen,
     setChatOpen,
     setShortcutsOpen,
+    setStatsOpen,
     setSidebarOpen,
     setTrashOpen,
   } = c
@@ -324,6 +334,7 @@ export function buildPaletteCommands(c: MenuCtx): PaletteCommand[] {
     { id: 'trash', title: '打开回收站', icon: '🗑', run: () => setTrashOpen(true) },
     { id: 'library', title: '文档库', icon: '▤', run: () => setLibraryOpen(true) },
     { id: 'settings', title: '设置', icon: '⚙', run: () => setSettingsOpen(true) },
+    { id: 'stats', title: '阅读统计', hint: '时长 · 日历 · 节律', icon: '▥', run: () => setStatsOpen(true) },
     { id: 'shortcuts', title: '快捷键一览', hint: 'Ctrl+/', icon: '⌘', run: () => setShortcutsOpen(true) },
     { id: 'reveal', title: '在资源管理器里打开文档仓库', icon: '🗀', run: () => void storage.reveal() },
   ]

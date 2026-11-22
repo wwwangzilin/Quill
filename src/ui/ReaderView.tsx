@@ -20,6 +20,7 @@ import CommentsPanel from './CommentsPanel'
 import { readBookmarks, sameSpot, toggleBookmark, writeBookmarks, type Bookmark } from '../core/bookmarks'
 import { Icon } from './Icon'
 import { useSetting } from '../core/settings'
+import { recordFinished, useReadingTracker } from '../core/readTracker'
 import ReaderStylePanel from './ReaderStylePanel'
 import { layoutSig, readerVars, useReaderStyle } from '../core/readerStyle'
 import { toast } from './toast'
@@ -772,6 +773,14 @@ export default function ReaderView({
   const [autoIdx, setAutoIdx] = useState(0)
   const autoSec = AUTO_STEPS[autoIdx]
   const atEnd = page + 1 >= pages && (!slicing || ci + 1 >= chapters.length)
+
+  /* ---------- 阅读统计：真实阅读时间 + 读完标记 ---------- */
+  // 自动翻页开着时人不动也在读，别当成挂机
+  useReadingTracker(docId, title, () => autoSec > 0)
+  useEffect(() => {
+    // 单屏的短文一打开就在「末页」，不算读完；至少翻过一屏或换过章才算
+    if (atEnd && (page > 0 || ci > 0)) recordFinished(docId, title)
+  }, [atEnd, page, ci, docId, title])
   useEffect(() => {
     if (!autoSec) return
     // 在选字、写批注、开着书签单时不翻，免得人正读着页面被抽走

@@ -9,6 +9,7 @@ import ToastHost from './ui/ToastHost'
 import { toast } from './ui/toast'
 import { useSetting } from './core/settings'
 import ShortcutsPanel from './ui/ShortcutsPanel'
+import StatsPanel from './ui/StatsPanel'
 import TrashPanel from './ui/TrashPanel'
 import SettingsView from './ui/SettingsView'
 import DocLibrary from './ui/DocLibrary'
@@ -80,6 +81,7 @@ export default function App() {
   const [focusMode, setFocusMode] = useSetting('focus-mode', false)
   const [typewriter, setTypewriter] = useSetting('typewriter', false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [statsOpen, setStatsOpen] = useState(false)
   const [trashOpen, setTrashOpen] = useState(false)
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [jumpPath, setJumpPath] = useState<number[] | null>(null)
@@ -570,6 +572,7 @@ export default function App() {
     setSettingsOpen,
     setChatOpen,
     setShortcutsOpen,
+    setStatsOpen,
     setSidebarOpen,
     setTrashOpen,
   }
@@ -598,6 +601,7 @@ export default function App() {
         </button>
       )}
       <ShortcutsPanel open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <StatsPanel open={statsOpen} onClose={() => setStatsOpen(false)} />
       <TrashPanel
         open={trashOpen}
         onClose={() => setTrashOpen(false)}
