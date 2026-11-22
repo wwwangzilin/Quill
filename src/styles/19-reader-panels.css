@@ -4,9 +4,9 @@
    自动往第二栏流，横向溢出多少就翻多少屏 —— 翻页只是把内容条整体平移。
    这样不用自己算断行位置，中英文断行全交给排版引擎，跟浏览器里长文分栏一个道理。 */
 .reader {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: 88;
+  z-index: 30;
   display: flex;
   background: var(--bg);
   animation: reader-in 0.36s var(--ease-out) both;

@@ -713,6 +713,11 @@ export default function ReaderView({
 
   /* ---------- 阅读外观 / 沉浸 / 进度 ---------- */
   const [immersive, setImmersive] = useState(false)
+  /* 沉浸时连窗口的标题栏、侧栏、状态栏一起收起（样式在 38-novel.css），退出或关闭阅读时还原 */
+  useEffect(() => {
+    document.documentElement.classList.toggle('novel-immersive', immersive)
+    return () => document.documentElement.classList.remove('novel-immersive')
+  }, [immersive])
   /** 拖章节滑块时先只显示目标章名，松手才真正跳 */
   const [scrub, setScrub] = useState<number | null>(null)
   const commitScrub = useCallback(() => {

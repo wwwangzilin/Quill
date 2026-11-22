@@ -625,31 +625,6 @@ export default function App() {
         两条数据来源、**同一个组件**，所以界面完全一致。
         （上一版给超大文档另写了个 LightReader，界面跟这儿对不上。）
       */}
-      {longform && (
-        <LongformEditor
-          file={longform.id}
-          title={longform.title}
-          onExit={() => setLongform(null)}
-        />
-      )}
-
-      {readerOpen && (doc || heavyOutline) && (
-        <ReaderView
-          docId={heavyOutline?.id ?? doc!.id}
-          title={heavyOutline?.title ?? doc!.title}
-          doc={heavyOutline ? undefined : doc!.content}
-          outline={heavyOutline?.marks}
-          comments={heavyOutline ? [] : comments}
-          onSaveComment={saveComment}
-          onRemoveComment={removeComment}
-          onEditChapter={editChapterFromReader}
-          onSwitchToEditor={heavyOutline ? () => void openInEditor(heavyOutline.id) : undefined}
-          onClose={() => {
-            setReaderOpen(false)
-            setHeavyOutline(null)
-          }}
-        />
-      )}
       <AiChatPanel
         open={chatOpen && Boolean(doc)}
         vaultMode={vaultMode}
@@ -713,6 +688,49 @@ export default function App() {
               }
             />
           )}
+          {/* 长文本 / 阅读视图：只盖住正文区，侧栏、标题栏、状态栏、设置、命令面板都照常能用 */}
+          <div className="novel-layer" hidden={libraryOpen || settingsOpen}>
+          {longform && (
+            <LongformEditor
+              file={longform.id}
+              title={longform.title}
+              onExit={() => setLongform(null)}
+              onOpenReader={(marks) => {
+                const l = longform
+                setLongform(null)
+                setHeavyOutline({ id: l.id, title: l.title, marks })
+                setReaderOpen(true)
+              }}
+            />
+          )}
+
+          {readerOpen && (doc || heavyOutline) && (
+            <ReaderView
+              docId={heavyOutline?.id ?? doc!.id}
+              title={heavyOutline?.title ?? doc!.title}
+              doc={heavyOutline ? undefined : doc!.content}
+              outline={heavyOutline?.marks}
+              comments={heavyOutline ? [] : comments}
+              onSaveComment={saveComment}
+              onRemoveComment={removeComment}
+              onEditChapter={editChapterFromReader}
+              onSwitchToEditor={
+                heavyOutline
+                  ? () => {
+                      const h = heavyOutline
+                      setReaderOpen(false)
+                      setHeavyOutline(null)
+                      openLongform(h.id, h.title)
+                    }
+                  : undefined
+              }
+              onClose={() => {
+                setReaderOpen(false)
+                setHeavyOutline(null)
+              }}
+            />
+          )}
+          </div>
           <div className={'main-split' + (splitId ? ' with-split' : '')}>
           {libraryOpen ? (
             <DocLibrary

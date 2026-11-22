@@ -586,18 +586,18 @@ export function useDocSession(ui: SessionUi) {
         const listed = docs.find((d) => d.id === id)?.title
         const heavyTitle = listed || splitTitle(head).title || id.replace(/\.md$/, '')
         /*
-         * 大文档**直接进长文本模式**，不再问「看还是改」。
+         * 大文档**默认进小说阅读界面**（ReaderView：按章读、分栏、翻页、统计都在这）。
          *
-         * 那个二选一本身就是旧结构留下的问题：能看的不能改，能改的会卡。
-         * 现在长文本模式自己就能改 —— 一次只挂三章，编辑成本和文档总长无关。
+         * 想改再从阅读界面右上角「去编辑」进长文本模式；那边一次只挂三章，不会卡。
          * 判定放在这里（拿到索引之后、进编辑器之前），不存在「先全量加载再降级」。
          */
-        openLongform(id, heavyTitle)
+        setHeavyOutline({ id, title: heavyTitle, marks: o.marks })
+        setReaderOpen(true)
         return
       }
       await openInEditor(id)
     },
-    [canLeave, openInEditor],
+    [canLeave, openInEditor, docs, setHeavyOutline, setReaderOpen],
   )
 
   const createNew = useCallback(

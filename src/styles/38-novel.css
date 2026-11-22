@@ -358,3 +358,31 @@
 .reader-track[data-turn='flip'].turning {
   animation-duration: calc(0.52s * var(--r-speed, 1));
 }
+
+/* 阅读 / 长文本层：只占正文区；hidden 时（设置、文库打开）整层隐藏但不卸载 */
+.novel-layer[hidden] {
+  display: none;
+}
+.novel-layer {
+  position: absolute;
+  inset: 39px 0 0 0; /* 让出标签栏（38px + 1px 边） */
+  z-index: 30;
+  pointer-events: none;
+}
+.novel-layer > * {
+  pointer-events: auto;
+}
+
+/* ---- 沉浸：整个窗口只剩正文 ---- */
+html.novel-immersive .titlebar,
+html.novel-immersive .sidebar,
+html.novel-immersive .statusbar,
+html.novel-immersive .tabbar,
+html.novel-immersive .aside {
+  display: none !important;
+}
+html.novel-immersive .novel-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}

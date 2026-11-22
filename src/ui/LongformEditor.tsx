@@ -55,11 +55,13 @@ interface Props {
   title: string
   /** 退出长文本模式（回到普通界面）—— 只有规模允许时上层才给 */
   onExit?: () => void
+  /** 切到小说阅读界面（带上章节索引） */
+  onOpenReader?: (marks: RawChapter[]) => void
   /** 有未保存内容时通知上层（状态栏用） */
   onSavingChange?: (state: 'idle' | 'saving' | 'saved') => void
 }
 
-export default function LongformEditor({ file, title, onExit, onSavingChange }: Props) {
+export default function LongformEditor({ file, title, onExit, onOpenReader, onSavingChange }: Props) {
   const [chaps, setChaps] = useState<Chap[]>([])
   const [current, setCurrent] = useState(0)
   /** 已经挂上编辑器的章号 —— 窗口 = current - 1 .. current + 1 */
@@ -337,6 +339,16 @@ export default function LongformEditor({ file, title, onExit, onSavingChange }: 
           {dirtyCount > 0 && <em className="lf-dirty">{dirtyCount} 章未保存</em>}
         </span>
         <span className="grow" />
+        {onOpenReader && (
+          <button
+            className="btn ghost"
+            disabled={dirtyCount > 0 || !ready}
+            onClick={() => onOpenReader(chapsRef.current.map((c) => ({ title: c.title, from: c.from, to: c.to })) as RawChapter[])}
+            title={dirtyCount > 0 ? '有未保存的章节，存好再切' : '切到小说阅读界面'}
+          >
+            阅读
+          </button>
+        )}
         {onExit && (
           <button className="btn ghost" onClick={onExit} title="回到普通界面">
             退出长文本
