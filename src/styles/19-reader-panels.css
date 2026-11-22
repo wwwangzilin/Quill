@@ -50,14 +50,26 @@
    被这条盖住之后「展开 / 收起」就成了一帧硬切（主人报过一次「动画没了」，就是它）。
    它们本来就被阅读层盖住，也不需要跟着缩。改这里之前先看 verify-reader 的
    「顶栏收放没被通配规则覆盖」那两条断言。 */
-.app
-  > *:not(.reader):not(.titlebar):not(.statusbar):not(.sidebar):not(.titlebar-hot):not(.toasts) {
+/*
+ * ⚠️ 别再压暗 `.body`。
+ *
+ * 阅读视图现在在 `.body > .main > .novel-layer` 里面 —— 给 `.body` 设 opacity，
+ * 阅读层自己也会跟着变成 26%，整屏像蒙了一层灰（2026-11-22 的线上截图就是这样）。
+ * opacity 是**整棵子树**的效果，子元素没法「取消」祖先的透明度，
+ * 所以这里只压暗阅读层之外、又确实在背景里的东西。
+ */
+.app > *:not(.reader):not(.titlebar):not(.statusbar):not(.sidebar):not(.titlebar-hot):not(.toasts) {
   transition: opacity 0.34s var(--ease-out), scale 0.34s var(--ease-out);
 }
 .app.reader-on
-  > *:not(.reader):not(.titlebar):not(.statusbar):not(.sidebar):not(.titlebar-hot):not(.toasts) {
+  > *:not(.reader):not(.titlebar):not(.statusbar):not(.sidebar):not(.titlebar-hot):not(.toasts):not(.body) {
   opacity: 0.26;
   scale: 0.986;
+}
+/* 阅读时侧栏退到背景里（阅读层在 .main 里，压暗它只会让正文跟着灰） */
+.app.reader-on .body > .sidebar {
+  opacity: 0.42;
+  transition: opacity 0.34s var(--ease-out);
 }
 /* 退出时底下要先回来 —— 不然两层同时在淡，会糊成一团 */
 .app:has(.reader.leaving) > *:not(.reader) {
