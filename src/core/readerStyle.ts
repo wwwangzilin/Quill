@@ -11,6 +11,17 @@
  */
 import { useCallback, useState } from 'react'
 import { ensureFont, fontOption, readProse } from './fonts'
+import {
+  PAGE_TURNS,
+  TAP_LAYOUTS,
+  TURN_SPEEDS,
+  type PageTurn,
+  type TapLayout,
+  type TurnSpeed,
+} from './pageTurn'
+
+export { PAGE_TURNS, TAP_LAYOUTS, TURN_SPEEDS, tapAction } from './pageTurn'
+export type { PageTurn, TapLayout, TurnSpeed } from './pageTurn'
 
 export type ReaderTheme = 'glass' | 'paper' | 'green' | 'dark'
 
@@ -39,16 +50,13 @@ export interface ReaderStyle {
   rule: boolean
   /** 翻页动画：滑动 / 淡入 / 书页翻折 / 无 */
   turn: PageTurn
+  /** 翻页速度：慢 / 标准 / 快（点按、键盘、滚轮、自动翻页都用；手指拖动始终跟手） */
+  speed: TurnSpeed
+  /** 点按分区布局 */
+  tap: TapLayout
 }
 
-export type PageTurn = 'slide' | 'fade' | 'flip' | 'none'
 
-export const PAGE_TURNS: { id: PageTurn; name: string }[] = [
-  { id: 'slide', name: '滑动' },
-  { id: 'fade', name: '淡入' },
-  { id: 'flip', name: '翻页' },
-  { id: 'none', name: '无' },
-]
 
 export const READER_RANGE = {
   minSize: 14,
@@ -78,6 +86,8 @@ export function defaultReaderStyle(): ReaderStyle {
     cols: 2,
     rule: true,
     turn: 'slide',
+    speed: 'normal',
+    tap: 'standard',
   }
 }
 
@@ -103,6 +113,8 @@ export function readReaderStyle(): ReaderStyle {
       cols: o.cols === 'auto' || o.cols === 1 || o.cols === 2 || o.cols === 3 ? o.cols : d.cols,
       rule: typeof o.rule === 'boolean' ? o.rule : d.rule,
       turn: PAGE_TURNS.some((t) => t.id === o.turn) ? (o.turn as PageTurn) : d.turn,
+      speed: TURN_SPEEDS.some((t) => t.id === o.speed) ? (o.speed as TurnSpeed) : d.speed,
+      tap: TAP_LAYOUTS.some((t) => t.id === o.tap) ? (o.tap as TapLayout) : d.tap,
     }
   } catch {
     return d
@@ -120,6 +132,7 @@ export function readerVars(s: ReaderStyle): Record<string, string> {
     '--r-align': s.justify ? 'justify' : 'start',
     '--r-margin': `${s.margin}px`,
     '--r-rule': s.rule ? '1px solid var(--border)' : 'none',
+    '--r-speed': String(TURN_SPEEDS.find((t) => t.id === s.speed)?.scale ?? 1),
   }
 }
 

@@ -22,7 +22,7 @@ import { Icon } from './Icon'
 import { useSetting } from '../core/settings'
 import { recordFinished, useReadingTracker } from '../core/readTracker'
 import ReaderStylePanel from './ReaderStylePanel'
-import { layoutSig, readerVars, useReaderStyle } from '../core/readerStyle'
+import { layoutSig, readerVars, tapAction, useReaderStyle } from '../core/readerStyle'
 import { toast } from './toast'
 
 interface Props {
@@ -699,6 +699,9 @@ export default function ReaderView({
           return 0
         }
         if (next < 0 && ci > 0) {
+          // 往回翻进上一章，落在它的最后一屏（接着刚才的地方），而不是第 1 屏
+          wantPage.current = Number.MAX_SAFE_INTEGER
+          skipReset.current = true
           setCi(ci - 1)
           return 0
         }
@@ -804,9 +807,99 @@ export default function ReaderView({
       if (s && !s.isCollapsed) return
       const box = e.currentTarget.getBoundingClientRect()
       const x = (e.clientX - box.left) / box.width
-      if (x < 0.22) go(-1)
-      else if (x > 0.78) go(1)
+      // 刚拖完手指抬起来也会补一个 click，别把它当成点按
+      if (performance.now() - dragEndAt.current < 60) return
+      const act = tapAction(x, rstyle.tap)
+      if (act === 'prev') go(-1)
+      else if (act === 'next') go(1)
       else setImmersive((v) => !v)
+    },
+    [go, rstyle.tap],
+  )
+
+  /* ---------- 手势：触摸 / 手写笔拖动翻页（跟手），滚轮和触控板横扫翻页 ---------- */
+  const dragEndAt = useRef(0)
+  const drag = useRef<{ id: number; x0: number; y0: number; t0: number; on: boolean; dx: number } | null>(null)
+  /** 往 dir 方向还有没有页可翻（本章内，或者还有相邻的章） */
+  const canGo = useCallback(
+    (dir: 1 | -1) => {
+      const next = page + dir
+      if (next >= 0 && next < pages) return true
+      return dir > 0 ? slicing && ci + 1 < chapters.length : slicing && ci > 0
+    },
+    [page, pages, slicing, ci, chapters.length],
+  )
+  const onPointerDown = useCallback((e: { pointerType: string; pointerId: number; clientX: number; clientY: number; target: EventTarget }) => {
+    // 鼠标的拖动留给选字（批注就靠它），只有手指和手写笔拖着翻页
+    if (e.pointerType === 'mouse') return
+    if ((e.target as HTMLElement).closest('a, button, input, textarea, [data-comment], .ai-sel')) return
+    drag.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), on: false, dx: 0 }
+  }, [])
+  const onPointerMove = useCallback(
+    (e: { pointerId: number; clientX: number; clientY: number; currentTarget: HTMLElement }) => {
+      const d = drag.current
+      if (!d || d.id !== e.pointerId) return
+      const dx = e.clientX - d.x0
+      const dy = e.clientY - d.y0
+      if (!d.on) {
+        // 横向位移明显大于纵向，才算「要翻页」；否则是想选字或滚动，别抢
+        if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.2) return
+        d.on = true
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId)
+        } catch {
+          /* 个别环境不支持，拖动照样能用 */
+        }
+      }
+      d.dx = dx
+      const track = trackRef.current
+      if (!track || rstyle.turn !== 'slide') return
+      // 到头了还往外拖：加阻尼，像拉橡皮筋
+      const blocked = (dx > 0 && !canGo(-1)) || (dx < 0 && !canGo(1))
+      track.style.transition = 'none'
+      track.style.transform = `translateX(${-page * step + (blocked ? dx * 0.3 : dx)}px)`
+    },
+    [rstyle.turn, canGo, page, step],
+  )
+  const onPointerEnd = useCallback(
+    (e: { pointerId: number }) => {
+      const d = drag.current
+      if (!d || d.id !== e.pointerId) return
+      drag.current = null
+      if (!d.on) return
+      dragEndAt.current = performance.now()
+      const track = trackRef.current
+      const dt = Math.max(1, performance.now() - d.t0)
+      // 拖过页宽的 18%，或者甩得够快（>0.5px/ms），就翻
+      const commit = Math.abs(d.dx) > step * 0.18 || Math.abs(d.dx / dt) > 0.5
+      const dir = d.dx < 0 ? 1 : -1
+      if (track) track.style.transition = ''
+      if (commit && canGo(dir)) {
+        // 不手动回位：go() 之后 React 会写入新的 translateX，从当前拖到的位置接着滑过去
+        go(dir)
+      } else if (track) {
+        // 没拖够 / 到头了：弹回原位
+        track.style.transform = `translateX(${-page * step}px)`
+      }
+    },
+    [step, canGo, go, page],
+  )
+  const wheelAcc = useRef({ sum: 0, last: 0, lock: 0 })
+  const onWheel = useCallback(
+    (e: { deltaX: number; deltaY: number; target: EventTarget }) => {
+      if ((e.target as HTMLElement).closest('textarea, input')) return
+      const w = wheelAcc.current
+      const now = performance.now()
+      // 一次惯性滚动会连发几十个 wheel 事件；翻完一页后锁 450ms，否则一滑翻十页
+      if (now < w.lock) return
+      if (now - w.last > 200) w.sum = 0
+      w.last = now
+      w.sum += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+      if (Math.abs(w.sum) >= 60) {
+        go(w.sum > 0 ? 1 : -1)
+        w.sum = 0
+        w.lock = now + 450
+      }
     },
     [go],
   )
@@ -1040,7 +1133,17 @@ export default function ReaderView({
           </button>
         </header>
 
-        <div className="reader-pages" ref={viewRef} onMouseUp={pickSelection} onClick={onPagesClick}>
+        <div
+          className="reader-pages"
+          ref={viewRef}
+          onMouseUp={pickSelection}
+          onClick={onPagesClick}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerEnd}
+          onPointerCancel={onPointerEnd}
+          onWheel={onWheel}
+        >
           {/* 超大文档：这一章还在取的路上 */}
           {heavy && loadingBlocks && !blocks.length && (
             <div className="reader-loading">正在加载本章…</div>

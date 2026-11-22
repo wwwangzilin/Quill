@@ -342,3 +342,19 @@
 .rstyle-row .rstyle-cols {
   justify-self: start;
 }
+
+/* ---- 手势与速度 ---- */
+/* 横向手势归我们处理（拖动翻页），纵向留给浏览器 */
+.reader-pages {
+  touch-action: pan-y;
+}
+/* 速度：慢 ×1.6 / 标准 ×1 / 快 ×0.6，作用在滑动过渡和各种翻页动画上 */
+.reader-track {
+  transition: transform calc(0.38s * var(--r-speed, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.reader-track[data-turn='fade'].turning {
+  animation-duration: calc(0.42s * var(--r-speed, 1));
+}
+.reader-track[data-turn='flip'].turning {
+  animation-duration: calc(0.52s * var(--r-speed, 1));
+}

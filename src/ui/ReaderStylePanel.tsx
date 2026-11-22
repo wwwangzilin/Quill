@@ -4,6 +4,8 @@ import {
   READER_RANGE as R,
   PAGE_TURNS,
   READER_THEMES,
+  TAP_LAYOUTS,
+  TURN_SPEEDS,
   defaultReaderStyle,
   type ReaderStyle,
 } from '../core/readerStyle'
@@ -141,6 +143,42 @@ export default function ReaderStylePanel({ style, onChange, onOpenChange }: Prop
                   aria-checked={style.turn === t.id}
                   className={style.turn === t.id ? 'on' : ''}
                   onClick={() => set({ turn: t.id })}
+                >
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          {style.turn !== 'none' && (
+            <div className="rstyle-row">
+              <span>速度</span>
+              <div className="rstyle-cols" role="radiogroup" aria-label="翻页速度">
+                {TURN_SPEEDS.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={style.speed === t.id}
+                    className={style.speed === t.id ? 'on' : ''}
+                    onClick={() => set({ speed: t.id })}
+                  >
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="rstyle-row">
+            <span>点按</span>
+            <div className="rstyle-cols" role="radiogroup" aria-label="点按分区">
+              {TAP_LAYOUTS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={style.tap === t.id}
+                  className={style.tap === t.id ? 'on' : ''}
+                  onClick={() => set({ tap: t.id })}
                 >
                   {t.name}
                 </button>
