@@ -14,7 +14,16 @@ export interface EpubBook {
   title: string
   author: string
   chapters: { title: string; body: string }[]
+  /** 开了 images 选项才有：正文里 ⟦img:路径⟧ 标记指向的图片，按需读字节 */
+  images?: {
+    /** 封面页 / 开篇插图（出现在第一章之前） */
+    front: string[]
+    read(path: string): Promise<{ data: Uint8Array; type: string } | null>
+  }
 }
+
+/** 正文里的图片占位：单独成段，bookToMarkdown 再换成 ![](…) */
+export const IMG_MARK = /⟦img:([^⟧]+)⟧/g
 
 /* ------------------------------ zip ------------------------------ */
 
@@ -122,11 +131,19 @@ function resolve(base: string, href: string): string {
 const dirOf = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '')
 
 /** XHTML → { 首个标题, 段落文本 }；段落之间空一行 */
-export function htmlToText(html: string): { heading: string; text: string } {
+export function htmlToText(html: string, imgBase?: string): { heading: string; text: string } {
   let h = html
     .replace(/<\?xml[\s\S]*?\?>/g, '')
     .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<(script|style|svg|head)[\s\S]*?<\/\1>/gi, '')
+    .replace(/<(script|style|head)[\s\S]*?<\/\1>/gi, '')
+  // 图片先换成占位标记（svg 封面里的 <image> 也算）；不要图片时就地丢掉
+  h = h
+    .replace(/<img\b[^>]*>|<image\b[^>]*>/gi, (tag) => {
+      const src = attr(tag, 'src') ?? attr(tag, 'xlink:href') ?? attr(tag, 'href')
+      if (imgBase === undefined || !src || /^(data:|https?:)/i.test(src)) return ''
+      return `\n\n⟦img:${resolve(imgBase, src)}⟧\n\n`
+    })
+    .replace(/<svg[\s\S]*?<\/svg>/gi, (m) => (imgBase === undefined ? '' : m.replace(/<(?!\/?image\b)[^>]+>/gi, '')))
   const body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(h)
   if (body) h = body[1]
 
@@ -157,7 +174,7 @@ export function htmlToText(html: string): { heading: string; text: string } {
 
 /* ------------------------------ EPUB ------------------------------ */
 
-export async function parseEpub(buf: ArrayBuffer): Promise<EpubBook> {
+export async function parseEpub(buf: ArrayBuffer, opts: { images?: boolean } = {}): Promise<EpubBook> {
   const zip = listZip(buf)
   const read = async (name: string) => {
     const e = zip.get(name)
@@ -211,30 +228,71 @@ export async function parseEpub(buf: ArrayBuffer): Promise<EpubBook> {
   }
 
   const chapters: EpubBook['chapters'] = []
+  const front: string[] = []
+  const wantImg = opts.images === true
+  const MARK_ONLY = /⟦img:[^⟧]+⟧/g
   for (const idref of spine) {
     const item = manifest.get(idref)
     if (!item || !/x?html/.test(item.type)) continue
     const path = resolve(base, item.href)
     const raw = await read(path)
     if (raw == null) continue
-    const { heading, text } = htmlToText(raw)
-    // 封面、版权页这类几乎没字的页不当章
-    if (text.length < 20 && !heading) continue
-    if (text.length < 20 && chapters.length === 0) continue
+    const { heading, text } = htmlToText(raw, wantImg ? dirOf(path) : undefined)
+    const plain = text.replace(MARK_ONLY, '').trim()
+    // 封面、版权页这类几乎没字的页不当章；但页里的插图要留下：
+    // 开篇的进 front（放在书名下面），章间的并进上一章末尾
+    if (plain.length < 20 && !heading) {
+      const marks = text.match(MARK_ONLY)
+      if (marks) {
+        if (chapters.length === 0) front.push(...marks.map((m) => m.slice(5, -1)))
+        else chapters[chapters.length - 1].body += '\n\n' + marks.join('\n\n')
+      }
+      continue
+    }
+    if (plain.length < 20 && chapters.length === 0) continue
     const name = tocTitle.get(path) || heading || `第 ${chapters.length + 1} 部分`
     chapters.push({ title: name, body: text })
   }
   if (!chapters.length) throw new Error('这本 EPUB 里没有读到正文')
-  return { title: title || '未命名', author, chapters }
+  const book: EpubBook = { title: title || '未命名', author, chapters }
+  if (wantImg) {
+    book.images = {
+      front,
+      async read(p) {
+        const e = zip.get(p)
+        if (!e) return null
+        const ext = (p.split('.').pop() ?? '').toLowerCase()
+        const type =
+          [...manifest.values()].find((m) => resolve(base, m.href) === p)?.type ||
+          ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' } as Record<string, string>)[ext] ||
+          ''
+        if (!type.startsWith('image/')) return null
+        return { data: await readEntry(buf, e), type }
+      },
+    }
+  }
+  return book
 }
 
 /** 一本书 → 一篇 Markdown：`# 书名`、作者一行、每章 `## 章名` */
-export function bookToMarkdown(book: EpubBook): string {
+export function bookToMarkdown(book: EpubBook, imageUrl?: (path: string) => string | undefined): string {
+  const img = (m: string) => {
+    const url = imageUrl?.(m)
+    return url ? `![](${url})` : ''
+  }
+  const swap = (t: string) =>
+    t
+      .replace(IMG_MARK, (_, p: string) => img(p))
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
   const parts: string[] = [`# ${book.title}`]
   if (book.author) parts.push(`作者：${book.author}`)
+  const front = (book.images?.front ?? []).map(img).filter(Boolean)
+  if (front.length) parts.push(front.join('\n\n'))
   for (const c of book.chapters) {
     parts.push(`## ${c.title}`)
-    if (c.body) parts.push(c.body)
+    const body = swap(c.body)
+    if (body) parts.push(body)
   }
   return parts.join('\n\n') + '\n'
 }

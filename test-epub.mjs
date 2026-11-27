@@ -44,7 +44,7 @@ function makeZip(entries) {
   let offset = 0
   for (const e of entries) {
     const name = Buffer.from(e.name, 'utf8')
-    const raw = Buffer.from(e.text, 'utf8')
+    const raw = e.bytes ? Buffer.from(e.bytes) : Buffer.from(e.text, 'utf8')
     const method = e.store ? 0 : 8
     const body = e.store ? raw : deflateRawSync(raw)
     const crc = crc32(raw)
@@ -141,4 +141,58 @@ eq('ruby 注音只留本字', htmlToText('<body><p><ruby>漢<rt>kan</rt></ruby>�
 let bad = false
 try { await parseEpub(new TextEncoder().encode('not a zip at all, definitely not').buffer) } catch { bad = true }
 eq('坏文件抛错而不是死循环', bad, true)
+
+// ---- 插图 ----
+const out2 = join(dir, 'b.epub')
+writeFileSync(
+  out2,
+  makeZip([
+    { name: 'mimetype', text: 'application/epub+zip', store: true },
+    {
+      name: 'META-INF/container.xml',
+      text: '<container><rootfiles><rootfile full-path="OPS/c.opf" media-type="application/oebps-package+xml"/></rootfiles></container>',
+    },
+    {
+      name: 'OPS/c.opf',
+      text: '<package><metadata><dc:title>图书</dc:title></metadata>'
+        + '<manifest><item id="cv" href="cover.xhtml" media-type="application/xhtml+xml"/>'
+        + '<item id="a" href="t/a.xhtml" media-type="application/xhtml+xml"/>'
+        + '<item id="il" href="t/il.xhtml" media-type="application/xhtml+xml"/>'
+        + '<item id="b" href="t/b.xhtml" media-type="application/xhtml+xml"/>'
+        + '<item id="i1" href="img/cover.png" media-type="image/png"/>'
+        + '<item id="i2" href="img/in%20line.jpg" media-type="image/jpeg"/></manifest>'
+        + '<spine><itemref idref="cv"/><itemref idref="a"/><itemref idref="il"/><itemref idref="b"/></spine></package>',
+    },
+    {
+      name: 'OPS/cover.xhtml',
+      text: '<html><body><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">'
+        + '<image xlink:href="img/cover.png" width="1" height="1"/></svg></body></html>',
+    },
+    {
+      name: 'OPS/t/a.xhtml',
+      text: '<html><body><h1>第一章</h1><p>这一章的正文需要足够长才不会被当成空页。'
+        + '<img src="../img/in%20line.jpg" alt="x"/>后面还有字。</p></body></html>',
+    },
+    { name: 'OPS/t/il.xhtml', text: '<html><body><div><img src="../img/cover.png"/></div></body></html>' },
+    {
+      name: 'OPS/t/b.xhtml',
+      text: '<html><body><h1>第二章</h1><p>第二章的正文同样要足够长足够长足够长。</p></body></html>',
+    },
+    { name: 'OPS/img/cover.png', bytes: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x2d, 0x66, 0x61, 0x6b, 0x65]), store: true },
+    { name: 'OPS/img/in line.jpg', bytes: new TextEncoder().encode('JPEGDATA') },
+  ]),
+)
+const b2f = readFileSync(out2)
+const bk = await parseEpub(b2f.buffer.slice(b2f.byteOffset, b2f.byteOffset + b2f.byteLength), { images: true })
+eq('封面进 front', bk.images.front, ['OPS/img/cover.png'])
+eq('章间插图并进上一章', bk.chapters[0].body.endsWith('⟦img:OPS/img/cover.png⟧'), true)
+eq('行内图（含 %20 路径）单独成段', bk.chapters[0].body.includes('\n\n⟦img:OPS/img/in line.jpg⟧\n\n后面还有字'), true)
+const r = await bk.images.read('OPS/img/in line.jpg')
+eq('读图字节与类型', [new TextDecoder().decode(r.data), r.type], ['JPEGDATA', 'image/jpeg'])
+eq('不存在的图', await bk.images.read('nope.png'), null)
+const md2 = bookToMarkdown(bk, (p) => 'assets/' + p.split('/').pop().replace(' ', '_'))
+eq('Markdown 里是 ![]()', md2.includes('![](assets/cover.png)') && md2.includes('![](assets/in_line.jpg)'), true)
+eq('没解析出的图被丢掉不留标记', bookToMarkdown(bk).includes('⟦'), false)
+const noimg = await parseEpub(b2f.buffer.slice(b2f.byteOffset, b2f.byteOffset + b2f.byteLength))
+eq('默认不要图：没有标记也没有 images', [noimg.images, noimg.chapters[0].body.includes('⟦')], [undefined, false])
 console.log(`全部通过：${ok} 项`)

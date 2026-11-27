@@ -9,7 +9,8 @@
  * 字体 / 字号 / 行距的**初值**取编辑器当前设置：第一次打开阅读视图时观感不变，
  * 动过一次才开始各走各的。
  */
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { getBookStyle, setBookStyle } from './bookStyle'
 import { ensureFont, fontOption, readProse } from './fonts'
 import {
   PAGE_TURNS,
@@ -54,6 +55,8 @@ export interface ReaderStyle {
   speed: TurnSpeed
   /** 点按分区布局 */
   tap: TapLayout
+  /** 纸张主题的纸纹（纤维颗粒 + 书页边缘暗角） */
+  paperTex: boolean
   /** 字重：400 常规 / 500 / 600 / 700。只对带多字重的字体有效果，单字重字体会被浏览器合成加粗 */
   weight: 400 | 500 | 600 | 700
   /** 字距（em） */
@@ -96,6 +99,7 @@ export function defaultReaderStyle(): ReaderStyle {
     turn: 'slide',
     speed: 'normal',
     tap: 'standard',
+    paperTex: true,
     weight: 400,
     track: 0,
     vertical: false,
@@ -104,32 +108,37 @@ export function defaultReaderStyle(): ReaderStyle {
 
 const clamp = (v: number, lo: number, hi: number) => (Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo)
 
+/** 把存下来的（可能缺键、可能被改坏的）对象规整成合法样式；缺的用 d 补 */
+export function normalizeStyle(o: Partial<ReaderStyle>, d: ReaderStyle): ReaderStyle {
+  const R = READER_RANGE
+  return {
+    theme: READER_THEMES.some((t) => t.id === o.theme) ? (o.theme as ReaderTheme) : d.theme,
+    font: typeof o.font === 'string' ? o.font : d.font,
+    size: clamp(o.size ?? d.size, R.minSize, R.maxSize),
+    leading: clamp(o.leading ?? d.leading, R.minLeading, R.maxLeading),
+    gap: clamp(o.gap ?? d.gap, R.minGap, R.maxGap),
+    indent: clamp(o.indent ?? d.indent, 0, R.maxIndent),
+    justify: typeof o.justify === 'boolean' ? o.justify : d.justify,
+    margin: clamp(o.margin ?? d.margin, R.minMargin, R.maxMargin),
+    cols: o.cols === 'auto' || o.cols === 1 || o.cols === 2 || o.cols === 3 ? o.cols : d.cols,
+    rule: typeof o.rule === 'boolean' ? o.rule : d.rule,
+    turn: PAGE_TURNS.some((t) => t.id === o.turn) ? (o.turn as PageTurn) : d.turn,
+    speed: TURN_SPEEDS.some((t) => t.id === o.speed) ? (o.speed as TurnSpeed) : d.speed,
+    tap: TAP_LAYOUTS.some((t) => t.id === o.tap) ? (o.tap as TapLayout) : d.tap,
+    paperTex: typeof o.paperTex === 'boolean' ? o.paperTex : d.paperTex,
+    weight: typeof o.weight === 'number' ? o.weight : d.weight,
+    track: typeof o.track === 'number' ? o.track : d.track,
+    vertical: typeof o.vertical === 'boolean' ? o.vertical : d.vertical,
+  }
+}
+
 /** 读存下来的设置；缺的键用默认补，存坏了也不崩 */
 export function readReaderStyle(): ReaderStyle {
   const d = defaultReaderStyle()
   try {
     const raw = localStorage.getItem(KEY)
     if (!raw) return d
-    const o = JSON.parse(raw) as Partial<ReaderStyle>
-    const R = READER_RANGE
-    return {
-      theme: READER_THEMES.some((t) => t.id === o.theme) ? (o.theme as ReaderTheme) : d.theme,
-      font: typeof o.font === 'string' ? o.font : d.font,
-      size: clamp(o.size ?? d.size, R.minSize, R.maxSize),
-      leading: clamp(o.leading ?? d.leading, R.minLeading, R.maxLeading),
-      gap: clamp(o.gap ?? d.gap, R.minGap, R.maxGap),
-      indent: clamp(o.indent ?? d.indent, 0, R.maxIndent),
-      justify: typeof o.justify === 'boolean' ? o.justify : d.justify,
-      margin: clamp(o.margin ?? d.margin, R.minMargin, R.maxMargin),
-      cols: o.cols === 'auto' || o.cols === 1 || o.cols === 2 || o.cols === 3 ? o.cols : d.cols,
-    weight: o.weight === 500 || o.weight === 600 || o.weight === 700 ? o.weight : 400,
-    track: clamp(o.track ?? d.track, R.minTrack, R.maxTrack),
-      rule: typeof o.rule === 'boolean' ? o.rule : d.rule,
-      turn: PAGE_TURNS.some((t) => t.id === o.turn) ? (o.turn as PageTurn) : d.turn,
-      speed: TURN_SPEEDS.some((t) => t.id === o.speed) ? (o.speed as TurnSpeed) : d.speed,
-    vertical: typeof o.vertical === 'boolean' ? o.vertical : d.vertical,
-      tap: TAP_LAYOUTS.some((t) => t.id === o.tap) ? (o.tap as TapLayout) : d.tap,
-    }
+    return normalizeStyle(JSON.parse(raw) as Partial<ReaderStyle>, d)
   } catch {
     return d
   }
@@ -164,20 +173,68 @@ export function layoutSig(s: ReaderStyle): string {
   return [s.font, s.size, s.leading, s.gap, s.indent, s.justify, s.margin, s.cols, s.rule, s.weight, s.track, s.vertical].join('|')
 }
 
-export function useReaderStyle(): [ReaderStyle, (next: ReaderStyle) => void] {
-  const [style, setStyle] = useState<ReaderStyle>(() => {
+export interface BookStyleCtl {
+  /** 当前这本书是否有专属排版 */
+  perBook: boolean
+  setPerBook: (on: boolean) => void
+}
+
+/**
+ * 阅读样式：默认全局一份；打开「仅这本书」后这本单独存，
+ * 之后在这本里的调整只影响它，别的书不动。关掉即回到全局。
+ */
+export function useReaderStyle(docId?: string): [ReaderStyle, (next: ReaderStyle) => void, BookStyleCtl] {
+  const [global, setGlobal] = useState<ReaderStyle>(() => {
     const s = readReaderStyle()
     ensureFont(fontOption(s.font).id)
     return s
   })
-  const set = useCallback((next: ReaderStyle) => {
-    setStyle(next)
-    ensureFont(fontOption(next.font).id)
+  const load = useCallback((): ReaderStyle | null => {
+    if (!docId) return null
     try {
-      localStorage.setItem(KEY, JSON.stringify(next))
+      const raw = getBookStyle(localStorage, docId)
+      return raw && typeof raw === 'object' ? normalizeStyle(raw as Partial<ReaderStyle>, readReaderStyle()) : null
     } catch {
-      /* 写不进去只是记不住 */
+      return null
     }
-  }, [])
-  return [style, set]
+  }, [docId])
+  const [own, setOwn] = useState<ReaderStyle | null>(load)
+  // 切到另一本书：换它自己的设置
+  useEffect(() => {
+    const o = load()
+    setOwn(o)
+    if (o) ensureFont(fontOption(o.font).id)
+  }, [load])
+
+  const set = useCallback(
+    (next: ReaderStyle) => {
+      ensureFont(fontOption(next.font).id)
+      if (own && docId) {
+        setOwn(next)
+        setBookStyle(localStorage, docId, next)
+        return
+      }
+      setGlobal(next)
+      try {
+        localStorage.setItem(KEY, JSON.stringify(next))
+      } catch {
+        /* 写不进去只是记不住 */
+      }
+    },
+    [own, docId],
+  )
+  const setPerBook = useCallback(
+    (on: boolean) => {
+      if (!docId) return
+      if (on) {
+        setOwn(global)
+        setBookStyle(localStorage, docId, global)
+      } else {
+        setOwn(null)
+        setBookStyle(localStorage, docId, null)
+      }
+    },
+    [docId, global],
+  )
+  return [own ?? global, set, { perBook: own !== null, setPerBook }]
 }

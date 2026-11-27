@@ -13,7 +13,7 @@
  *    猜错了比不猜更糟（会把好好的一篇文章切得七零八落），留给人到编辑器里调。
  *    唯一主动做的是「首行看着像标题就拿它当标题」，而且只在它真的像的时候。
  */
-import { bookToMarkdown, parseEpub } from './epub'
+import { IMG_MARK, bookToMarkdown, parseEpub } from './epub'
 
 
 export interface ImportedDoc {
@@ -155,12 +155,52 @@ export function txtToMarkdown(raw: string, fallbackTitle: string): ImportedDoc {
   return { title, content: `# ${title}\n\n${merged}\n` }
 }
 
-/** EPUB 整本 → 一篇文档（书名做标题，每章一个 ##） */
-async function epubToDoc(buf: ArrayBuffer, fallbackTitle: string): Promise<ImportedDoc> {
-  const book = await parseEpub(buf)
-  return { title: book.title || fallbackTitle, content: bookToMarkdown(book) }
+const IMG_LIMIT = { each: 8 * 1024 * 1024, total: 80 * 1024 * 1024, count: 60 }
+
+function toB64(u: Uint8Array): string {
+  let s = ''
+  for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000))
+  return btoa(s)
 }
 
+/**
+ * EPUB 整本 → 一篇文档（书名做标题，每章一个 ##）。
+ * 有仓库（桌面版）时，插图存进 assets/ 并在正文里写成 ![](assets/…)；
+ * 浏览器模式没有仓库，塞 base64 会把文档撑爆，就只要文字。
+ * 单张/总量/张数都封顶，超了的图直接略过，不让一本画册把导入拖死。
+ */
+async function epubToDoc(buf: ArrayBuffer, fallbackTitle: string): Promise<ImportedDoc> {
+  let save: ((name: string, data: string) => Promise<string>) | undefined
+  try {
+    const { storage } = await import('./storage')
+    save = storage.saveAsset?.bind(storage)
+  } catch {
+    save = undefined
+  }
+  const book = await parseEpub(buf, { images: Boolean(save) })
+  const done = new Map<string, string>()
+  if (save && book.images) {
+    const order = [...book.images.front]
+    for (const c of book.chapters) for (const m of c.body.matchAll(IMG_MARK)) order.push(m[1])
+    let total = 0
+    for (const p of order) {
+      if (done.has(p) || done.size >= IMG_LIMIT.count) continue
+      try {
+        const img = await book.images.read(p)
+        if (!img || img.data.length > IMG_LIMIT.each || total + img.data.length > IMG_LIMIT.total) continue
+        const ext = (img.type.split('/')[1] ?? 'img').replace('svg+xml', 'svg').replace('jpeg', 'jpg')
+        const rel = await save(`epub-${done.size + 1}.${ext}`, toB64(img.data))
+        total += img.data.length
+        done.set(p, rel.replace(/\\/g, '/'))
+      } catch {
+        /* 一张图存不下不该让整本书导入失败 */
+      }
+    }
+  }
+  return { title: book.title || fallbackTitle, content: bookToMarkdown(book, (p) => done.get(p)) }
+}
+
+/** 读一个 File 并认编码 */
 /** 读一个 File 并转成待落盘的文档（.txt 走转换，.epub 解包成书，.md 原样） */
 export async function readImportFile(file: File): Promise<ImportedDoc> {
   const name = baseName(file.name)

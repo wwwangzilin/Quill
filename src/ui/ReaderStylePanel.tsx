@@ -8,18 +8,21 @@ import {
   TAP_LAYOUTS,
   TURN_SPEEDS,
   defaultReaderStyle,
+  type BookStyleCtl,
   type ReaderStyle,
 } from '../core/readerStyle'
 
 interface Props {
   style: ReaderStyle
   onChange: (next: ReaderStyle) => void
+  /** 「仅这本书」开关；不给就不显示 */
+  book?: BookStyleCtl
   /** 面板开合时通知外面：阅读视图要据此决定 Esc 先关谁 */
   onOpenChange?: (open: boolean) => void
 }
 
 /** 阅读视图里的「Aa」：配色 + 排版，改了当场生效，只影响阅读，不动编辑器 */
-export default function ReaderStylePanel({ style, onChange, onOpenChange }: Props) {
+export default function ReaderStylePanel({ style, onChange, book, onOpenChange }: Props) {
   const [open, setOpen] = useState(false)
   const fonts = useAllFonts()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -83,6 +86,12 @@ export default function ReaderStylePanel({ style, onChange, onOpenChange }: Prop
       </button>
       {open && (
         <div className="type-pop-panel rstyle-panel" role="dialog" aria-label="阅读外观">
+          {book && (
+            <label className="type-pop-check rstyle-book" title="打开后，这本书的字体、字号、分栏等单独记住，不影响其他书">
+              <input type="checkbox" checked={book.perBook} onChange={(e) => book.setPerBook(e.target.checked)} />
+              仅这本书用这套排版
+            </label>
+          )}
           <div className="rstyle-themes" role="radiogroup" aria-label="阅读配色">
             {READER_THEMES.map((t) => (
               <button
@@ -278,6 +287,16 @@ export default function ReaderStylePanel({ style, onChange, onOpenChange }: Prop
               />
               两端对齐
             </label>
+            {style.theme === 'paper' && (
+              <label className="type-pop-check">
+                <input
+                  type="checkbox"
+                  checked={style.paperTex}
+                  onChange={(e) => set({ paperTex: e.target.checked })}
+                />
+                纸纹
+              </label>
+            )}
             <button type="button" className="type-pop-reset" onClick={() => onChange(defaultReaderStyle())}>
               重置
             </button>

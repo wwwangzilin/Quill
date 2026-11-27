@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSetting } from '../core/settings'
+import { CARD_THEMES, renderExcerptCard } from '../core/excerptCard'
 import { HI_COLORS, commentsToMarkdown, newCommentId, whenOf, type Comment, type HiColor } from '../core/comments'
 import { toast } from './toast'
+import { makeZip, safeName, type ZipFile } from '../core/zip'
 
 interface Props {
   open: boolean
@@ -79,12 +82,89 @@ export default function CommentsPanel({
     setEditId(null)
   }
 
+  const [cardTheme, setCardTheme] = useSetting('cardTheme', 'paper')
+  const [packing, setPacking] = useState('')
+  /** 把所有批注各画一张卡片，打成一个 zip；一张一张画，进度放在按钮上 */
+  const savePack = async () => {
+    if (packing || !comments.length) return
+    try {
+      const title = docTitle ?? '文档'
+      const files: ZipFile[] = []
+      for (let i = 0; i < comments.length; i += 1) {
+        setPacking(`${i + 1}/${comments.length}`)
+        const c = comments[i]
+        const blob = await renderExcerptCard({
+          quote: c.quote,
+          note: c.note,
+          title,
+          accent: HI_COLORS.find((h) => h.id === c.color)?.hex,
+          theme: cardTheme,
+        })
+        files.push({
+          name: `${String(i + 1).padStart(3, '0')}-${safeName(c.quote.replace(/\s+/g, ''), 16)}.png`,
+          data: new Uint8Array(await blob.arrayBuffer()),
+        })
+        // 让出主线程：几十张卡片连着画，界面不能僵住
+        await new Promise((r) => setTimeout(r, 0))
+      }
+      const zip = makeZip(files)
+      const url = URL.createObjectURL(new Blob([zip.buffer as ArrayBuffer], { type: 'application/zip' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `摘录卡片-${safeName(title, 30)}.zip`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 4000)
+      toast.success('卡片包已生成', `共 ${files.length} 张`)
+    } catch (e) {
+      toast.error('生成失败', e instanceof Error ? e.message : '')
+    } finally {
+      setPacking('')
+    }
+  }
+
+  const saveCard = async (c: Comment) => {
+    try {
+      const blob = await renderExcerptCard({
+        quote: c.quote,
+        note: c.note,
+        title: docTitle ?? '文档',
+        accent: HI_COLORS.find((h) => h.id === c.color)?.hex,
+        theme: cardTheme,
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `摘录-${(docTitle ?? '文档').replace(/[\\/:*?"<>|]/g, '_').slice(0, 30)}.png`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 2000)
+      toast.success('卡片已生成', '已保存为 PNG 图片')
+    } catch (e) {
+      toast.error('生成失败', e instanceof Error ? e.message : '')
+    }
+  }
+
   return (
     <aside className="drawer comments-pane">
       <div className="comments-head">
         <span>批注</span>
         <span className="comments-count">{comments.length}</span>
         <span className="grow" />
+        <select
+          className="comment-card-theme"
+          value={cardTheme}
+          onChange={(e) => setCardTheme(e.target.value)}
+          title="摘录卡片的配色"
+        >
+          {CARD_THEMES.map((t) => (
+            <option key={t.id} value={t.id}>
+              卡片·{t.name}
+            </option>
+          ))}
+        </select>
         <button
           className="btn ghost mini"
           disabled={!comments.length}
@@ -99,6 +179,14 @@ export default function CommentsPanel({
           }}
         >
           导出
+        </button>
+        <button
+          className="btn ghost mini"
+          disabled={!comments.length || !!packing}
+          title="每条批注画成一张图片卡片，打成一个 zip"
+          onClick={() => void savePack()}
+        >
+          {packing ? `画卡片 ${packing}` : '卡片包'}
         </button>
         <button className="btn ghost icon" onClick={onClose} title="关闭">
           ×
@@ -209,6 +297,13 @@ export default function CommentsPanel({
                   <span className="grow" />
                   <button className="btn ghost mini" onClick={() => onJump(c)}>
                     定位
+                  </button>
+                  <button
+                    className="btn ghost mini"
+                    title="存成一张摘录卡片图片"
+                    onClick={() => void saveCard(c)}
+                  >
+                    卡片
                   </button>
                   <button
                     className="btn ghost mini"

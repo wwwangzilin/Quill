@@ -33,6 +33,7 @@ import {
 import { Icon } from './Icon'
 import { useSetting } from '../core/settings'
 import { recordFinished, useReadingTracker } from '../core/readTracker'
+import { assetUrl } from '../core/asset'
 import ReaderStylePanel from './ReaderStylePanel'
 import { ReadAloudButton, useReadAloud } from './ReadAloud'
 import { layoutSig, pitchOf, readerVars, tapAction, useReaderStyle } from '../core/readerStyle'
@@ -280,7 +281,7 @@ function Block({
       return (
         <img
           className="reader-img"
-          src={String(node.attrs?.src ?? '')}
+          src={assetUrl(String(node.attrs?.src ?? ''))}
           alt={String(node.attrs?.alt ?? '')}
         />
       )
@@ -470,7 +471,7 @@ export default function ReaderView({
 
   const text = useMemo(() => flatText(blocks), [blocks])
   /** 阅读自己的配色与排版（独立于编辑器）；放这么靠前是因为分页要认它 */
-  const [rstyle, setRstyle] = useReaderStyle()
+  const [rstyle, setRstyle, bookCtl] = useReaderStyle(docId)
   /** 竖排：版面从右往左排，所以位移符号、翻页方向、点按左右都得反过来 */
   const vert = rstyle.vertical
   const sgn = vert ? -1 : 1
@@ -1084,6 +1085,7 @@ export default function ReaderView({
     <div
       className={'reader' + (leaving ? ' leaving' : '') + (immersive ? ' immersive' : '')}
       data-rtheme={rstyle.theme}
+      data-ptex={rstyle.paperTex ? '1' : undefined}
       style={readerVars(rstyle) as React.CSSProperties}
     >
       {slicing && tocOpen && (
@@ -1167,6 +1169,7 @@ export default function ReaderView({
           <ReaderStylePanel
             style={rstyle}
             onChange={setRstyle}
+            book={bookCtl}
             onOpenChange={onStyleOpen}
           />
           <button

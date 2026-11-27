@@ -289,7 +289,12 @@
   border-top: 1px solid var(--border);
 }
 .reader-track img.reader-img {
+  display: block;
+  margin: 0.8em auto;
   max-width: 100%;
+  max-height: 72vh;
+  object-fit: contain;
+  break-inside: avoid;
   border-radius: var(--radius-sm);
 }
 /* 窄窗口只留一栏 —— 两栏在 900px 以下会挤成一团 */

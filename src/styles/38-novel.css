@@ -592,3 +592,32 @@ html.novel-immersive .novel-layer {
   font-size: 10.5px;
   opacity: 0.7;
 }
+
+/* ---- 纸张主题的纸纹：纤维颗粒 + 四周淡淡的暗角；「纸纹」开关或「质感层」关掉就退回平底 ---- */
+.reader[data-rtheme='paper'][data-ptex] {
+  --paper-fiber: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='f' x='0' y='0' width='100%25' height='100%25'><feTurbulence type='fractalNoise' baseFrequency='0.9 0.35' numOctaves='3' seed='7' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.45  0 0 0 0 0.34  0 0 0 0 0.18  0 0 0 0.16 -0.02'/></filter><rect width='100%25' height='100%25' filter='url(%23f)'/></svg>");
+  background:
+    radial-gradient(130% 100% at 50% 50%, transparent 62%, rgba(120, 85, 30, 0.1) 100%),
+    var(--paper-fiber),
+    radial-gradient(120% 90% at 50% 0%, rgba(255, 252, 240, 0.7), transparent 62%),
+    var(--bg);
+}
+html.perf-no-texture .reader[data-rtheme='paper'][data-ptex] {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255, 252, 240, 0.7), transparent 62%),
+    var(--bg);
+}
+.rstyle-book {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.comment-card-theme {
+  font: inherit;
+  font-size: 11.5px;
+  padding: 2px 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-2);
+}
