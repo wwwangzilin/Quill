@@ -54,6 +54,12 @@ export interface ReaderStyle {
   speed: TurnSpeed
   /** 点按分区布局 */
   tap: TapLayout
+  /** 字重：400 常规 / 500 / 600 / 700。只对带多字重的字体有效果，单字重字体会被浏览器合成加粗 */
+  weight: 400 | 500 | 600 | 700
+  /** 字距（em） */
+  track: number
+  /** 竖排（从右到左、从上到下，翻页方向也跟着反过来）；竖排下栏数不起作用 */
+  vertical: boolean
 }
 
 
@@ -68,6 +74,8 @@ export const READER_RANGE = {
   maxIndent: 4,
   minMargin: 12,
   maxMargin: 140,
+  minTrack: -0.02,
+  maxTrack: 0.2,
 }
 
 const KEY = 'quill-set:readerStyle'
@@ -88,6 +96,9 @@ export function defaultReaderStyle(): ReaderStyle {
     turn: 'slide',
     speed: 'normal',
     tap: 'standard',
+    weight: 400,
+    track: 0,
+    vertical: false,
   }
 }
 
@@ -111,9 +122,12 @@ export function readReaderStyle(): ReaderStyle {
       justify: typeof o.justify === 'boolean' ? o.justify : d.justify,
       margin: clamp(o.margin ?? d.margin, R.minMargin, R.maxMargin),
       cols: o.cols === 'auto' || o.cols === 1 || o.cols === 2 || o.cols === 3 ? o.cols : d.cols,
+    weight: o.weight === 500 || o.weight === 600 || o.weight === 700 ? o.weight : 400,
+    track: clamp(o.track ?? d.track, R.minTrack, R.maxTrack),
       rule: typeof o.rule === 'boolean' ? o.rule : d.rule,
       turn: PAGE_TURNS.some((t) => t.id === o.turn) ? (o.turn as PageTurn) : d.turn,
       speed: TURN_SPEEDS.some((t) => t.id === o.speed) ? (o.speed as TurnSpeed) : d.speed,
+    vertical: typeof o.vertical === 'boolean' ? o.vertical : d.vertical,
       tap: TAP_LAYOUTS.some((t) => t.id === o.tap) ? (o.tap as TapLayout) : d.tap,
     }
   } catch {
@@ -131,14 +145,23 @@ export function readerVars(s: ReaderStyle): Record<string, string> {
     '--r-indent': `${s.indent}em`,
     '--r-align': s.justify ? 'justify' : 'start',
     '--r-margin': `${s.margin}px`,
+    '--r-weight': String(s.weight),
+    // 竖排的行距网格：每一行（竖排里是一列）的厚度，取整才能让一页刚好装整数列
+    '--r-pitch': `${pitchOf(s)}px`,
+    '--r-track': `${s.track}em`,
     '--r-rule': s.rule ? '1px solid var(--border)' : 'none',
     '--r-speed': String(TURN_SPEEDS.find((t) => t.id === s.speed)?.scale ?? 1),
   }
 }
 
+/** 竖排时一列的厚度（px，取整） */
+export function pitchOf(s: Pick<ReaderStyle, 'size' | 'leading'>): number {
+  return Math.max(1, Math.round(s.size * s.leading))
+}
+
 /** 影响分页的那几项拼成一个签名：变了就得重新量页数 */
 export function layoutSig(s: ReaderStyle): string {
-  return [s.font, s.size, s.leading, s.gap, s.indent, s.justify, s.margin, s.cols, s.rule].join('|')
+  return [s.font, s.size, s.leading, s.gap, s.indent, s.justify, s.margin, s.cols, s.rule, s.weight, s.track, s.vertical].join('|')
 }
 
 export function useReaderStyle(): [ReaderStyle, (next: ReaderStyle) => void] {

@@ -1,3 +1,4 @@
+import { useAllFonts } from '../core/customFonts'
 import { useCallback, useEffect, useState } from 'react'
 import { storage, type RemoteInfo } from '../core/storage'
 import {
@@ -5,7 +6,6 @@ import {
   clampIndent,
   clampTracking,
   clampWidth,
-  FONTS,
   PROSE_DEFAULT,
   PROSE_RANGE,
   fontInstalled,
@@ -31,8 +31,9 @@ import { isDesktop, type DesktopPrefs } from '../core/desktop'
 import { checkUpdate, currentVersion, installUpdate, type UpdateInfo } from '../core/update'
 import { toast } from './toast'
 import BackupSection from './BackupSection'
+import WebdavSection from './WebdavSection'
 
-type SectionId = 'appearance' | 'writing' | 'ai' | 'backup' | 'localbackup' | 'desktop' | 'about'
+type SectionId = 'appearance' | 'writing' | 'ai' | 'backup' | 'webdav' | 'localbackup' | 'desktop' | 'about'
 
 interface Props {
   /** 嵌在右侧栏时不给 —— 那种形态没有「返回」 */
@@ -69,6 +70,7 @@ const SECTIONS: { id: SectionId; label: string; en: string; hint: string; deskto
   { id: 'writing', label: '写作', en: 'WRITING', hint: '每日目标' },
   { id: 'ai', label: 'AI 助手', en: 'ASSISTANT', hint: '续写与密钥' },
   { id: 'backup', label: '远程备份', en: 'BACKUP', hint: '推送到 git 仓库' },
+  { id: 'webdav', label: 'WebDAV 同步', en: 'WEBDAV', hint: '与网盘 / 自建服务互相同步', desktopOnly: true },
   { id: 'localbackup', label: '自动备份', en: 'SNAPSHOT', hint: '整库快照与恢复' },
   { id: 'desktop', label: '桌面', en: 'DESKTOP', hint: '托盘与同步', desktopOnly: true },
   { id: 'about', label: '关于', en: 'ABOUT', hint: '版本与更新' },
@@ -137,6 +139,7 @@ export default function SettingsView({
   const [installing, setInstalling] = useState(false)
   const [progress, setProgress] = useState(0)
 
+  const fonts = useAllFonts()
   const option = fontOption(prose.font)
   const installed = fontInstalled(option)
   const hasRemote = Boolean(info?.url)
@@ -353,7 +356,7 @@ export default function SettingsView({
       <label className="field" style={{ marginTop: 14 }}>
         <span>正文字体</span>
         <select value={prose.font} onChange={(e) => onProse({ ...prose, font: e.target.value })}>
-          {FONTS.map((f) => (
+          {fonts.map((f) => (
             <option key={f.id} value={f.id}>
               {f.name}
             </option>
@@ -1002,6 +1005,7 @@ export default function SettingsView({
     writing,
     ai: aiSection,
     backup,
+    webdav: <WebdavSection />,
     localbackup: <BackupSection />,
     desktop: desktopSection,
     about,

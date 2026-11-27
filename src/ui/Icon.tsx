@@ -53,6 +53,8 @@ const ICONS: Record<string, Paths> = {
   bookmark: ['M6 3h12v18l-6-4-6 4z'],
   play: ['M7 4.5v15l12-7.5z'],
   pause: ['M8 5v14', 'M16 5v14'],
+  speaker: ['M11 5 6 9H3v6h3l5 4z', 'M15.5 8.5a5 5 0 0 1 0 7', 'M18.5 5.5a9 9 0 0 1 0 13'],
+  stop: ['M6 6h12v12H6z'],
   check: ['M20 6L9 17l-5-5'],
   back: ['M19 12H5', 'M12 19l-7-7 7-7'],
   up: ['M12 19V5', 'M5 12l7-7 7 7'],

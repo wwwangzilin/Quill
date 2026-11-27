@@ -3,6 +3,7 @@ mod backup;
 mod desktop;
 mod git;
 mod vault;
+mod webdav;
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -757,6 +758,10 @@ pub fn run() {
             backup_restore_all,
             backup_restore_doc,
             backup_reveal,
+            webdav::webdav_request,
+            webdav::list_assets,
+            webdav::webdav_put_asset,
+            webdav::webdav_get_asset,
             ai::ai_status,
             ai::ai_save,
             ai::ai_stream,

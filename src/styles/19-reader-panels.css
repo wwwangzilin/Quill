@@ -236,6 +236,8 @@
   font-family: var(--font-prose);
   font-size: var(--prose-size);
   line-height: var(--prose-leading);
+  font-weight: var(--r-weight, 400);
+  letter-spacing: var(--r-track, 0);
   color: var(--text);
   /* 翻页位移。多栏横移是大面积位移，用一条「先快后慢」的曲线并稍微拉长：
      原来的 --dur（0.26s）配通用缓动，看着是「顿」过去的，不是滑过去的。 */

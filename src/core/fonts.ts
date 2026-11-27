@@ -342,8 +342,26 @@ export function fontInstalled(option: FontOption): boolean {
   }
 }
 
+/* ---- 用户导入的字体：运行时注册，进同一个下拉 ---- */
+let customFonts: FontOption[] = []
+export const FONTS_EVENT = 'quill-fonts-change'
+
+/** 内置 + 导入的字体（导入的排在后面） */
+export function allFonts(): FontOption[] {
+  return customFonts.length ? [...FONTS, ...customFonts] : FONTS
+}
+
+export function setCustomFonts(list: FontOption[]): void {
+  customFonts = list
+  try {
+    window.dispatchEvent(new Event(FONTS_EVENT))
+  } catch {
+    /* 非浏览器环境（测试）没有 window */
+  }
+}
+
 export function fontOption(id: string): FontOption {
-  return FONTS.find((f) => f.id === id) ?? FONTS[0]
+  return FONTS.find((f) => f.id === id) ?? customFonts.find((f) => f.id === id) ?? FONTS[0]
 }
 
 /** 把外观写进 CSS 变量；不传参数就用存下来的设置 */

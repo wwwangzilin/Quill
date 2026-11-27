@@ -386,3 +386,209 @@ html.novel-immersive .novel-layer {
   inset: 0;
   z-index: 60;
 }
+
+.rstyle-font-tools .rstyle-cols {
+  flex-wrap: wrap;
+}
+
+/* ---- 书签分类 ---- */
+.reader-bm-list {
+  width: 280px;
+}
+.reader-bm-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 2px 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.reader-bm-filter button {
+  font: inherit;
+  font-size: 11.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.reader-bm-filter button.on {
+  color: var(--accent-1);
+  border-color: var(--accent-1);
+  background: var(--accent-soft);
+}
+.reader-bm-filter i,
+.reader-bm-cat i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.reader-bm-filter em {
+  font-style: normal;
+  font-size: 10.5px;
+  opacity: 0.7;
+}
+.reader-bm-cat {
+  flex: none;
+  padding: 6px 4px 6px 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+.reader-bm-empty {
+  padding: 10px 8px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* ==========================================================================
+   竖排（writing-mode: vertical-rl）
+   一页 = 整数列：每列厚度统一成 --r-pitch（px），轨道宽度由 measure 削成它的整数倍。
+   所以这里必须把一切会破坏网格的东西压平：段距归零（靠首行缩进分段）、
+   标题的行高也锁成 pitch，只留 pitch 整数倍的外边距。
+   ========================================================================== */
+.reader-track[data-vert] {
+  writing-mode: vertical-rl;
+  /* 不能是多栏容器：竖排下多栏是沿纵向切的，会把内容劈成上下几段 */
+  column-count: auto !important;
+  column-width: auto !important;
+  column-gap: 0 !important;
+  column-rule: none !important;
+  margin-inline: auto;
+  line-height: var(--r-pitch);
+}
+.reader-track[data-vert] > * {
+  line-height: var(--r-pitch);
+}
+.reader-track[data-vert] p {
+  margin: 0;
+}
+.reader-track[data-vert] h1,
+.reader-track[data-vert] h2,
+.reader-track[data-vert] h3,
+.reader-track[data-vert] h4 {
+  line-height: var(--r-pitch);
+  margin-block: var(--r-pitch);
+}
+.reader-track[data-vert] blockquote,
+.reader-track[data-vert] ul,
+.reader-track[data-vert] ol {
+  margin-block: 0;
+}
+.reader-track[data-vert] img.reader-img {
+  max-height: 100%;
+  max-width: none;
+  width: auto;
+}
+/* 竖排里的数字（两位以内）并成一格，不然「第12章」会横躺着占四格 */
+.reader-track[data-vert] {
+  text-combine-upright: digits 2;
+}
+
+/* ---- WebDAV 同步结果 ---- */
+.webdav-msg {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+.webdav-msg.ok {
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+}
+.webdav-msg.bad {
+  border-color: #e5646b;
+}
+.webdav-line {
+  color: var(--text-2);
+  word-break: break-all;
+}
+
+/* ---- 朗读 ---- */
+.reader-track .tts-now {
+  background: var(--accent-soft);
+  box-shadow: -6px 0 0 var(--accent-soft), 6px 0 0 var(--accent-soft);
+  border-radius: 3px;
+  transition: background 0.25s;
+}
+.reader-tts {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.reader-tts .btn.on {
+  color: var(--accent-1);
+}
+.reader-tts-pop {
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+}
+.tts-row {
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.tts-row select {
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+}
+
+/* ---- 书架分组芯片 ---- */
+.shelf-groups {
+  display: flex;
+  gap: 4px;
+  padding: 2px 10px 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.shelf-groups::-webkit-scrollbar {
+  display: none;
+}
+.shelf-groups button {
+  flex: none;
+  font: inherit;
+  font-size: 11.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: color 0.16s, border-color 0.16s, background 0.16s;
+}
+.shelf-groups button:hover {
+  color: var(--text);
+}
+.shelf-groups button.on {
+  color: var(--accent-1);
+  border-color: var(--accent-1);
+  background: var(--accent-soft);
+}
+.shelf-groups em {
+  font-style: normal;
+  font-size: 10.5px;
+  opacity: 0.7;
+}

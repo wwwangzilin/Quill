@@ -1,5 +1,5 @@
 // 书签：同一屏再点一次是取消，章按标题认（node 原生跑 TS）
-import { sameSpot, toggleBookmark } from './src/core/bookmarks.ts'
+import { sameSpot, toggleBookmark, nextCat, setBookmarkCat, filterBookmarks, catCounts, BM_CATS } from './src/core/bookmarks.ts'
 let ok = 0
 function eq(name, got, want) {
   if (JSON.stringify(got) !== JSON.stringify(want)) {
@@ -16,4 +16,16 @@ l = toggleBookmark(l, { chapter: '第一章', page: 2 }, 3)
 eq('同一屏再点是取消', l.map((b) => b.page), [3])
 eq('章不同算不同位置', sameSpot({ chapter: 'A', page: 1 }, { chapter: 'B', page: 1 }), false)
 eq('整篇模式（无章）', toggleBookmark([], { page: 0 }, 1)[0].label, '第 1 屏')
+// ---- 分类 ----
+eq('循环：无→重点→待查→喜欢→伏笔→无', [undefined, 'key', 'todo', 'love', 'plot'].map((c) => nextCat(c)), ['key', 'todo', 'love', 'plot', undefined])
+let c = toggleBookmark([], { page: 0 }, 1, 'todo')
+eq('带分类添加', c[0].cat, 'todo')
+c = toggleBookmark(c, { page: 1 }, 2)
+c = setBookmarkCat(c, c[1].id, 'key')
+eq('设置分类', c.map((b) => b.cat), ['todo', 'key'])
+c = setBookmarkCat(c, c[0].id, undefined)
+eq('清除分类时不留 cat 键', 'cat' in c[0], false)
+eq('筛选', [filterBookmarks(c, 'all').length, filterBookmarks(c, 'none').length, filterBookmarks(c, 'key').length, filterBookmarks(c, 'plot').length], [2, 1, 1, 0])
+eq('计数', catCounts(c), { key: 1, todo: 0, love: 0, plot: 0, none: 1 })
+eq('四个分类', BM_CATS.length, 4)
 console.log(`全部通过：${ok} 项`)

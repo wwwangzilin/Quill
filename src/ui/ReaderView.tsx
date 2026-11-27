@@ -17,12 +17,25 @@ import type { RawChapter } from '../core/rawChapters'
 import { parseDocument } from '../core/md-parse'
 import { storage } from '../core/storage'
 import CommentsPanel from './CommentsPanel'
-import { readBookmarks, sameSpot, toggleBookmark, writeBookmarks, type Bookmark } from '../core/bookmarks'
+import {
+  BM_CATS,
+  catCounts,
+  filterBookmarks,
+  nextCat,
+  readBookmarks,
+  sameSpot,
+  setBookmarkCat,
+  toggleBookmark,
+  writeBookmarks,
+  type BmCat,
+  type Bookmark,
+} from '../core/bookmarks'
 import { Icon } from './Icon'
 import { useSetting } from '../core/settings'
 import { recordFinished, useReadingTracker } from '../core/readTracker'
 import ReaderStylePanel from './ReaderStylePanel'
-import { layoutSig, readerVars, tapAction, useReaderStyle } from '../core/readerStyle'
+import { ReadAloudButton, useReadAloud } from './ReadAloud'
+import { layoutSig, pitchOf, readerVars, tapAction, useReaderStyle } from '../core/readerStyle'
 import { toast } from './toast'
 
 interface Props {
@@ -458,6 +471,9 @@ export default function ReaderView({
   const text = useMemo(() => flatText(blocks), [blocks])
   /** 阅读自己的配色与排版（独立于编辑器）；放这么靠前是因为分页要认它 */
   const [rstyle, setRstyle] = useReaderStyle()
+  /** 竖排：版面从右往左排，所以位移符号、翻页方向、点按左右都得反过来 */
+  const vert = rstyle.vertical
+  const sgn = vert ? -1 : 1
   const styleOpenRef = useRef(false)
   const onStyleOpen = useCallback((o: boolean) => {
     styleOpenRef.current = o
@@ -559,12 +575,29 @@ export default function ReaderView({
   const measure = useCallback(() => {
     const track = trackRef.current
     if (!track) return
-    const w = track.clientWidth
+    let w: number
+    let gap = 0
+    if (vert) {
+      // 竖排：一页 = 整数列。把轨道宽度削成列厚的整数倍，翻页才不会把一列劈成两半
+      const view = viewRef.current
+      if (!view) return
+      const cs = getComputedStyle(view)
+      const avail = view.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)
+      const pitch = pitchOf(rstyle)
+      w = Math.max(pitch, Math.floor(avail / pitch) * pitch)
+      track.style.width = `${w}px`
+      // 只露出轨道本身那一格宽：把内边距和取整剩下的零头都裁掉，相邻页的边缘才不会探进来
+      view.style.clipPath = `inset(0 ${(view.clientWidth - w) / 2}px)`
+    } else {
+      track.style.width = ''
+      if (viewRef.current) viewRef.current.style.clipPath = ''
+      w = track.clientWidth
+      gap = parseFloat(getComputedStyle(track).columnGap) || 0
+    }
     if (!w) return
-    const gap = parseFloat(getComputedStyle(track).columnGap) || 0
     const s = w + gap
     setStep(s)
-    const total = Math.max(1, Math.ceil((track.scrollWidth + gap) / s))
+    const total = Math.max(1, Math.ceil((track.scrollWidth + gap - (vert ? 1 : 0)) / s))
     setPages(total)
     // 有「要回到的那一屏」就先兑现，否则只是把当前页夹进新范围
     const want = wantPage.current
@@ -574,7 +607,7 @@ export default function ReaderView({
     } else {
       setPage((p) => Math.min(p, total - 1))
     }
-  }, [])
+  }, [vert, rstyle.size, rstyle.leading])
 
   /*
    * 换章、窗口缩放、字体变化都要重新量 —— 栏宽一变，页数就变了。
@@ -737,15 +770,35 @@ export default function ReaderView({
   /* ---------- 书签 ---------- */
   const [bms, setBms] = useState<Bookmark[]>(() => readBookmarks(docId))
   const [bmOpen, setBmOpen] = useState(false)
+  const [bmFilter, setBmFilter] = useState<BmCat | 'all' | 'none'>('all')
   const spot = { chapter: slicing ? chapter.title : undefined, page }
   const marked = bms.some((b) => sameSpot(b, spot))
+  const shownBms = useMemo(() => filterBookmarks(bms, bmFilter), [bms, bmFilter])
+  const catStat = useMemo(() => catCounts(bms), [bms])
   const flipBookmark = useCallback(() => {
     setBms((list) => {
-      const next = toggleBookmark(list, { chapter: slicing ? chapter.title : undefined, page })
+      // 正看着某个分类的话，新加的书签直接归进去
+      const next = toggleBookmark(
+        list,
+        { chapter: slicing ? chapter.title : undefined, page },
+        Date.now(),
+        bmFilter === 'all' || bmFilter === 'none' ? undefined : bmFilter,
+      )
       writeBookmarks(docId, next)
       return next
     })
-  }, [docId, slicing, chapter, page])
+  }, [docId, slicing, chapter, page, bmFilter])
+  const cycleCat = useCallback(
+    (id: string) => {
+      setBms((list) => {
+        const cur = list.find((b) => b.id === id)
+        const next = setBookmarkCat(list, id, nextCat(cur?.cat))
+        writeBookmarks(docId, next)
+        return next
+      })
+    },
+    [docId],
+  )
   const goBookmark = useCallback(
     (b: Bookmark) => {
       setBmOpen(false)
@@ -784,7 +837,8 @@ export default function ReaderView({
 
   /* ---------- 阅读统计：真实阅读时间 + 读完标记 ---------- */
   // 自动翻页开着时人不动也在读，别当成挂机
-  useReadingTracker(docId, title, () => autoSec > 0)
+  const ttsPlayingRef = useRef(false)
+  useReadingTracker(docId, title, () => autoSec > 0 || ttsPlayingRef.current)
   useEffect(() => {
     // 单屏的短文一打开就在「末页」，不算读完；至少翻过一屏或换过章才算
     if (atEnd && (page > 0 || ci > 0)) recordFinished(docId, title)
@@ -814,12 +868,12 @@ export default function ReaderView({
       const x = (e.clientX - box.left) / box.width
       // 刚拖完手指抬起来也会补一个 click，别把它当成点按
       if (performance.now() - dragEndAt.current < 60) return
-      const act = tapAction(x, rstyle.tap)
+      const act = tapAction(vert ? 1 - x : x, rstyle.tap)
       if (act === 'prev') go(-1)
       else if (act === 'next') go(1)
       else setImmersive((v) => !v)
     },
-    [go, rstyle.tap],
+    [go, rstyle.tap, vert],
   )
 
   /* ---------- 手势：触摸 / 手写笔拖动翻页（跟手），滚轮和触控板横扫翻页 ---------- */
@@ -844,7 +898,8 @@ export default function ReaderView({
     (e: { pointerId: number; clientX: number; clientY: number; currentTarget: HTMLElement }) => {
       const d = drag.current
       if (!d || d.id !== e.pointerId) return
-      const dx = e.clientX - d.x0
+      // 竖排时「往前翻」是向右拖，统一成「负 = 往前」，下面的算式横竖排通用
+      const dx = (e.clientX - d.x0) * sgn
       const dy = e.clientY - d.y0
       if (!d.on) {
         // 横向位移明显大于纵向，才算「要翻页」；否则是想选字或滚动，别抢
@@ -862,9 +917,9 @@ export default function ReaderView({
       // 到头了还往外拖：加阻尼，像拉橡皮筋
       const blocked = (dx > 0 && !canGo(-1)) || (dx < 0 && !canGo(1))
       track.style.transition = 'none'
-      track.style.transform = `translateX(${-page * step + (blocked ? dx * 0.3 : dx)}px)`
+      track.style.transform = `translateX(${sgn * (-page * step + (blocked ? dx * 0.3 : dx))}px)`
     },
-    [rstyle.turn, canGo, page, step],
+    [rstyle.turn, canGo, page, step, sgn],
   )
   const onPointerEnd = useCallback(
     (e: { pointerId: number }) => {
@@ -884,10 +939,10 @@ export default function ReaderView({
         go(dir)
       } else if (track) {
         // 没拖够 / 到头了：弹回原位
-        track.style.transform = `translateX(${-page * step}px)`
+        track.style.transform = `translateX(${sgn * -page * step}px)`
       }
     },
-    [step, canGo, go, page],
+    [step, canGo, go, page, sgn],
   )
   const wheelAcc = useRef({ sum: 0, last: 0, lock: 0 })
   const onWheel = useCallback(
@@ -928,11 +983,43 @@ export default function ReaderView({
       }
       if (!track || !step) return
       // track 已经被平移过了，两者相减得到的是**内容坐标**，与当前页无关
-      const at = el.getBoundingClientRect().left - track.getBoundingClientRect().left
+      const er = el.getBoundingClientRect()
+      const tr = track.getBoundingClientRect()
+      const at = vert ? tr.right - er.right : er.left - tr.left
       setPage(Math.max(0, Math.min(pages - 1, Math.floor(at / step))))
     },
-    [step, pages],
+    [step, pages, vert],
   )
+
+  /** 朗读：念到哪段就翻到哪段 */
+  const tts = useReadAloud({
+    chapterKey: ci,
+    getBlocks: () => Array.from(trackRef.current?.children ?? []) as HTMLElement[],
+    startIndex: (els) => {
+      const tr = trackRef.current?.getBoundingClientRect()
+      if (!tr || !step) return 0
+      const from = page * step - 2
+      const i = els.findIndex((el) => {
+        const er = el.getBoundingClientRect()
+        return (vert ? tr.right - er.right : er.left - tr.left) >= from
+      })
+      return i < 0 ? Math.max(0, els.length - 1) : i
+    },
+    reveal: (el) => {
+      const tr = trackRef.current?.getBoundingClientRect()
+      if (!tr || !step) return
+      const er = el.getBoundingClientRect()
+      const at = vert ? tr.right - er.right : er.left - tr.left
+      setPage(Math.max(0, Math.min(pages - 1, Math.floor(at / step))))
+    },
+    nextChapter: () => {
+      if (!slicing || ci >= chapters.length - 1) return false
+      setCi(ci + 1)
+      return true
+    },
+  })
+
+  ttsPlayingRef.current = tts.playing
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -966,12 +1053,15 @@ export default function ReaderView({
         setImmersive((v) => !v)
         return
       }
-      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+      // 竖排是从右往左读：← 往后翻，→ 往前翻
+      const fwdKey = vert ? 'ArrowLeft' : 'ArrowRight'
+      const backKey = vert ? 'ArrowRight' : 'ArrowLeft'
+      if (e.key === fwdKey || e.key === 'PageDown' || e.key === ' ') {
         e.preventDefault()
         go(1)
         return
       }
-      if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      if (e.key === backKey || e.key === 'PageUp') {
         e.preventDefault()
         go(-1)
         return
@@ -988,7 +1078,7 @@ export default function ReaderView({
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [go, close, ci, chapters.length, slicing, notesOpen, bmOpen, immersive])
+  }, [go, close, ci, chapters.length, slicing, notesOpen, bmOpen, immersive, vert])
 
   return (
     <div
@@ -1094,6 +1184,7 @@ export default function ReaderView({
             <Icon name={autoSec ? 'pause' : 'play'} />
             {autoSec ? <em>{autoSec}s</em> : null}
           </button>
+          <ReadAloudButton ctl={tts} />
           <div className="reader-bm">
             <button
               className={'btn ghost icon' + (marked ? ' on' : '')}
@@ -1113,16 +1204,48 @@ export default function ReaderView({
             </button>
             {bmOpen && (
               <div className="reader-bm-list">
-                {bms.map((b) => (
-                  <div key={b.id} className="reader-bm-item">
-                    <button className="reader-bm-go" onClick={() => goBookmark(b)}>
-                      {b.label}
-                    </button>
-                    <button className="reader-bm-del" onClick={() => dropBookmark(b.id)} title="删除">
-                      ×
-                    </button>
-                  </div>
-                ))}
+                <div className="reader-bm-filter" role="radiogroup" aria-label="书签分类">
+                  {(['all', ...BM_CATS.map((c) => c.id), 'none'] as const).map((f) => {
+                    const n = f === 'all' ? bms.length : catStat[f]
+                    const cat = BM_CATS.find((c) => c.id === f)
+                    return (
+                      <button
+                        key={f}
+                        type="button"
+                        role="radio"
+                        aria-checked={bmFilter === f}
+                        className={bmFilter === f ? 'on' : ''}
+                        onClick={() => setBmFilter(f)}
+                        title={cat ? `${cat.name}（新加的书签会归到这类）` : undefined}
+                      >
+                        {cat && <i style={{ background: cat.color }} />}
+                        {f === 'all' ? '全部' : f === 'none' ? '未分类' : cat!.name}
+                        <em>{n}</em>
+                      </button>
+                    )
+                  })}
+                </div>
+                {shownBms.length === 0 && <div className="reader-bm-empty">这一类下还没有书签</div>}
+                {shownBms.map((b) => {
+                  const cat = BM_CATS.find((c) => c.id === b.cat)
+                  return (
+                    <div key={b.id} className="reader-bm-item">
+                      <button
+                        className="reader-bm-cat"
+                        onClick={() => cycleCat(b.id)}
+                        title={cat ? `${cat.name} · 点一下换分类` : '未分类 · 点一下设分类'}
+                      >
+                        <i style={cat ? { background: cat.color } : undefined} />
+                      </button>
+                      <button className="reader-bm-go" onClick={() => goBookmark(b)}>
+                        {b.label}
+                      </button>
+                      <button className="reader-bm-del" onClick={() => dropBookmark(b.id)} title="删除">
+                        ×
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -1192,7 +1315,8 @@ export default function ReaderView({
             ref={trackRef}
             data-turn={rstyle.turn}
             data-cols={rstyle.cols}
-            style={{ transform: `translateX(-${page * step}px)` }}
+            data-vert={vert ? '' : undefined}
+            style={{ transform: `translateX(${sgn * -page * step}px)` }}
           >
             {blocks.map((b, i) => {
               // 首块可能要裁掉属于上一章的那几行

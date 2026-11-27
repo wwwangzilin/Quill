@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { FONTS } from '../core/fonts'
+import { useAllFonts, addCustomFont, removeCustomFont } from '../core/customFonts'
+import { toast } from './toast'
 import {
   READER_RANGE as R,
   PAGE_TURNS,
@@ -20,6 +21,8 @@ interface Props {
 /** 阅读视图里的「Aa」：配色 + 排版，改了当场生效，只影响阅读，不动编辑器 */
 export default function ReaderStylePanel({ style, onChange, onOpenChange }: Props) {
   const [open, setOpen] = useState(false)
+  const fonts = useAllFonts()
+  const fileRef = useRef<HTMLInputElement>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -103,18 +106,94 @@ export default function ReaderStylePanel({ style, onChange, onOpenChange }: Prop
               value={style.font}
               onChange={(e) => set({ font: e.target.value })}
             >
-              {FONTS.map((f) => (
+              {fonts.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.name}
                 </option>
               ))}
             </select>
           </label>
+          <div className="rstyle-row rstyle-font-tools">
+            <span />
+            <div className="rstyle-cols">
+              <button type="button" onClick={() => fileRef.current?.click()} title="导入 .ttf / .otf / .woff / .woff2，存在本机">
+                导入字体
+              </button>
+              {style.font.startsWith('custom-') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = style.font
+                    set({ font: defaultReaderStyle().font })
+                    void removeCustomFont(id)
+                  }}
+                  title="删掉当前这个导入的字体"
+                >
+                  删除此字体
+                </button>
+              )}
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".ttf,.otf,.woff,.woff2"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                e.target.value = ''
+                if (!f) return
+                addCustomFont(f).then(
+                  (o) => {
+                    set({ font: o.id })
+                    toast.success('字体已导入', o.name)
+                  },
+                  (err) => toast.error('导入失败', err instanceof Error ? err.message : '字体文件无法读取'),
+                )
+              }}
+            />
+          </div>
+          <div className="rstyle-row">
+            <span>字重</span>
+            <div className="rstyle-cols" role="radiogroup" aria-label="字重">
+              {([400, 500, 600, 700] as const).map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  role="radio"
+                  aria-checked={style.weight === w}
+                  className={style.weight === w ? 'on' : ''}
+                  onClick={() => set({ weight: w })}
+                >
+                  {w === 400 ? '常规' : w === 500 ? '中' : w === 600 ? '半粗' : '粗'}
+                </button>
+              ))}
+            </div>
+          </div>
           {slider('字号', style.size, R.minSize, R.maxSize, 1, 'size', String(style.size))}
           {slider('行距', style.leading, R.minLeading, R.maxLeading, 0.05, 'leading', style.leading.toFixed(2))}
           {slider('段距', style.gap, R.minGap, R.maxGap, 0.05, 'gap', style.gap.toFixed(2))}
           {slider('缩进', style.indent, 0, R.maxIndent, 1, 'indent', style.indent ? `${style.indent} 字` : '顶格')}
+          {slider('字距', style.track, R.minTrack, R.maxTrack, 0.01, 'track', `${style.track.toFixed(2)}`)}
           {slider('边距', style.margin, R.minMargin, R.maxMargin, 4, 'margin', `${style.margin}`)}
+          <div className="rstyle-row">
+            <span>排版</span>
+            <div className="rstyle-cols" role="radiogroup" aria-label="横排或竖排">
+              {([false, true] as const).map((v) => (
+                <button
+                  key={String(v)}
+                  type="button"
+                  role="radio"
+                  aria-checked={style.vertical === v}
+                  className={style.vertical === v ? 'on' : ''}
+                  onClick={() => set({ vertical: v })}
+                  title={v ? '竖排：从右往左读，← 往后翻' : '横排'}
+                >
+                  {v ? '竖排' : '横排'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {!style.vertical && (
           <div className="rstyle-row">
             <span>分栏</span>
             <div className="rstyle-cols" role="radiogroup" aria-label="栏数">
@@ -132,6 +211,7 @@ export default function ReaderStylePanel({ style, onChange, onOpenChange }: Prop
               ))}
             </div>
           </div>
+          )}
           <div className="rstyle-row">
             <span>翻页</span>
             <div className="rstyle-cols" role="radiogroup" aria-label="翻页动画">

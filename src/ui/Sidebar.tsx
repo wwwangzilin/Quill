@@ -6,6 +6,8 @@ import { storage } from '../core/storage'
 import { TEMPLATES } from '../core/templates'
 import Heatmap from './Heatmap'
 import Bookshelf3D from './Bookshelf3D'
+import { useSetting } from '../core/settings'
+import { filterShelf, resolveGroup, shelfGroups } from '../core/shelfGroups'
 import { usePerf } from '../core/perf'
 import BrandMark from './BrandMark'
 import { Icon } from './Icon'
@@ -152,7 +154,11 @@ export default function Sidebar({
 
   const total = groups.reduce((n, g) => n + g.items.length, 0)
   // 书架上的顺序 = 列表从上到下的顺序，转书就是在列表里上下走
-  const shelfDocs = useMemo(() => groups.flatMap((g) => g.items), [groups])
+  const listDocs = useMemo(() => groups.flatMap((g) => g.items), [groups])
+  const [groupPref, setGroupPref] = useSetting('shelfGroup', 'all')
+  const shelfGroupList = useMemo(() => shelfGroups(listDocs), [listDocs])
+  const shelfGroup = resolveGroup(shelfGroupList, groupPref)
+  const shelfDocs = useMemo(() => filterShelf(listDocs, shelfGroup), [listDocs, shelfGroup])
 
   // 书架正中换了一本：列表里对应那条滚进视野
   useEffect(() => {
@@ -234,6 +240,23 @@ export default function Sidebar({
             <i />
             <Icon name={shelfOpen ? 'chevup' : 'chevdown'} />
           </button>
+          {shelfOpen && shelfGroupList.length > 1 && (
+            <div className="shelf-groups" role="radiogroup" aria-label="书架分组">
+              {shelfGroupList.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={shelfGroup === g.id}
+                  className={shelfGroup === g.id ? 'on' : ''}
+                  onClick={() => setGroupPref(g.id)}
+                >
+                  {g.name}
+                  <em>{g.count}</em>
+                </button>
+              ))}
+            </div>
+          )}
           {shelfOpen && (
             <Bookshelf3D
               variant="side"

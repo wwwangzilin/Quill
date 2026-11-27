@@ -5,6 +5,7 @@ import Sticky from './windows/Sticky'
 import { applyAppearance } from './core/fonts'
 import { initMotion } from './core/motion'
 import { initPerf } from './core/perf'
+import { loadCustomFonts } from './core/customFonts'
 import { initSpotlight } from './core/spotlight'
 import { initTheme } from './core/theme'
 import { windowRole } from './core/windows'
@@ -27,6 +28,8 @@ initPerf()
 // 卡片悬停的鼠标跟随柔光（只写 --mx/--my 两个变量）
 initSpotlight()
 applyAppearance()
+// 导入过的字体要在渲染前后台读回来注册，选中它的文档才不会闪一下默认字体
+void loadCustomFonts()
 
 // 同一份前端产物，靠窗口 label 分成三种窗口：
 //   主窗口 / quicknote（快捷便签）/ sticky-<文档名十六进制>（桌面磁贴）

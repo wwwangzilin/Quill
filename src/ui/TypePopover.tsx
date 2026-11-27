@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { FONTS, PROSE_DEFAULT, PROSE_RANGE, type ProseStyle } from '../core/fonts'
+import { useAllFonts } from '../core/customFonts'
+import { PROSE_DEFAULT, PROSE_RANGE, type ProseStyle } from '../core/fonts'
 
 interface Props {
   prose: ProseStyle
@@ -11,6 +12,7 @@ interface Props {
  * 点一下就地拨，正文当场变 —— 排版参数和设置页是同一份，两边同步。
  */
 export default function TypePopover({ prose, onProse }: Props) {
+  const fonts = useAllFonts()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -52,7 +54,7 @@ export default function TypePopover({ prose, onProse }: Props) {
               value={prose.font}
               onChange={(e) => set({ font: e.target.value })}
             >
-              {FONTS.map((f) => (
+              {fonts.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.name}
                 </option>
