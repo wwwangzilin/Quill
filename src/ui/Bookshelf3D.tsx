@@ -62,6 +62,14 @@ function coverHue(id: string): number {
   return HUES[h % HUES.length]
 }
 
+/** 封面花纹：同样由 id 稳定地挑一种（条纹 / 圆点 / 同心圆 / 方格 / 远山），一排书不再是一片同样的色块 */
+export const COVER_PATTERNS = 5
+export function coverPat(id: string): number {
+  let h = 7
+  for (let i = 0; i < id.length; i++) h = (h * 17 + id.charCodeAt(i)) >>> 0
+  return h % COVER_PATTERNS
+}
+
 function shortDate(ts: number): string {
   const d = new Date(ts)
   const p = (n: number) => String(n).padStart(2, '0')
@@ -360,6 +368,7 @@ export default function Bookshelf3D({
                 }}
                 className={'book' + (d.id === currentId ? ' is-current' : '')}
                 style={{ '--hue': hue } as React.CSSProperties}
+                data-pat={coverPat(d.id)}
                 role="option"
                 aria-selected={isCenter}
                 onClick={() => {

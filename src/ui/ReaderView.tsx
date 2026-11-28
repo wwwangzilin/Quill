@@ -17,6 +17,13 @@ import type { RawChapter } from '../core/rawChapters'
 import { parseDocument } from '../core/md-parse'
 import { storage } from '../core/storage'
 import CommentsPanel from './CommentsPanel'
+import BookSearch from './BookSearch'
+import { locateBlock } from '../core/bookSearch'
+import { effectiveTheme, isNight, loadNight, saveNight, type NightCfg } from '../core/autoNight'
+import { filterToc, firstUnread, loadRead, readPercent, saveRead } from '../core/readMarks'
+import { compileRule, loadRule, saveRule, splitBlocksByRule, splitByRule, toByteRanges } from '../core/chapterRule'
+import ChapterRuleDialog, { type RuleSource } from './ChapterRuleDialog'
+import { fmtEta, loadCpm, minutesFor, remaining, saveCpm, updateCpm } from '../core/readSpeed'
 import {
   BM_CATS,
   catCounts,
@@ -36,7 +43,7 @@ import { recordFinished, useReadingTracker } from '../core/readTracker'
 import { assetUrl } from '../core/asset'
 import ReaderStylePanel from './ReaderStylePanel'
 import { ReadAloudButton, useReadAloud } from './ReadAloud'
-import { layoutSig, pitchOf, readerVars, tapAction, useReaderStyle } from '../core/readerStyle'
+import { layoutSig, pitchOf, readerVars, tapAction, useReaderStyle, type ReaderTheme } from '../core/readerStyle'
 import { toast } from './toast'
 
 interface Props {
@@ -327,7 +334,7 @@ export default function ReaderView({
   docId,
   title,
   doc,
-  outline,
+  outline: outlineProp,
   comments,
   onSaveComment,
   onRemoveComment,
@@ -336,7 +343,40 @@ export default function ReaderView({
   onSwitchToEditor,
 }: Props) {
   /** 超大文档：只有目录，正文按章现取 */
-  const heavy = Boolean(outline?.length)
+  const heavy = Boolean(outlineProp?.length)
+
+  /* 自定义章节规则：自动识别认错章时，用户自己写的正则。按书存本机。 */
+  const [rule, setRule] = useState(() => loadRule(docId))
+  const [ruleOpen, setRuleOpen] = useState(false)
+  const [ruleOutline, setRuleOutline] = useState<RawChapter[] | null>(null)
+  useEffect(() => {
+    setRule(loadRule(docId))
+  }, [docId])
+  const ruleRe = useMemo(() => compileRule(rule), [rule])
+  // 超大文档：读一次原文，按规则切出新的目录（字节区间，和 Rust 给的目录同一种单位）
+  useEffect(() => {
+    if (!heavy || !ruleRe || !storage.raw) {
+      setRuleOutline(null)
+      return
+    }
+    let alive = true
+    void storage.raw(docId).then((text) => {
+      if (!alive) return
+      setRuleOutline(toByteRanges(text, splitByRule(text, ruleRe, title)))
+    })
+    return () => {
+      alive = false
+    }
+  }, [heavy, ruleRe, docId, title, outlineProp]) // 原书被改写后（目录变了）也要重切，免得字节区间过期
+  const outline = ruleOutline ?? outlineProp
+
+  /* 目录：已读标记 + 筛选。读到一章的最后一屏就算读完这章。 */
+  const [readSet, setReadSet] = useState<Set<string>>(() => loadRead(docId))
+  const [tocQuery, setTocQuery] = useState('')
+  useEffect(() => {
+    setReadSet(loadRead(docId))
+    setTocQuery('')
+  }, [docId])
 
   const guess = useMemo<NovelGuess>(
     () =>
@@ -387,6 +427,21 @@ export default function ReaderView({
       }))
     }
     if (!doc) return []
+    if (slicing && ruleRe) {
+      const top = doc.content ?? []
+      return splitBlocksByRule(
+        top.map((b) => flatText([b])),
+        ruleRe,
+        title,
+      ).map((c) => ({
+        title: c.title,
+        level: 2,
+        start: c.startBlock,
+        line: 0,
+        inferred: false,
+        blocks: top.slice(c.startBlock, c.endBlock),
+      }))
+    }
     return slicing
       ? splitChapters(doc, title)
       : [
@@ -399,8 +454,9 @@ export default function ReaderView({
             blocks: doc.content ?? [],
           },
         ]
-  }, [heavy, outline, doc, title, slicing])
+  }, [heavy, outline, doc, title, slicing, ruleRe])
   const [ci, setCi] = useState(0)
+  const tocHits = useMemo(() => filterToc(chapters.map((c) => c.title), tocQuery), [chapters, tocQuery])
   const [page, setPage] = useState(0)
   const [pages, setPages] = useState(1)
   /** 翻一页要平移多少像素 —— 容器宽 + 一个栏间距 */
@@ -472,6 +528,16 @@ export default function ReaderView({
   const text = useMemo(() => flatText(blocks), [blocks])
   /** 阅读自己的配色与排版（独立于编辑器）；放这么靠前是因为分页要认它 */
   const [rstyle, setRstyle, bookCtl] = useReaderStyle(docId)
+  /* 夜间自动切换：只改「显示用」的主题，存下来的配色选择不动 */
+  const [night, setNightCfg] = useState<NightCfg>(loadNight)
+  const [clock, setClock] = useState(() => new Date())
+  useEffect(() => {
+    if (!night.on) return
+    setClock(new Date())
+    const id = window.setInterval(() => setClock(new Date()), 30_000)
+    return () => window.clearInterval(id)
+  }, [night.on])
+  const shownTheme = effectiveTheme<ReaderTheme>(rstyle.theme, night, clock, 'dark')
   /** 竖排：版面从右往左排，所以位移符号、翻页方向、点按左右都得反过来 */
   const vert = rstyle.vertical
   const sgn = vert ? -1 : 1
@@ -765,11 +831,116 @@ export default function ReaderView({
     100,
     Math.round((((slicing ? ci : 0) + (page + 1) / Math.max(1, pages)) / (slicing ? Math.max(1, nCh) : 1)) * 100),
   )
-  /** 中文阅读速度按每分钟 500 字估，只是个大概 */
-  const minsLeft = Math.ceil((text.length * ((pages - page) / Math.max(1, pages))) / 500)
+  /**
+   * 剩余时间：速度是自己读出来的（每翻一页更新一次滑动平均），不是写死的 500 字/分。
+   * 各章字数：普通文档用真实文字；超大文档只有字节区间，按中文 3 字节/字估个大概。
+   */
+  const [cpm, setCpm] = useState(loadCpm)
+  const chapterChars = useMemo(() => {
+    const base =
+      heavy && outline
+        ? outline.map((o) => Math.round((o.to - o.from) / 3))
+        : chapters.map((c) => flatText(c.blocks).length)
+    const at = slicing ? ci : 0
+    if (text.length > 0 && at < base.length) base[at] = text.length // 当前章用真实字数
+    return base
+  }, [heavy, outline, chapters, slicing, ci, text])
+  const [charsLeftCh, charsLeftBook] = remaining(chapterChars, slicing ? ci : 0, page / Math.max(1, pages))
+  const minsLeftCh = minutesFor(charsLeftCh, cpm)
+  const minsLeftBook = minutesFor(charsLeftBook, cpm)
 
   /* ---------- 书签 ---------- */
   const [bms, setBms] = useState<Bookmark[]>(() => readBookmarks(docId))
+  /* ---------------- 全书搜索 ---------------- */
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchTitles = useMemo(() => chapters.map((c) => c.title), [chapters])
+  /** 取第 ci 章的拍平文字 —— 超大文档走和显示同一条解析管线，下标才对得上页面 */
+  const loadChapterText = useCallback(
+    async (i: number): Promise<string> => {
+      if (heavy && outline) {
+        const seg = outline[Math.min(i, outline.length - 1)]
+        if (!seg) return ''
+        const raw = (await storage.readSlice?.(docId, seg.from, seg.to)) ?? ''
+        return flatText(parseDocument(softWrapToParagraphs(raw)).doc.content ?? [])
+      }
+      return flatText(chapters[i]?.blocks ?? [])
+    },
+    [heavy, outline, docId, chapters],
+  )
+  /** 规则预览要的原文：超大文档整篇原文，普通文档每个顶层块的文字 */
+  const loadRuleSource = useCallback(async (): Promise<RuleSource> => {
+    if (heavy && storage.raw) return { kind: 'raw', text: await storage.raw(docId) }
+    return { kind: 'blocks', texts: (doc?.content ?? []).map((b) => flatText([b])) }
+  }, [heavy, docId, doc])
+  const pendingHit = useRef<{ ci: number; from: number; to: number } | null>(null)
+  const clearHitMark = useCallback(() => {
+    try {
+      ;(CSS as unknown as { highlights?: { delete(k: string): void } }).highlights?.delete('book-hit')
+    } catch {
+      /* 老 WebView 没有 Highlight API：只是少了底色，跳转照常 */
+    }
+  }, [])
+  /** 把待跳转的命中落到页面上：算出它在第几屏，并（支持的话）涂上底色 */
+  const settleHit = useCallback((): boolean => {
+    const h = pendingHit.current
+    const track = trackRef.current
+    if (!h || !track || !step) return false
+    const { block, local } = locateBlock(offsets, h.from)
+    const el = track.children[block] as HTMLElement | undefined
+    if (!el) return false
+    const len = h.to - h.from
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    const range = document.createRange()
+    let acc = 0
+    let started = false
+    for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
+      const l = n.data.length
+      if (!started && acc + l > local) {
+        range.setStart(n, local - acc)
+        started = true
+      }
+      if (started && acc + l >= local + len) {
+        range.setEnd(n, local + len - acc)
+        break
+      }
+      acc += l
+    }
+    if (!started) return false
+    const rr = range.getClientRects()[0] ?? range.getBoundingClientRect()
+    const tr = track.getBoundingClientRect()
+    const at = vert ? tr.right - rr.right : rr.left - tr.left
+    setPage(Math.max(0, Math.min(pages - 1, Math.floor(at / step))))
+    try {
+      const W = window as unknown as { Highlight?: new (r: Range) => unknown }
+      const hl = (CSS as unknown as { highlights?: { set(k: string, v: unknown): void } }).highlights
+      if (W.Highlight && hl) hl.set('book-hit', new W.Highlight(range))
+    } catch {
+      /* 同上 */
+    }
+    pendingHit.current = null
+    return true
+  }, [offsets, step, pages, vert])
+  const goHit = useCallback(
+    (hitCi: number, from: number, to: number) => {
+      pendingHit.current = { ci: hitCi, from, to }
+      if (slicing && hitCi !== ci) {
+        skipReset.current = true
+        setCi(hitCi)
+      } else {
+        requestAnimationFrame(() => void settleHit())
+      }
+    },
+    [slicing, ci, settleHit],
+  )
+  // 换章后、内容和页数都就绪了再落位；没就绪就等下一次依赖变化
+  useEffect(() => {
+    const h = pendingHit.current
+    if (!h || h.ci !== ci || loadingBlocks) return
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => void settleHit()))
+    return () => cancelAnimationFrame(id)
+  }, [ci, blocks, pages, step, loadingBlocks, settleHit])
+  useEffect(() => () => clearHitMark(), [clearHitMark])
+
   const [bmOpen, setBmOpen] = useState(false)
   const [bmFilter, setBmFilter] = useState<BmCat | 'all' | 'none'>('all')
   const spot = { chapter: slicing ? chapter.title : undefined, page }
@@ -840,6 +1011,36 @@ export default function ReaderView({
   // 自动翻页开着时人不动也在读，别当成挂机
   const ttsPlayingRef = useRef(false)
   useReadingTracker(docId, title, () => autoSec > 0 || ttsPlayingRef.current)
+
+  useEffect(() => {
+    const t = chapters[ci]?.title
+    if (!slicing || !t || loadingBlocks || pages < 1 || page < pages - 1 || readSet.has(t)) return
+    // 停满 1 秒才算：换章的第一帧还带着上一章的页码，不延迟会把刚点开的新章误标成已读
+    const id = window.setTimeout(() => {
+      const next = new Set(readSet)
+      next.add(t)
+      setReadSet(next)
+      saveRead(docId, next)
+    }, 1000)
+    return () => window.clearTimeout(id)
+  }, [page, pages, ci, slicing, loadingBlocks, chapters, readSet, docId])
+
+  /* 学自己的阅读速度：手动翻到下一页时，用「上一页字数 ÷ 停留时间」更新；自动翻页 / 朗读时不学 */
+  const turnAt = useRef({ t: Date.now(), ci, page })
+  useEffect(() => {
+    const prev = turnAt.current
+    const now = Date.now()
+    if (prev.ci === ci && page === prev.page + 1 && pages > 1 && text.length > 0 && !autoSec && !ttsPlayingRef.current) {
+      setCpm((c) => {
+        const n = updateCpm(c, text.length / pages, now - prev.t)
+        if (n !== c) saveCpm(n)
+        return n
+      })
+    }
+    turnAt.current = { t: now, ci, page }
+    // 只在翻页 / 换章时触发；text/pages 取当时的值即可
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, ci])
   useEffect(() => {
     // 单屏的短文一打开就在「末页」，不算读完；至少翻过一屏或换过章才算
     if (atEnd && (page > 0 || ci > 0)) recordFinished(docId, title)
@@ -1026,6 +1227,19 @@ export default function ReaderView({
     const onKey = (e: KeyboardEvent) => {
       // 外观面板自己会收（它在同一个 Esc 里先于关闭阅读视图处理），这里让路
       if (e.key === 'Escape' && styleOpenRef.current) return
+      // Ctrl/⌘+F：全书搜索（不然会落到浏览器自己的查找上，而它只认当前这一屏的 DOM）
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        e.stopImmediatePropagation() // 编辑器那边的查找条也监听 Ctrl+F，别让它同时弹出来
+        setSearchOpen(true)
+        return
+      }
+      if (e.key === 'Escape' && searchOpen) {
+        e.preventDefault()
+        setSearchOpen(false)
+        clearHitMark()
+        return
+      }
       if (e.key === 'Escape' && bmOpen) {
         e.preventDefault()
         setBmOpen(false)
@@ -1047,8 +1261,9 @@ export default function ReaderView({
         close()
         return
       }
-      // 焦点在滑块 / 下拉上时，方向键归它们自己用，别拿去翻页
-      if ((e.target as HTMLElement | null)?.closest?.('input[type="range"], select')) return
+      // 焦点在滑块 / 下拉 / 输入框 / 批注输入里时，按键归它们自己用 ——
+      // 不然在搜索框或批注框里打一个 f、一个空格，都会被当成「沉浸」「翻页」吃掉
+      if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable="true"]')) return
       if (e.key === 'f' || e.key === 'F') {
         e.preventDefault()
         setImmersive((v) => !v)
@@ -1079,12 +1294,12 @@ export default function ReaderView({
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [go, close, ci, chapters.length, slicing, notesOpen, bmOpen, immersive, vert])
+  }, [go, close, ci, chapters.length, slicing, notesOpen, bmOpen, immersive, vert, searchOpen, clearHitMark])
 
   return (
     <div
       className={'reader' + (leaving ? ' leaving' : '') + (immersive ? ' immersive' : '')}
-      data-rtheme={rstyle.theme}
+      data-rtheme={shownTheme}
       data-ptex={rstyle.paperTex ? '1' : undefined}
       style={readerVars(rstyle) as React.CSSProperties}
     >
@@ -1092,20 +1307,50 @@ export default function ReaderView({
         <aside className="reader-toc">
           <div className="reader-toc-head">
             章节目录
-            <span className="reader-toc-count">{chapters.length} 章</span>
+            <span className="reader-toc-count">
+              {chapters.length} 章 · 已读 {readPercent(readSet, chapters.map((c) => c.title))}%
+            </span>
+          </div>
+          <div className="reader-toc-search">
+            <input
+              value={tocQuery}
+              placeholder="搜章名，或输序号跳章"
+              onChange={(e) => setTocQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && tocHits.length) {
+                  setCi(tocHits[0])
+                  setTocQuery('')
+                }
+              }}
+              spellCheck={false}
+            />
+            <button
+              className="btn ghost mini"
+              title="跳到第一个还没读完的章"
+              onClick={() => {
+                const u = firstUnread(readSet, chapters.map((c) => c.title))
+                if (u >= 0) setCi(u)
+              }}
+            >
+              未读
+            </button>
           </div>
           <div className="reader-toc-list">
-            {chapters.map((c, i) => (
-              <button
-                key={`${c.start}-${i}`}
-                className={'reader-toc-item' + (i === ci ? ' on' : '')}
-                onClick={() => setCi(i)}
-                title={c.inferred ? '这一章是从「第X章」这类文字里认出来的' : c.title}
-              >
-                <span className="reader-toc-n">{i + 1}</span>
-                <span className="reader-toc-title">{c.title}</span>
-              </button>
-            ))}
+            {tocHits.map((i) => {
+              const c = chapters[i]
+              return (
+                <button
+                  key={`${c.start}-${i}`}
+                  className={'reader-toc-item' + (i === ci ? ' on' : '') + (readSet.has(c.title) && i !== ci ? ' read' : '')}
+                  onClick={() => setCi(i)}
+                  title={c.inferred ? '这一章是从「第X章」这类文字里认出来的' : c.title}
+                >
+                  <span className="reader-toc-n">{readSet.has(c.title) && i !== ci ? '✓' : i + 1}</span>
+                  <span className="reader-toc-title">{c.title}</span>
+                </button>
+              )
+            })}
+            {!tocHits.length && <div className="reader-toc-empty">没有匹配的章节</div>}
           </div>
         </aside>
       )}
@@ -1169,6 +1414,12 @@ export default function ReaderView({
           <ReaderStylePanel
             style={rstyle}
             onChange={setRstyle}
+            night={night}
+            nightActive={isNight(night, clock)}
+            onNight={(c) => {
+              setNightCfg(c)
+              saveNight(c)
+            }}
             book={bookCtl}
             onOpenChange={onStyleOpen}
           />
@@ -1188,6 +1439,24 @@ export default function ReaderView({
             {autoSec ? <em>{autoSec}s</em> : null}
           </button>
           <ReadAloudButton ctl={tts} />
+          <button
+            className={'btn ghost icon' + (searchOpen ? ' on' : '')}
+            onClick={() => {
+              setSearchOpen((v) => !v)
+              if (searchOpen) clearHitMark()
+            }}
+            title="全书搜索 · Ctrl+F"
+            aria-expanded={searchOpen}
+          >
+            <Icon name="search" />
+          </button>
+          <button
+            className={'btn ghost mini' + (rule ? ' on' : '')}
+            onClick={() => setRuleOpen(true)}
+            title="章节没切对？自己写一条切章规则"
+          >
+            章规则
+          </button>
           <div className="reader-bm">
             <button
               className={'btn ghost icon' + (marked ? ' on' : '')}
@@ -1370,13 +1639,40 @@ export default function ReaderView({
             下一章
           </button>
           <span className="reader-meta">
-            全书 {bookPct}% · 本章约剩 {minsLeft > 0 ? `${minsLeft} 分钟` : '不到 1 分钟'}
+            全书 {bookPct}% · 本章约剩 {fmtEta(minsLeftCh)}
+            {slicing && nCh > 1 ? ` · 全书约剩 ${fmtEta(minsLeftBook)}` : ''}
           </span>
           <span className="reader-hint">
             {slicing ? '← → 翻页 · 点两侧翻页 · 点中间沉浸 · Esc 退出' : '← → 翻页 · 点中间沉浸 · Esc 退出'}
           </span>
         </footer>
       </main>
+
+      <ChapterRuleDialog
+        open={ruleOpen}
+        initial={rule}
+        fallbackTitle={title}
+        loadSource={loadRuleSource}
+        onApply={(r) => {
+          saveRule(docId, r)
+          setRule(r)
+          setCi(0)
+          setPage(0)
+        }}
+        onClose={() => setRuleOpen(false)}
+      />
+
+      <BookSearch
+        open={searchOpen}
+        onClose={() => {
+          setSearchOpen(false)
+          clearHitMark()
+        }}
+        docId={docId + (slicing ? ':s' : ':w')}
+        titles={searchTitles}
+        loadText={loadChapterText}
+        onGo={goHit}
+      />
 
       {/* 批注抽屉 —— 和编辑器里点「＋ 批注」出来的是同一个组件 */}
       <CommentsPanel
@@ -1391,6 +1687,7 @@ export default function ReaderView({
         focusId={focusId}
         color={pen}
         docTitle={title}
+        docId={docId}
       />
     </div>
   )

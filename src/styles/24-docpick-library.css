@@ -101,7 +101,7 @@
 
 .wiki-card.on {
   border-color: var(--accent-1, #7c6cff);
-  background: rgba(124, 108, 255, 0.16);
+  background: color-mix(in srgb, var(--accent-1) 16%, transparent);
   color: var(--text);
 }
 
@@ -199,7 +199,7 @@
   background: rgba(255, 255, 255, 0.08);
 }
 .fbtn.on {
-  background: rgba(124, 108, 255, 0.18);
+  background: color-mix(in srgb, var(--accent-1) 18%, transparent);
   color: var(--text);
 }
 .fbtn em {
@@ -285,7 +285,7 @@
   background: rgba(255, 255, 255, 0.05);
 }
 .list-row.current {
-  background: rgba(124, 108, 255, 0.14);
+  background: color-mix(in srgb, var(--accent-1) 14%, transparent);
 }
 
 .lr-name {

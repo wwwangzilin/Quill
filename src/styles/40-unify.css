@@ -1,0 +1,254 @@
+/*
+ * 统一层：放在最后，只收敛「同一种东西长得不一样」的地方，不改布局。
+ * 规则：下拉框 / 文本框 / 小按钮 / 浮层的圆角、字号、边框、聚焦态各只有一种写法；
+ * 阴影和高亮色都跟随当前强调色，不再写死旧的金色。
+ */
+:root {
+  --ctl-h: 32px; /* 标准控件高度（设置页） */
+  --ctl-h-sm: 26px; /* 紧凑控件高度（面板内、工具条上） */
+  --ctl-bg: var(--surface-hover);
+  --ctl-radius: var(--radius-sm);
+  --focus-ring: color-mix(in srgb, var(--accent-1) 55%, transparent);
+  --hover: var(--surface-hover); /* 22-aside-settings 里用了但从没定义过，悬停底色一直是空的 */
+  --accent-glow: color-mix(in srgb, var(--accent-1) 34%, transparent);
+}
+
+/* —— 阴影跟强调色走（原来写死 rgba(168,132,63) 金色，换成青色主题后很突兀） —— */
+.btn.primary {
+  box-shadow: 0 4px 18px var(--accent-glow);
+}
+.seg button.on {
+  box-shadow: 0 2px 12px var(--accent-glow);
+}
+
+/* —— 下拉框：全站一种样子 —— */
+select,
+.field select,
+.sc-select,
+.split-pick,
+.type-pop-font,
+.comment-card-theme,
+.tts-row select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: var(--ctl-h);
+  padding: 0 26px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--ctl-radius);
+  background-color: var(--ctl-bg);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-3) 50%),
+    linear-gradient(135deg, var(--text-3) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.16s, background-color 0.16s;
+}
+.sc-select {
+  margin-top: 0;
+}
+/* 面板 / 工具条里的下拉用紧凑高度 */
+.split-pick,
+.type-pop-font,
+.comment-card-theme,
+.tts-row select {
+  height: var(--ctl-h-sm);
+  font-size: 12px;
+  padding-right: 24px;
+}
+.comment-card-theme {
+  color: var(--text-2);
+}
+select:hover {
+  border-color: var(--border-strong);
+}
+select:focus,
+select:focus-visible {
+  border-color: var(--accent-1);
+}
+select option {
+  background: var(--surface-solid);
+  color: var(--text);
+}
+
+/* —— 多行 / 单行文本框：同一套边框、圆角、聚焦态 —— */
+.comment-input,
+.field textarea,
+.sc-input,
+.sc-num {
+  border: 1px solid var(--border);
+  border-radius: var(--ctl-radius);
+  background: var(--surface-solid);
+  color: var(--text);
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.16s;
+}
+.comment-input:focus,
+.field textarea:focus,
+.sc-input:focus,
+.sc-num:focus {
+  border-color: var(--accent-1);
+}
+.field input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']) {
+  height: var(--ctl-h);
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--ctl-radius);
+  background: var(--ctl-bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.16s;
+}
+.field input:focus {
+  border-color: var(--accent-1);
+}
+
+/* —— 小按钮：高度和字号统一 —— */
+.btn.mini {
+  min-height: 22px;
+  padding: 2px 8px;
+  font-size: 11.5px;
+  border-radius: 8px;
+}
+
+/* —— 键盘聚焦环：自绘控件也要有 —— */
+select:focus-visible,
+.shelf-sorter-row:focus-visible,
+.shelf-groups button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* —— 分组 chips（书架分组 / 书签分类）：同一种胶囊 —— */
+.shelf-groups button,
+.rd-bm-cats button {
+  border-radius: 999px;
+}
+
+/* —— 浮层 / 面板：同一种玻璃质感与圆角 —— */
+.menu,
+.type-pop,
+.shelf-sorter,
+.review-card {
+  border-color: var(--glass-border, var(--border));
+}
+.shelf-sorter,
+.review-card {
+  border-radius: var(--radius);
+}
+
+/* —— 错误 / 危险色只一个 —— */
+:root {
+  --danger: #e5646b;
+}
+.webdav-msg.bad {
+  border-color: var(--danger);
+}
+
+/* ============ 侧栏统一：历史 / 批注 / 外观设置 / AI 对话 ============
+ * 之前三个侧栏宽度、头部内边距、标题字号、关闭按钮各是各的，
+ * 玻璃主题下「外观」栏浮成圆角卡，历史/批注却是贴边直角板。
+ */
+:root {
+  --panel-w: 360px; /* 历史、批注两个抽屉同宽，来回切不跳 */
+  --panel-head-pad: 12px 10px 12px 14px;
+}
+.drawer,
+.comments-pane {
+  width: var(--panel-w);
+}
+.drawer-head,
+.comments-head,
+.settings-aside-head,
+.aichat-head {
+  padding: var(--panel-head-pad);
+  align-items: center;
+}
+.drawer-head {
+  align-items: flex-start; /* 历史抽屉有副标题（文件名），标题顶对齐 */
+}
+.drawer-title,
+.comments-head > span:first-child,
+.aichat-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.drawer-body,
+.drawer-list,
+.comments-body {
+  padding: 8px;
+}
+/* 关闭按钮：设置栏那个原来是另一套（6px 圆角、13px） */
+.settings-close {
+  padding: 6px 8px;
+  font-size: 14px;
+  border-radius: var(--ctl-radius);
+}
+
+/* 玻璃主题：抽屉和「外观」栏同一种浮起的圆角玻璃卡 */
+:is([data-theme="glass"], [data-theme="glass-night"]) .drawer {
+  top: calc(var(--titlebar-h) + 4px);
+  right: 10px;
+  bottom: 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--glass-bg);
+  background-image: linear-gradient(180deg, var(--glass-hi), transparent 46%), var(--grain);
+  background-size: 100% 100%, 160px 160px;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  overflow: hidden;
+}
+/* 普通主题：抽屉阴影收轻一点，别比右栏重一截 */
+:root:not([data-theme="glass"]):not([data-theme="glass-night"]) .drawer {
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.22);
+}
+
+/* ============ 弹层统一：遮罩 / 浮层底色 / 圆角 / 阴影 ============
+ * 之前 wiki-panel（文档选择/双链）的底色 --panel-bg 只在阅读视图里定义过，
+ * 其余地方落到写死的暖黑 rgba(22,21,19)：浅色主题下突然冒出一块黑板。
+ * 遮罩的模糊度也有 3 / 6 / 7px 三种。
+ */
+:root {
+  --panel-bg: var(--surface-solid);
+  --mask-bg: rgba(0, 0, 0, 0.44);
+  --mask-blur: blur(6px);
+}
+.modal-mask,
+.palette-mask,
+.wiki-mask,
+.conflict-mask {
+  background: var(--mask-bg);
+  backdrop-filter: var(--mask-blur);
+  -webkit-backdrop-filter: var(--mask-blur);
+}
+/* 玻璃主题的遮罩保持它自己更通透的配方（28-glass-surfaces 里），这里不盖掉 */
+[data-theme="glass"] .palette-mask,
+[data-theme="glass"] .modal-mask,
+[data-theme="glass"] .wiki-mask {
+  background: rgba(30, 46, 70, 0.26);
+  backdrop-filter: blur(8px) saturate(1.2);
+  -webkit-backdrop-filter: blur(8px) saturate(1.2);
+}
+[data-theme="glass-night"] .palette-mask,
+[data-theme="glass-night"] .modal-mask,
+[data-theme="glass-night"] .wiki-mask {
+  background: rgba(2, 6, 12, 0.55);
+  backdrop-filter: blur(8px) saturate(1.1);
+  -webkit-backdrop-filter: blur(8px) saturate(1.1);
+}
+.wiki-panel {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+}

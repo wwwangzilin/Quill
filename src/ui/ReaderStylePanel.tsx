@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAllFonts, addCustomFont, removeCustomFont } from '../core/customFonts'
 import { toast } from './toast'
+import type { NightCfg } from '../core/autoNight'
 import {
   READER_RANGE as R,
   PAGE_TURNS,
@@ -17,12 +18,16 @@ interface Props {
   onChange: (next: ReaderStyle) => void
   /** 「仅这本书」开关；不给就不显示 */
   book?: BookStyleCtl
+  /** 夜间自动切换（不给就不显示这一行） */
+  night?: NightCfg
+  nightActive?: boolean
+  onNight?: (c: NightCfg) => void
   /** 面板开合时通知外面：阅读视图要据此决定 Esc 先关谁 */
   onOpenChange?: (open: boolean) => void
 }
 
 /** 阅读视图里的「Aa」：配色 + 排版，改了当场生效，只影响阅读，不动编辑器 */
-export default function ReaderStylePanel({ style, onChange, book, onOpenChange }: Props) {
+export default function ReaderStylePanel({ style, onChange, book, onOpenChange, night, nightActive, onNight }: Props) {
   const [open, setOpen] = useState(false)
   const fonts = useAllFonts()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -108,6 +113,21 @@ export default function ReaderStylePanel({ style, onChange, book, onOpenChange }
               </button>
             ))}
           </div>
+          {night && onNight && (
+            <div className="rstyle-night">
+              <label className="rstyle-night-row">
+                <input type="checkbox" checked={night.on} onChange={(e) => onNight({ ...night, on: e.target.checked })} />
+                夜间自动切到「夜间」配色{nightActive ? ' · 现在生效中' : ''}
+              </label>
+              {night.on && (
+                <div className="rstyle-night-time">
+                  <input type="time" value={night.from} onChange={(e) => e.target.value && onNight({ ...night, from: e.target.value })} aria-label="开始时间" />
+                  <span>至</span>
+                  <input type="time" value={night.to} onChange={(e) => e.target.value && onNight({ ...night, to: e.target.value })} aria-label="结束时间" />
+                </div>
+              )}
+            </div>
+          )}
           <label>
             <span>字体</span>
             <select

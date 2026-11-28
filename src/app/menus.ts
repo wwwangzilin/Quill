@@ -4,6 +4,9 @@ import type { PaletteCommand } from '../ui/CommandPalette'
 import { THEMES, nextTheme, themeInfo, type Theme } from '../core/theme'
 import { openQuickNote } from '../core/windows'
 import { storage } from '../core/storage'
+import { backupNowAction, syncWebdavNow } from '../core/quickActions'
+import { isDesktop } from '../core/desktop'
+import { readCfg } from '../core/webdavSync'
 import type { ViewMode } from '../core/types'
 
 /** 菜单与命令面板需要的一切：状态读数 + 动作回调，都由 App 传入 */
@@ -49,6 +52,8 @@ export interface MenuCtx {
   setStatsOpen: Dispatch<SetStateAction<boolean>>
   setSidebarOpen: Dispatch<SetStateAction<boolean>>
   setTrashOpen: Dispatch<SetStateAction<boolean>>
+  setGlobalReviewOpen: Dispatch<SetStateAction<boolean>>
+  setAnnotOpen: Dispatch<SetStateAction<boolean>>
 }
 
 /** 标题栏「⋯ 更多」菜单 */
@@ -270,7 +275,11 @@ export function buildPaletteCommands(c: MenuCtx): PaletteCommand[] {
     setStatsOpen,
     setSidebarOpen,
     setTrashOpen,
+    setGlobalReviewOpen,
+    setAnnotOpen,
   } = c
+  const desktop = isDesktop()
+  const davReady = desktop && Boolean(readCfg().url.trim())
 
   return [
     { id: 'new', title: '新建文档', hint: 'Ctrl+N', icon: '＋', run: () => void createNew() },
@@ -334,6 +343,24 @@ export function buildPaletteCommands(c: MenuCtx): PaletteCommand[] {
     { id: 'trash', title: '打开回收站', icon: '🗑', run: () => setTrashOpen(true) },
     { id: 'library', title: '文档库', icon: '▤', run: () => setLibraryOpen(true) },
     { id: 'settings', title: '设置', icon: '⚙', run: () => setSettingsOpen(true) },
+    {
+      id: 'annot',
+      title: '批注与书签（跨书检索 / 导出）',
+      hint: '搜所有书的批注 · 导出 Markdown',
+      icon: '❝',
+      run: () => setAnnotOpen(true),
+    },
+    {
+      id: 'review',
+      title: '批注复习',
+      hint: '所有书里到期的批注 · 间隔重复',
+      icon: '❝',
+      run: () => setGlobalReviewOpen(true),
+    },
+    ...(davReady
+      ? [{ id: 'webdav-sync', title: 'WebDAV 立即同步', hint: '文档 · 进度 · 书签 · 图片', icon: '⇅', run: () => void syncWebdavNow() }]
+      : []),
+    ...(desktop ? [{ id: 'backup-now', title: '立即备份文档仓库', hint: '打成一个 zip', icon: '⇩', run: () => void backupNowAction() }] : []),
     { id: 'stats', title: '阅读统计', hint: '时长 · 日历 · 节律', icon: '▥', run: () => setStatsOpen(true) },
     { id: 'shortcuts', title: '快捷键一览', hint: 'Ctrl+/', icon: '⌘', run: () => setShortcutsOpen(true) },
     { id: 'reveal', title: '在资源管理器里打开文档仓库', icon: '🗀', run: () => void storage.reveal() },

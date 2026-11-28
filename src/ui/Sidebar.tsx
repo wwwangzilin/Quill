@@ -6,7 +6,9 @@ import { storage } from '../core/storage'
 import { TEMPLATES } from '../core/templates'
 import Heatmap from './Heatmap'
 import Bookshelf3D from './Bookshelf3D'
+import ShelfSorter from './ShelfSorter'
 import { useSetting } from '../core/settings'
+import { applyOrder, reorderVisible } from '../core/shelfOrder'
 import { filterShelf, resolveGroup, shelfGroups } from '../core/shelfGroups'
 import { usePerf } from '../core/perf'
 import BrandMark from './BrandMark'
@@ -158,7 +160,9 @@ export default function Sidebar({
   const [groupPref, setGroupPref] = useSetting('shelfGroup', 'all')
   const shelfGroupList = useMemo(() => shelfGroups(listDocs), [listDocs])
   const shelfGroup = resolveGroup(shelfGroupList, groupPref)
-  const shelfDocs = useMemo(() => filterShelf(listDocs, shelfGroup), [listDocs, shelfGroup])
+  const [order, setOrder] = useSetting<string[]>('shelfOrder', [])
+  const [sorting, setSorting] = useState(false)
+  const shelfDocs = useMemo(() => applyOrder(filterShelf(listDocs, shelfGroup), order), [listDocs, shelfGroup, order])
 
   // 书架正中换了一本：列表里对应那条滚进视野
   useEffect(() => {
@@ -240,22 +244,49 @@ export default function Sidebar({
             <i />
             <Icon name={shelfOpen ? 'chevup' : 'chevdown'} />
           </button>
-          {shelfOpen && shelfGroupList.length > 1 && (
+          {shelfOpen && (
             <div className="shelf-groups" role="radiogroup" aria-label="书架分组">
-              {shelfGroupList.map((g) => (
-                <button
-                  key={g.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={shelfGroup === g.id}
-                  className={shelfGroup === g.id ? 'on' : ''}
-                  onClick={() => setGroupPref(g.id)}
-                >
-                  {g.name}
-                  <em>{g.count}</em>
-                </button>
-              ))}
+              {shelfGroupList.length > 1 &&
+                shelfGroupList.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={shelfGroup === g.id}
+                    className={shelfGroup === g.id ? 'on' : ''}
+                    onClick={() => setGroupPref(g.id)}
+                  >
+                    {g.name}
+                    <em>{g.count}</em>
+                  </button>
+                ))}
+              <button
+                type="button"
+                className={'shelf-sort-btn' + (sorting ? ' on' : '')}
+                onClick={() => setSorting((v) => !v)}
+                title="手动调整书架上书的顺序"
+              >
+                排序
+              </button>
             </div>
+          )}
+          {shelfOpen && sorting && (
+            <ShelfSorter
+              docs={shelfDocs}
+              onMove={(from, to) =>
+                setOrder(
+                  reorderVisible(
+                    applyOrder(listDocs, order).map((d) => d.id),
+                    shelfDocs.map((d) => d.id),
+                    from,
+                    to,
+                  ),
+                )
+              }
+              onReset={() => setOrder([])}
+              customized={order.length > 0}
+              onClose={() => setSorting(false)}
+            />
           )}
           {shelfOpen && (
             <Bookshelf3D

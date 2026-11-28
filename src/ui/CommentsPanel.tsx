@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSetting } from '../core/settings'
 import { CARD_THEMES, renderExcerptCard } from '../core/excerptCard'
 import { HI_COLORS, commentsToMarkdown, newCommentId, whenOf, type Comment, type HiColor } from '../core/comments'
 import { toast } from './toast'
 import { makeZip, safeName, type ZipFile } from '../core/zip'
+import ReviewCards from './ReviewCards'
+import { dueList, readReview } from '../core/review'
 
 interface Props {
   open: boolean
@@ -21,6 +23,8 @@ interface Props {
   color?: HiColor
   /** 导出文件名里用的文档标题 */
   docTitle?: string
+  /** 复习进度按文档存；不传就没有复习入口 */
+  docId?: string
 }
 
 /**
@@ -41,7 +45,14 @@ export default function CommentsPanel({
   focusId,
   color,
   docTitle,
+  docId,
 }: Props) {
+  const [reviewing, setReviewing] = useState(false)
+  // 到期数要读 localStorage + 解析，别每次渲染都算；复习结束（reviewing 变化）时重算
+  const dueCount = useMemo(
+    () => (docId ? dueList(comments, readReview(docId)).length : 0),
+    [docId, comments, reviewing],
+  )
   const [newText, setNewText] = useState('')
   const [editId, setEditId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
@@ -65,8 +76,6 @@ export default function CommentsPanel({
     }, 90)
     return () => window.clearTimeout(t)
   }, [open, focusId, comments.length])
-
-  if (!open) return null
 
   const submitNew = () => {
     const note = newText.trim()
@@ -147,6 +156,8 @@ export default function CommentsPanel({
     }
   }
 
+  if (!open) return null
+
   return (
     <aside className="drawer comments-pane">
       <div className="comments-head">
@@ -188,12 +199,30 @@ export default function CommentsPanel({
         >
           {packing ? `画卡片 ${packing}` : '卡片包'}
         </button>
+        {docId && (
+          <button
+            className="btn ghost mini"
+            disabled={!comments.length}
+            title="把批注当闪卡复习"
+            onClick={() => setReviewing(true)}
+          >
+            复习{comments.length ? ` ${dueCount}` : ''}
+          </button>
+        )}
         <button className="btn ghost icon" onClick={onClose} title="关闭">
           ×
         </button>
       </div>
 
-      {draft && (
+      {reviewing && docId && (
+        <ReviewCards
+          cards={dueList(comments, readReview(docId)).map((c) => ({ docId, docTitle: docTitle ?? '', c }))}
+          onClose={() => setReviewing(false)}
+          onJump={(x) => onJump(x.c)}
+        />
+      )}
+
+      {draft && !reviewing && (
         <div className="comment-new">
           <div className="comment-quote" title={draft}>
             {draft}
@@ -226,7 +255,7 @@ export default function CommentsPanel({
         </div>
       )}
 
-      <div className="comments-body">
+      <div className="comments-body" hidden={reviewing}>
         {!comments.length && !draft && (
           <div className="comments-empty">
             暂无批注。

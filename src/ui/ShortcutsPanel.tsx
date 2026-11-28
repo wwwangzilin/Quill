@@ -84,6 +84,16 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     ],
   },
   {
+    title: '小说阅读',
+    rows: [
+      ['← → / 空格 / PageUp PageDown', '翻页（竖排时方向相反）'],
+      ['[ ]  或  ↑ ↓', '上一章 / 下一章'],
+      ['Ctrl+F', '全书搜索：按章列出所有命中，点一条跳过去'],
+      ['F', '沉浸模式（全屏只留正文）'],
+      ['Esc', '先收起搜索 / 书签 / 批注，再退出阅读'],
+    ],
+  },
+  {
     title: '导入导出',
     rows: [
       ['⋯ 更多 → 导出 PDF', '走系统打印，打印机选「Microsoft Print to PDF」'],

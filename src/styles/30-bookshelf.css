@@ -356,3 +356,48 @@
     0 10px 14px -8px rgba(10, 25, 50, 0.45),
     0 1px 0 rgba(255, 255, 255, 0.2) inset;
 }
+
+/* ---- 封面花纹：叠在底色渐变上面，每本书由 id 稳定地挑一种 ---- */
+.book[data-pat="0"] .book-cover {
+  background-image:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.075) 0 2px, transparent 2px 14px),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent 42%),
+    linear-gradient(160deg, hsl(var(--hue) 38% 46%), hsl(var(--hue) 42% 28%));
+}
+.book[data-pat="1"] .book-cover {
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.14) 1.4px, transparent 1.7px),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent 42%),
+    linear-gradient(160deg, hsl(var(--hue) 38% 46%), hsl(var(--hue) 42% 28%));
+  background-size: 14px 14px, auto, auto;
+}
+.book[data-pat="2"] .book-cover {
+  background-image:
+    radial-gradient(
+      circle at 80% 24%,
+      transparent 0 26px,
+      rgba(255, 255, 255, 0.13) 27px 28px,
+      transparent 29px 44px,
+      rgba(255, 255, 255, 0.1) 45px 46px,
+      transparent 47px 62px,
+      rgba(255, 255, 255, 0.07) 63px 64px,
+      transparent 65px
+    ),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent 42%),
+    linear-gradient(160deg, hsl(var(--hue) 38% 46%), hsl(var(--hue) 42% 28%));
+}
+.book[data-pat="3"] .book-cover {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent 42%),
+    linear-gradient(160deg, hsl(var(--hue) 38% 46%), hsl(var(--hue) 42% 28%));
+  background-size: 16px 16px, 16px 16px, auto, auto;
+}
+.book[data-pat="4"] .book-cover {
+  background-image:
+    radial-gradient(ellipse 70% 38% at 18% 104%, rgba(0, 0, 0, 0.3) 0 98%, transparent 100%),
+    radial-gradient(ellipse 80% 34% at 78% 108%, rgba(0, 0, 0, 0.2) 0 98%, transparent 100%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent 42%),
+    linear-gradient(160deg, hsl(var(--hue) 38% 46%), hsl(var(--hue) 42% 28%));
+}

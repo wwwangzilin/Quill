@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { toast } from './toast'
 import { isDesktop } from '../core/desktop'
-import { readCfg, readLast, runSync, saveCfg, summarize, testConnection, type DavCfg } from '../core/webdavSync'
+import { readCfg, readLast, readPreBackup, runSync, saveCfg, savePreBackup, summarize, testConnection, type DavCfg } from '../core/webdavSync'
 import { whenText } from '../core/backup'
 
 /**
@@ -11,6 +11,7 @@ import { whenText } from '../core/backup'
 export default function WebdavSection() {
   const [cfg, setCfg] = useState<DavCfg>(readCfg)
   const [busy, setBusy] = useState<'test' | 'sync' | null>(null)
+  const [preBackup, setPreBackup] = useState(readPreBackup)
   const [step, setStep] = useState('')
   const [msg, setMsg] = useState<{ ok: boolean; text: string; lines?: string[] } | null>(null)
   const [last, setLast] = useState(readLast)
@@ -59,7 +60,7 @@ export default function WebdavSection() {
         两边都改过同一篇时，以远端为准，你本机那份会另存为「（冲突 日期）」副本，不会丢。
       </p>
       <p className="desc">
-        另外会同步<b>标签、星标、批注</b>（两边取并集）和 <code>assets/</code> 里的<b>图片</b>（按文件名补齐，超过 25MB 的跳过）。
+        另外会同步<b>阅读进度和书签</b>（每本书取最近读的那一份，换设备接着读；「第几屏」会因屏幕大小有几屏偏差，但章是对的）、<b>标签、星标、批注</b>（两边取并集）和 <code>assets/</code> 里的<b>图片</b>（按文件名补齐，超过 25MB 的跳过）。
         <b>不同步删除</b>：文档、标签、批注、图片在任何一边删了，下次都会从另一边补回来。
         需要完整备份请用「远程备份」或「自动备份」。
       </p>
@@ -83,6 +84,21 @@ export default function WebdavSection() {
         <input type="password" value={cfg.pass} onChange={(e) => set({ pass: e.target.value })} autoComplete="off" />
       </label>
       <p className="desc">密码保存在本机应用数据里（未加密），建议用服务商提供的「应用专用密码」而不是主密码。</p>
+
+      <label className="sc-row">
+        <div>
+          <div className="sc-title">覆盖本地前先备份</div>
+          <div className="sc-text">同步要用远端内容改写本地文档时，先做一次整库备份（没有覆盖就不备份）</div>
+        </div>
+        <input
+          type="checkbox"
+          checked={preBackup}
+          onChange={(e) => {
+            setPreBackup(e.target.checked)
+            savePreBackup(e.target.checked)
+          }}
+        />
+      </label>
 
       <div className="field-row">
         <button className="btn" disabled={!desktop || !!busy || !cfg.url.trim()} onClick={() => void test()}>

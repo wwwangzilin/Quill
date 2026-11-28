@@ -5,6 +5,9 @@
 import { invoke } from '@tauri-apps/api/core'
 import { storage } from './storage'
 import { importMarkdown } from './desktop'
+import { readBookmarks, writeBookmarks } from './bookmarks'
+import { readPos, setPosRaw } from './lastPos'
+import { PROGRESS_REMOTE, emptyProgress, mergeProgress, parseProgress, progressEqual, type ProgressSnap } from './progress'
 import {
   META_REMOTE,
   conflictName,
@@ -35,6 +38,23 @@ export interface DavCfg {
 const CFG_KEY = 'quill-set:webdav'
 const BASE_KEY = 'quill-set:webdav-base'
 const LAST_KEY = 'quill-set:webdav-last'
+const PREBACKUP_KEY = 'quill-set:webdav-prebackup'
+
+/** 同步要覆盖本地文档之前先做一次整库备份（默认开）。没有覆盖就不备份，不会天天产生 zip。 */
+export function readPreBackup(): boolean {
+  try {
+    return localStorage.getItem(PREBACKUP_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
+export function savePreBackup(on: boolean): void {
+  try {
+    localStorage.setItem(PREBACKUP_KEY, on ? '1' : '0')
+  } catch {
+    /* 记不住而已 */
+  }
+}
 
 export function readCfg(): DavCfg {
   try {
@@ -121,6 +141,8 @@ export interface SyncReport {
   errors: { name: string; msg: string }[]
   /** 元数据（标签 / 星标 / 批注）这次从远端补到本地的条数 */
   metaPulled: number
+  /** 阅读位置 / 书签这次从别的设备补进本机的条数 */
+  progressPulled: number
   /** 图片上传 / 下载 / 跳过的张数 */
   assets: { pushed: number; pulled: number; skipped: string[] }
 }
@@ -151,6 +173,7 @@ export function summarize(r: SyncReport): string {
     r.pulled.length && `下载 ${r.pulled.length}`,
     r.conflicts.length && `冲突 ${r.conflicts.length}`,
     r.metaPulled && `标签/批注补入 ${r.metaPulled}`,
+    r.progressPulled && `进度/书签补入 ${r.progressPulled}`,
     r.assets.pushed && `传图 ${r.assets.pushed}`,
     r.assets.pulled && `收图 ${r.assets.pulled}`,
     r.errors.length && `失败 ${r.errors.length}`,
@@ -167,7 +190,20 @@ export async function runSync(cfg: DavCfg, onStep?: (msg: string) => void): Prom
     unchanged: 0,
     errors: [],
     metaPulled: 0,
+    progressPulled: 0,
     assets: { pushed: 0, pulled: 0, skipped: [] },
+  }
+  // 第一次要覆盖本地文档前备份一次；备份失败不拦同步（只提示），但会在报告里留一句
+  let backedUp = false
+  const backupOnce = async () => {
+    if (backedUp || !readPreBackup()) return
+    backedUp = true
+    try {
+      onStep?.('覆盖本地前先备份')
+      await invoke('backup_now')
+    } catch (e) {
+      report.errors.push({ name: '同步前备份', msg: `失败，已继续同步：${e instanceof Error ? e.message : String(e)}` })
+    }
   }
   const base = readBase(cfg.url)
   const failed = new Set<string>()
@@ -198,6 +234,7 @@ export async function runSync(cfg: DavCfg, onStep?: (msg: string) => void): Prom
         const pull = async (text: string) => {
           const existing = metaOf.get(name)
           if (existing) {
+            await backupOnce()
             await invoke('save_doc', { file: name, title: existing.title, content: text, baseDigest: null })
           } else {
             await importMarkdown([{ title: stem, content: text }])
@@ -253,6 +290,7 @@ export async function runSync(cfg: DavCfg, onStep?: (msg: string) => void): Prom
 
   // 文档之后再同步元数据和图片：文档拉下来了，它们的标签 / 批注才有地方落
   await syncMeta(cfg, report, onStep)
+  await syncProgress(cfg, report, onStep)
   await syncAssets(cfg, report, onStep)
 
   try {
@@ -370,5 +408,43 @@ async function syncAssets(cfg: DavCfg, report: SyncReport, onStep?: (m: string) 
     }
   } catch (e) {
     report.errors.push({ name: '图片', msg: e instanceof Error ? e.message : String(e) })
+  }
+}
+
+/* ------------------------------ 阅读进度 / 书签 ------------------------------ */
+
+async function syncProgress(cfg: DavCfg, report: SyncReport, onStep?: (m: string) => void): Promise<void> {
+  try {
+    onStep?.('同步阅读进度…')
+    const url = fileUrl(cfg.url, PROGRESS_REMOTE)
+    const got = await dav(cfg, 'GET', url)
+    const remote = got.status === 404 ? emptyProgress() : got.status < 300 ? parseProgress(got.body) : null
+    if (!remote) throw new Error(explain(got))
+    const names = (await storage.list()).filter((m) => isSyncName(m.id)).map((m) => m.id)
+    const local: ProgressSnap = emptyProgress()
+    for (const n of names) {
+      const p = readPos(n)
+      if (p) local.pos[n] = p
+      const b = readBookmarks(n)
+      if (b.length) local.bookmarks[n] = b
+    }
+    const { merged, posToApply, bookmarksToApply } = mergeProgress(local, remote, new Set(names))
+    for (const [n, p] of Object.entries(posToApply)) {
+      setPosRaw(n, p)
+      report.progressPulled += 1
+    }
+    for (const [n, b] of Object.entries(bookmarksToApply)) {
+      writeBookmarks(n, b)
+      report.progressPulled += 1
+    }
+    if (got.status === 404 || !progressEqual(remote, merged)) {
+      const put = await dav(cfg, 'PUT', url, {
+        headers: [['Content-Type', 'application/json; charset=utf-8']],
+        body: JSON.stringify(merged),
+      })
+      if (put.status >= 300) throw new Error(explain(put))
+    }
+  } catch (e) {
+    report.errors.push({ name: '阅读进度', msg: e instanceof Error ? e.message : String(e) })
   }
 }

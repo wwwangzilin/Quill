@@ -621,3 +621,467 @@ html.perf-no-texture .reader[data-rtheme='paper'][data-ptex] {
   background: transparent;
   color: var(--text-2);
 }
+
+/* ---- 书架排序 ---- */
+.shelf-sort-btn {
+  margin-left: auto;
+}
+.shelf-sorter {
+  margin: 0 10px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg, var(--surface));
+  overflow: hidden;
+}
+.shelf-sorter-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  border-bottom: 1px solid var(--border);
+}
+.shelf-sorter-list {
+  max-height: 220px;
+  overflow: auto;
+  padding: 4px;
+}
+.shelf-sorter-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  cursor: grab;
+  border-top: 2px solid transparent;
+}
+.shelf-sorter-row:hover {
+  background: var(--accent-soft);
+}
+.shelf-sorter-row.dragging {
+  opacity: 0.45;
+}
+.shelf-sorter-row.over {
+  border-top-color: var(--accent-1);
+}
+.shelf-sorter-grip {
+  color: var(--text-3);
+  letter-spacing: -2px;
+  font-size: 11px;
+}
+.shelf-sorter-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- 批注复习 ---- */
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  flex: 1;
+  min-height: 0;
+}
+.review-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.review-prog {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+.review-card {
+  flex: 1;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  justify-content: center;
+  padding: 18px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  overflow: auto;
+}
+.review-quote {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--text);
+}
+.review-note {
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-2);
+  white-space: pre-wrap;
+}
+.review-hint,
+.review-empty {
+  font-size: 12px;
+  color: var(--text-3);
+  text-align: center;
+}
+.review-empty {
+  padding: 40px 0;
+}
+.review-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* ---- 全书搜索 ---- */
+.book-search {
+  position: absolute;
+  top: 56px;
+  right: 18px;
+  z-index: 40;
+  width: min(380px, 92%);
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  border: 1px solid var(--glass-border, var(--border));
+  background: var(--glass-bg, var(--surface-solid));
+  box-shadow: var(--glass-shadow, var(--shadow));
+  backdrop-filter: var(--glass-blur, none);
+  -webkit-backdrop-filter: var(--glass-blur, none);
+  overflow: hidden;
+}
+.book-search-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-3);
+}
+.book-search-head input {
+  flex: 1;
+  min-width: 0;
+  height: var(--ctl-h, 32px);
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--ctl-radius, 10px);
+  background: var(--surface-hover);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.book-search-head input:focus {
+  border-color: var(--accent-1);
+}
+.book-search-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 6px 8px;
+}
+.book-search-tip {
+  padding: 22px 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.book-search-chapter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 6px 3px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.book-search-chapter em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--text-3);
+}
+.book-search-hit {
+  display: block;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: left;
+  cursor: pointer;
+}
+.book-search-hit:hover {
+  background: var(--accent-soft);
+}
+.book-search-hit mark {
+  background: transparent;
+  color: var(--accent-1);
+  font-weight: 700;
+}
+.book-search-foot {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+/* 跳转后命中词的底色（CSS Custom Highlight API；不支持的 WebView 就没有底色） */
+::highlight(book-hit) {
+  background: color-mix(in srgb, var(--accent-1) 38%, transparent);
+  color: inherit;
+}
+
+.global-review {
+  width: min(520px, 92vw);
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+.global-review .review {
+  padding: 16px;
+}
+.review-doc {
+  font-size: 12px;
+  color: var(--text-3);
+  text-align: center;
+}
+
+/* ---- 批注与书签中心 ---- */
+.annot-center {
+  width: min(640px, 94vw);
+  height: min(620px, 82vh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.annot-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.annot-head input {
+  flex: 1;
+  min-width: 0;
+  height: var(--ctl-h, 32px);
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--ctl-radius, 10px);
+  background: var(--surface-hover);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.annot-head input:focus {
+  border-color: var(--accent-1);
+}
+.annot-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 14px 14px;
+}
+.annot-tip {
+  padding: 28px 10px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.9;
+  color: var(--text-3);
+}
+.annot-doc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0 4px;
+}
+.annot-doc-name {
+  flex: 1;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.annot-doc-name em {
+  margin-left: 6px;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.annot-hit {
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  font-size: 12.5px;
+  line-height: 1.75;
+}
+.annot-quote {
+  color: var(--text);
+}
+.annot-note {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+  color: var(--text-2);
+  white-space: pre-wrap;
+}
+.annot-hit mark {
+  background: var(--accent-soft);
+  color: var(--accent-1);
+  font-weight: 700;
+  border-radius: 3px;
+}
+
+/* ---- 自定义章节规则 ---- */
+.chap-rule {
+  width: min(520px, 94vw);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+}
+.chap-rule-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.chap-rule-help {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-3);
+}
+.chap-rule-input {
+  height: var(--ctl-h, 32px);
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--ctl-radius, 10px);
+  background: var(--surface-hover);
+  color: var(--text);
+  font-family: var(--font-mono, monospace);
+  font-size: 12.5px;
+  outline: none;
+}
+.chap-rule-input:focus {
+  border-color: var(--accent-1);
+}
+.chap-rule-input.bad {
+  border-color: var(--danger, #e5646b);
+}
+.chap-rule-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chap-rule-preview {
+  min-height: 90px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.chap-rule-preview ol {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  color: var(--text-3);
+}
+.chap-rule-warn {
+  color: var(--danger, #e5646b);
+}
+.chap-rule-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---- 目录：筛选 + 已读 ---- */
+.reader-toc-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 8px;
+}
+.reader-toc-search input {
+  flex: 1;
+  min-width: 0;
+  height: var(--ctl-h-sm, 26px);
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--ctl-radius, 10px);
+  background: var(--surface-hover);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.reader-toc-search input:focus {
+  border-color: var(--accent-1);
+}
+.reader-toc-item.read {
+  opacity: 0.55;
+}
+.reader-toc-item.read .reader-toc-n {
+  color: var(--accent-1);
+}
+.reader-toc-empty {
+  padding: 22px 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* ---- 夜间自动切换 ---- */
+.rstyle-night {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+.rstyle-night-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.rstyle-night-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.rstyle-night-time input[type="time"] {
+  height: var(--ctl-h-sm, 26px);
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--ctl-radius, 10px);
+  background: var(--surface-hover);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}

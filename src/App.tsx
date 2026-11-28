@@ -10,6 +10,8 @@ import { toast } from './ui/toast'
 import { useSetting } from './core/settings'
 import ShortcutsPanel from './ui/ShortcutsPanel'
 import StatsPanel from './ui/StatsPanel'
+import GlobalReview from './ui/GlobalReview'
+import AnnotCenter from './ui/AnnotCenter'
 import TrashPanel from './ui/TrashPanel'
 import SettingsView from './ui/SettingsView'
 import DocLibrary from './ui/DocLibrary'
@@ -82,6 +84,8 @@ export default function App() {
   const [typewriter, setTypewriter] = useSetting('typewriter', false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [statsOpen, setStatsOpen] = useState(false)
+  const [globalReviewOpen, setGlobalReviewOpen] = useState(false)
+  const [annotOpen, setAnnotOpen] = useState(false)
   const [trashOpen, setTrashOpen] = useState(false)
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [jumpPath, setJumpPath] = useState<number[] | null>(null)
@@ -575,6 +579,8 @@ export default function App() {
     setStatsOpen,
     setSidebarOpen,
     setTrashOpen,
+    setGlobalReviewOpen,
+    setAnnotOpen,
   }
   const moreItems = buildMoreItems(menuCtx)
   const paletteCommands = buildPaletteCommands(menuCtx)
@@ -602,6 +608,18 @@ export default function App() {
       )}
       <ShortcutsPanel open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <StatsPanel open={statsOpen} onClose={() => setStatsOpen(false)} />
+      <AnnotCenter
+        open={annotOpen}
+        docs={docs}
+        onClose={() => setAnnotOpen(false)}
+        onOpenDoc={(id) => void openDoc(id)}
+      />
+      <GlobalReview
+        open={globalReviewOpen}
+        docs={docs}
+        onClose={() => setGlobalReviewOpen(false)}
+        onOpenDoc={(id) => void openDoc(id)}
+      />
       <TrashPanel
         open={trashOpen}
         onClose={() => setTrashOpen(false)}
@@ -849,6 +867,8 @@ export default function App() {
             onDelete={removeComment}
             onJump={jumpToComment}
             focusId={commentFocus}
+            docId={doc.id}
+            docTitle={doc.title}
           />
         )}
 

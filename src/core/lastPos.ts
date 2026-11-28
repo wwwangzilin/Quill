@@ -63,6 +63,17 @@ export function writePos(docId: string, patch: Partial<DocPos>): void {
   }
 }
 
+/** 原样写入（保留 at）。只给「从别的设备同步过来」用：writePos 会把 at 改成现在，
+ *  那样同步一次就等于「刚读过」，下次又会被当成最新的覆盖回去。 */
+export function setPosRaw(docId: string, pos: DocPos): void {
+  if (!docId) return
+  try {
+    localStorage.setItem(keyOf(docId), JSON.stringify(pos))
+  } catch {
+    /* 同上 */
+  }
+}
+
 export function clearPos(docId: string): void {
   try {
     localStorage.removeItem(keyOf(docId))

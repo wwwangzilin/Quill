@@ -781,7 +781,7 @@
 
 .ProseMirror .md-frontmatter.ProseMirror-selectednode {
   border-left-color: var(--accent-1, #7c6cff);
-  background: rgba(124, 108, 255, 0.08);
+  background: color-mix(in srgb, var(--accent-1) 8%, transparent);
 }
 
 /* ---------- 打印 / 导出 PDF ---------- */
