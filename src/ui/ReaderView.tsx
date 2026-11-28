@@ -24,19 +24,7 @@ import { filterToc, firstUnread, loadRead, readPercent, saveRead } from '../core
 import { compileRule, loadRule, saveRule, splitBlocksByRule, splitByRule, toByteRanges } from '../core/chapterRule'
 import ChapterRuleDialog, { type RuleSource } from './ChapterRuleDialog'
 import { fmtEta, loadCpm, minutesFor, remaining, saveCpm, updateCpm } from '../core/readSpeed'
-import {
-  BM_CATS,
-  catCounts,
-  filterBookmarks,
-  nextCat,
-  readBookmarks,
-  sameSpot,
-  setBookmarkCat,
-  toggleBookmark,
-  writeBookmarks,
-  type BmCat,
-  type Bookmark,
-} from '../core/bookmarks'
+import { BM_CATS } from '../core/bookmarks'
 import { Icon } from './Icon'
 import { useSetting } from '../core/settings'
 import { recordFinished, useReadingTracker } from '../core/readTracker'
@@ -97,6 +85,7 @@ interface Props {
 import { Block, cutLeadingLines, softWrapToParagraphs, type Mark } from './reader/blocks'
 import Toc from './reader/Toc'
 import Bookmarks from './reader/Bookmarks'
+import { useBookmarks } from './reader/useBookmarks'
 export { }
 export default function ReaderView({
   docId,
@@ -618,7 +607,6 @@ export default function ReaderView({
   const minsLeftBook = minutesFor(charsLeftBook, cpm)
 
   /* ---------- 书签 ---------- */
-  const [bms, setBms] = useState<Bookmark[]>(() => readBookmarks(docId))
   /* ---------------- 全书搜索 ---------------- */
   const [searchOpen, setSearchOpen] = useState(false)
   const searchTitles = useMemo(() => chapters.map((c) => c.title), [chapters])
@@ -709,65 +697,32 @@ export default function ReaderView({
   }, [ci, blocks, pages, step, loadingBlocks, settleHit])
   useEffect(() => () => clearHitMark(), [clearHitMark])
 
-  const [bmOpen, setBmOpen] = useState(false)
-  const [bmFilter, setBmFilter] = useState<BmCat | 'all' | 'none'>('all')
-  const spot = { chapter: slicing ? chapter.title : undefined, page }
-  const marked = bms.some((b) => sameSpot(b, spot))
-  const shownBms = useMemo(() => filterBookmarks(bms, bmFilter), [bms, bmFilter])
-  const catStat = useMemo(() => catCounts(bms), [bms])
-  const flipBookmark = useCallback(() => {
-    setBms((list) => {
-      // 正看着某个分类的话，新加的书签直接归进去
-      const next = toggleBookmark(
-        list,
-        { chapter: slicing ? chapter.title : undefined, page },
-        Date.now(),
-        bmFilter === 'all' || bmFilter === 'none' ? undefined : bmFilter,
-      )
-      writeBookmarks(docId, next)
-      return next
-    })
-  }, [docId, slicing, chapter, page, bmFilter])
-  const cycleCat = useCallback(
-    (id: string) => {
-      setBms((list) => {
-        const cur = list.find((b) => b.id === id)
-        const next = setBookmarkCat(list, id, nextCat(cur?.cat))
-        writeBookmarks(docId, next)
-        return next
-      })
-    },
-    [docId],
-  )
-  const goBookmark = useCallback(
-    (b: Bookmark) => {
-      setBmOpen(false)
-      const idx = b.chapter ? chapters.findIndex((c) => c.title === b.chapter) : 0
-      if (b.chapter && idx < 0) {
-        toast.info('书签的那一章找不到了', '章标题可能改过')
-        return
-      }
-      if (slicing && idx !== ci) {
-        // 和「上次读到哪儿」同一套：先记下要回到的屏，再换章，换章后 measure 兑现
-        wantPage.current = b.page
-        skipReset.current = true
-        setCi(idx)
-      } else {
-        setPage(Math.max(0, Math.min(b.page, pages - 1)))
-      }
-    },
-    [chapters, slicing, ci, pages],
-  )
-  const dropBookmark = useCallback(
-    (id: string) => {
-      setBms((list) => {
-        const next = list.filter((b) => b.id !== id)
-        writeBookmarks(docId, next)
-        return next
-      })
-    },
-    [docId],
-  )
+  const {
+    bms,
+    marked,
+    shown: shownBms,
+    catStat,
+    open: bmOpen,
+    setOpen: setBmOpen,
+    filter: bmFilter,
+    setFilter: setBmFilter,
+    flip: flipBookmark,
+    cycleCat,
+    go: goBookmark,
+    drop: dropBookmark,
+  } = useBookmarks({
+    docId,
+    slicing,
+    chapterTitle: chapter?.title,
+    page,
+    chapters,
+    ci,
+    pages,
+    setCi,
+    setPage,
+    wantPage,
+    skipReset,
+  })
 
   /* ---------- 自动翻页：关 → 慢 → 中 → 快 ---------- */
   const AUTO_STEPS = [0, 20, 12, 6] as const
