@@ -214,6 +214,24 @@ export function booksInRange(stats: ReadStats, n: number, now: number): BookRow[
     .sort((a, b) => b.rangeSecs - a.rangeSecs)
 }
 
+
+export interface DayBookRow {
+  id: string
+  title: string
+  secs: number
+}
+
+/** 某一天读过的书，按当天阅读时长从多到少。 */
+export function booksOnDay(stats: ReadStats, key: string): DayBookRow[] {
+  const day = stats.days[key]
+  if (!day) return []
+  return Object.entries(day.docs)
+    .filter(([, secs]) => secs > 0)
+    .map(([id, secs]) => ({ id, secs, title: stats.books[id]?.title ?? '（已删除）' }))
+    .sort((a, b) => b.secs - a.secs || a.title.localeCompare(b.title))
+}
+
+// quill-reading-features:books-on-day
 /** 「1 小时 5 分」「12 分」「40 秒」 */
 export function fmtDuration(secs: number): string {
   const s = Math.round(secs)

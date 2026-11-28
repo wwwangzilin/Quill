@@ -6,7 +6,7 @@
  * 当前是哪一屏、这本书有哪些章、以及「怎么跳到某一章某一屏」。
  * 所以整块搬进 hook，阅读器只留一行调用。
  */
-import { useCallback, useMemo, useState, type MutableRefObject } from 'react'
+import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from 'react'
 import {
   catCounts,
   filterBookmarks,
@@ -56,6 +56,15 @@ export function useBookmarks({
   const [bms, setBms] = useState<Bookmark[]>(() => readBookmarks(docId))
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState<BmCat | 'all' | 'none'>('all')
+
+  // ReaderView may stay mounted while its document changes. Keep the hook's
+  // local state in sync with the new document instead of showing the old book's
+  // bookmarks until the reader is remounted.
+  useEffect(() => {
+    setBms(readBookmarks(docId))
+    setOpen(false)
+    setFilter('all')
+  }, [docId])
 
   const marked = bms.some((b) => sameSpot(b, { chapter: chapterTitle, page }))
   const shown = useMemo(() => filterBookmarks(bms, filter), [bms, filter])

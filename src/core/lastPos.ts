@@ -27,6 +27,40 @@ export interface DocPos {
 }
 
 const keyOf = (docId: string) => `quill:pos:${docId}`
+const PENDING_PREFIX = 'quill:progress-pending:'
+const ACTIVE_READER_KEY = 'quill:active-reader'
+
+/** 当前阅读器只在当前 WebView 会话中有效，避免应用异常退出后留下过期标记。 */
+export function setActiveReaderId(docId: string | null): void {
+  try {
+    if (docId) sessionStorage.setItem(ACTIVE_READER_KEY, docId)
+    else sessionStorage.removeItem(ACTIVE_READER_KEY)
+  } catch { /* 不影响阅读 */ }
+}
+
+export function getActiveReaderId(): string | null {
+  try { return sessionStorage.getItem(ACTIVE_READER_KEY) } catch { return null }
+}
+
+export function setPendingRemotePos(docId: string, pos: DocPos): void {
+  if (!docId) return
+  try { localStorage.setItem(PENDING_PREFIX + docId, JSON.stringify(pos)) } catch { /* 下次同步仍可重试 */ }
+}
+
+export function readPendingRemotePos(docId: string): DocPos | null {
+  if (!docId) return null
+  try {
+    const raw = localStorage.getItem(PENDING_PREFIX + docId)
+    if (!raw) return null
+    const value = JSON.parse(raw) as DocPos
+    return value && typeof value.at === 'number' ? value : null
+  } catch { return null }
+}
+
+export function clearPendingRemotePos(docId: string): void {
+  try { localStorage.removeItem(PENDING_PREFIX + docId) } catch { /* ignore */ }
+}
+// quill-reading-features:pending-progress-storage
 
 /** 锚点最多存这么长 —— 越长越脆，够认出是哪一段就行 */
 export const MAX_ANCHOR = 48

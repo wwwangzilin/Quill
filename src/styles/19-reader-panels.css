@@ -159,6 +159,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.reader-toc-eta {
+  flex: none;
+  margin-left: 6px;
+  font-size: 10.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
 
 .reader-main {
   flex: 1;

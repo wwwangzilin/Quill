@@ -5,7 +5,7 @@ import { fingerprint, similarity, mostSimilar, FP_SIZE } from './src/core/finger
 import { readingCsv, CSV_HEADER } from './src/core/readingCsv.ts'
 import { effectiveStatus, statusGroups, inStatusGroup, setStatus } from './src/core/shelfStatus.ts'
 import { formatQuote } from './src/core/quoteFmt.ts'
-import { isBigJump } from './src/core/backSpot.ts'
+import { isBigJump, pushSpot, popSpot } from './src/core/backSpot.ts'
 let n = 0
 const ok = (f) => { f(); n++ }
 
@@ -92,6 +92,12 @@ ok(() => assert.equal(formatQuote('   ', { title: '书' }, 'cite'), ''))
 
 /* —— F 回到位置 —— */
 ok(() => { assert.equal(isBigJump({ ci: 3, page: 5 }, { ci: 4, page: 0 }), false); assert.equal(isBigJump({ ci: 3, page: 5 }, { ci: 9, page: 0 }), true); assert.equal(isBigJump({ ci: 3, page: 5 }, { ci: 3, page: 7 }), false); assert.equal(isBigJump({ ci: 3, page: 5 }, { ci: 3, page: 9 }), true) })
+ok(() => assert.deepEqual(pushSpot([], { ci: 1, page: 2 }), [{ ci: 1, page: 2 }]))
+ok(() => assert.deepEqual(pushSpot([{ ci: 1, page: 2 }], { ci: 1, page: 2 }), [{ ci: 1, page: 2 }])) // 去重
+ok(() => assert.equal(pushSpot(Array.from({ length: 5 }, (_, ci) => ({ ci, page: 0 })), { ci: 5, page: 0 }).length, 5)) // 上限
+ok(() => assert.deepEqual(popSpot([{ ci: 1, page: 0 }, { ci: 3, page: 2 }]), { stack: [{ ci: 1, page: 0 }], spot: { ci: 3, page: 2 } }))
+ok(() => assert.deepEqual(popSpot([]), { stack: [], spot: null }))
+// quill-reading-features:multi-back-spot-tests
 console.log(`全部通过：${n} 项`)
 
 // ---- 导入查重 ----

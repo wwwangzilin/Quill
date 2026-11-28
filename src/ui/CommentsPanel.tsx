@@ -55,6 +55,8 @@ export default function CommentsPanel({
     [docId, comments, reviewing],
   )
   const [newText, setNewText] = useState('')
+  const [newTags, setNewTags] = useState('')
+  // quill-reading-features:new-comment-tags-state
   const [editId, setEditId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
   const [editTags, setEditTags] = useState('')
@@ -69,6 +71,7 @@ export default function CommentsPanel({
   useEffect(() => {
     if (!open || !draft) return
     setNewText('')
+    setNewTags('')
     const t = window.setTimeout(() => newRef.current?.focus(), 60)
     return () => window.clearTimeout(t)
   }, [open, draft])
@@ -87,8 +90,10 @@ export default function CommentsPanel({
   const submitNew = () => {
     const note = newText.trim()
     if (!note || !draft) return
-    onSave({ id: newCommentId(), quote: draft, note, created: Date.now(), resolved: false, ...(color ? { color } : {}) })
+    const tags = parseTags(newTags)
+    onSave({ id: newCommentId(), quote: draft, note, created: Date.now(), resolved: false, ...(color ? { color } : {}), ...(tags.length ? { tags } : {}) })
     setNewText('')
+    setNewTags('')
     onDraftDone()
   }
 
@@ -253,6 +258,15 @@ export default function CommentsPanel({
               }
             }}
           />
+          <div className="comment-new-tags">
+            <input className="comment-input comment-tag-input" value={newTags} placeholder="标签，可用逗号分隔" onChange={(e) => setNewTags(e.target.value)} />
+            {counts.length > 0 && <div className="comment-tag-suggest" aria-label="常用标签">
+              {counts.slice(0, 8).map((item) => {
+                const selected = parseTags(newTags)
+                return <button key={item.tag} type="button" className={selected.includes(item.tag) ? 'on' : ''} onClick={() => setNewTags(tagsText(selected.includes(item.tag) ? selected.filter((tag) => tag !== item.tag) : [...selected, item.tag]))}>#{item.tag}</button>
+              })}
+            </div>}
+          </div>
           <div className="comment-actions">
             <button className="btn primary" disabled={!newText.trim()} onClick={submitNew}>
               保存

@@ -55,6 +55,18 @@ export function fmtEta(min: number): string {
 }
 
 const KEY = 'quill-set:read-cpm'
+
+/** 是否已经积累过个人阅读速度；没有样本时目录不显示估算。 */
+export function hasStoredCpm(): boolean {
+  try {
+    const raw = localStorage.getItem(KEY)
+    const value = Number(raw)
+    return raw !== null && Number.isFinite(value) && value > 0
+  } catch {
+    return false
+  }
+}
+// quill-reading-features:stored-cpm-check
 export function loadCpm(): number {
   try {
     const v = Number(localStorage.getItem(KEY))

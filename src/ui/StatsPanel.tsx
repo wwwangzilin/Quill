@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   booksInRange,
+  booksOnDay,
   clearStats,
   dayKey,
   fmtDuration,
@@ -49,11 +50,16 @@ export default function StatsPanel({ open, onClose }: Props) {
   const [stats, setStats] = useState(loadStats)
   const [tip, setTip] = useState<Tip | null>(null)
   const [goal, setGoal] = useState(loadGoal)
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  // quill-reading-features:selected-day-state
 
   // 每次打开都重新读，免得看到的是上次的快照
   useEffect(() => {
     if (open) setStats(loadStats())
   }, [open])
+  useEffect(() => {
+    setSelectedDay(null)
+  }, [range, tab, open])
   useEffect(() => {
     if (!open) return
     const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -84,12 +90,28 @@ export default function StatsPanel({ open, onClose }: Props) {
   /** 深浅分四档：相对范围内最大值，0 单独一档（空心） */
   const level = (secs: number, max: number) => (secs <= 0 ? 0 : Math.min(4, Math.ceil((secs / max) * 4)))
 
-  const Bars = ({ values, labels, caption }: { values: number[]; labels: string[]; caption: (i: number) => string }) => {
+  const Bars = ({ values, labels, caption, onSelect }: {
+    values: number[]
+    labels: string[]
+    caption: (i: number) => string
+    onSelect?: (index: number) => void
+  }) => {
     const max = Math.max(1, ...values)
     return (
       <div className="stats-bars" style={{ ['--n' as string]: values.length }}>
         {values.map((v, i) => (
-          <div key={i} className="stats-bar-col" {...tipProps(caption(i))}>
+          <div
+            key={i}
+            className={'stats-bar-col' + (onSelect ? ' pickable' : '')}
+            role={onSelect ? 'button' : undefined}
+            tabIndex={onSelect ? 0 : undefined}
+            aria-label={onSelect ? caption(i) + '，点击查看当天书目' : undefined}
+            onClick={onSelect ? () => onSelect(i) : undefined}
+            onKeyDown={onSelect ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(i) }
+            } : undefined}
+            {...tipProps(caption(i))}
+          >
             <div className="stats-bar" style={{ height: `${Math.max(v > 0 ? 3 : 0, (v / max) * 100)}%` }} />
             <span className="stats-bar-label">{labels[i]}</span>
           </div>
@@ -126,6 +148,26 @@ export default function StatsPanel({ open, onClose }: Props) {
     const max = Math.max(1, ...points.map((p) => p.secs))
     return { cells, max }
   })()
+
+  const selectedBooks = selectedDay ? booksOnDay(stats, selectedDay) : []
+  const dayDetail = selectedDay ? (
+    <section className="stats-day-detail" aria-live="polite">
+      <div className="stats-day-head">
+        <b>{selectedDay}</b>
+        <span>{fmtDuration(stats.days[selectedDay]?.secs ?? 0)}</span>
+        <button className="btn ghost mini" onClick={() => setSelectedDay(null)}>收起</button>
+      </div>
+      {selectedBooks.length ? (
+        <div className="stats-day-books">
+          {selectedBooks.map((book) => (
+            <div className="stats-day-book" key={book.id}>
+              <span>{book.title}</span><b>{fmtDuration(book.secs)}</b>
+            </div>
+          ))}
+        </div>
+      ) : <div className="stats-day-empty">这一天没有按书拆分的阅读记录。</div>}
+    </section>
+  ) : null
 
   return (
     <div className="modal-mask" onMouseDown={onClose}>
@@ -236,7 +278,13 @@ export default function StatsPanel({ open, onClose }: Props) {
                 </div>
               </div>
               <div className="stats-h">{range <= 90 ? '每日阅读' : '每周阅读'}</div>
-              <Bars values={overviewBars.values} labels={overviewBars.labels} caption={overviewBars.caption} />
+              <Bars
+                values={overviewBars.values}
+                labels={overviewBars.labels}
+                caption={overviewBars.caption}
+                onSelect={range <= 90 ? (i) => setSelectedDay(points[i].key) : undefined}
+              />
+              {dayDetail}
               {sum.bestDay && (
                 <div className="stats-note">
                   读得最多的一天是 {sum.bestDay.key}，{fmtDuration(sum.bestDay.secs)}。
@@ -260,6 +308,11 @@ export default function StatsPanel({ open, onClose }: Props) {
                       <i
                         key={c.key}
                         className={`stats-cell l${level(c.secs, calendar.max)}`}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`${c.key} 周${WEEK[c.weekday]} · ${c.secs ? fmtDuration(c.secs) : '没读'}，点击查看当天书目`}
+                        onClick={() => setSelectedDay(c.key)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDay(c.key) } }}
                         {...tipProps(`${c.key} 周${WEEK[c.weekday]} · ${c.secs ? fmtDuration(c.secs) : '没读'}`)}
                       />
                     ) : (
@@ -275,6 +328,7 @@ export default function StatsPanel({ open, onClose }: Props) {
                 <i className="stats-cell l3" />
                 <i className="stats-cell l4" />多
               </div>
+              {dayDetail}
 
               <div className="stats-h">一天里什么时候读</div>
               <Bars

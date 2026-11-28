@@ -114,6 +114,11 @@
 .comment-input:focus {
   border-color: var(--accent-1);
 }
+.comment-new-tags { display: flex; flex-direction: column; gap: 6px; margin-top: 7px; }
+.comment-tag-input { min-height: 32px; height: 32px; padding: 6px 9px; resize: vertical; }
+.comment-tag-suggest { display: flex; flex-wrap: wrap; gap: 5px; }
+.comment-tag-suggest button { border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; background: transparent; color: var(--text-3); font: inherit; font-size: 11px; cursor: pointer; }
+.comment-tag-suggest button:hover, .comment-tag-suggest button.on { border-color: var(--accent-1); color: var(--accent-1); background: var(--accent-soft); }
 .comment-actions {
   display: flex;
   gap: 8px;

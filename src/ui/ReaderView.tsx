@@ -12,7 +12,7 @@ import {
   type Comment,
   type HiColor,
 } from '../core/comments'
-import { posLabel, readPos, writePos } from '../core/lastPos'
+import { clearPendingRemotePos, getActiveReaderId, posLabel, readPendingRemotePos, readPos, setActiveReaderId, setPosRaw, writePos, type DocPos } from '../core/lastPos'
 import type { RawChapter } from '../core/rawChapters'
 import { parseDocument } from '../core/md-parse'
 import { storage } from '../core/storage'
@@ -23,11 +23,12 @@ import { effectiveTheme, isNight, loadNight, saveNight, type NightCfg } from '..
 import { filterToc, firstUnread, loadRead, readPercent, saveRead } from '../core/readMarks'
 import { compileRule, loadRule, saveRule, splitBlocksByRule, splitByRule, toByteRanges } from '../core/chapterRule'
 import ChapterRuleDialog, { type RuleSource } from './ChapterRuleDialog'
-import { fmtEta, loadCpm, minutesFor, remaining, saveCpm, updateCpm } from '../core/readSpeed'
+import { fmtEta, hasStoredCpm, loadCpm, minutesFor, remaining, saveCpm, updateCpm } from '../core/readSpeed'
+import { aheadBy } from '../core/progressAhead'
 import { BM_CATS } from '../core/bookmarks'
 import { Icon } from './Icon'
 import GoalRing from './GoalRing'
-import { isBigJump } from '../core/backSpot'
+import { isBigJump, pushSpot, popSpot } from '../core/backSpot'
 import { formatQuote, loadQuoteFmt } from '../core/quoteFmt'
 import { useSetting } from '../core/settings'
 import { recordFinished, useReadingTracker } from '../core/readTracker'
@@ -102,6 +103,13 @@ export default function ReaderView({
   onEditChapter,
   onSwitchToEditor,
 }: Props) {
+  useEffect(() => {
+    setActiveReaderId(docId)
+    return () => {
+      if (getActiveReaderId() === docId) setActiveReaderId(null)
+    }
+  }, [docId])
+
   /** 超大文档：只有目录，正文按章现取 */
   const heavy = Boolean(outlineProp?.length)
 
@@ -488,34 +496,55 @@ export default function ReaderView({
   useEffect(() => {
     if (restored.current) return
     restored.current = true
-    const p = readPos(docId)
-    if (!p) return
-    const idx = p.chapter ? chapters.findIndex((c) => c.title === p.chapter) : -1
-    const want = p.page ?? 0
-    // 没章号也没翻过页 —— 那就是停在开头，没什么好问的
-    if (idx <= 0 && want === 0) return
 
-    const jump = () => {
+    const jump = (position: DocPos) => {
+      const idx = position.chapter ? chapters.findIndex((c) => c.title === position.chapter) : -1
+      const want = position.page ?? 0
       if (idx > 0) {
         wantPage.current = want
         skipReset.current = true
         setCi(idx)
       } else {
-        // 本来就是第 1 章：setCi 不会触发任何 effect，催一次 measure 兑现页号
+        // 第一章不触发 setCi effect；等 measure 兑现页号。
         wantPage.current = want
         measure()
       }
     }
 
-    /*
-     * 问一句，**不自动跳**。人可能就是想从头读；
-     * 而且不给按键提示 —— 不是每副键盘都有 Home 键，直接给按钮更省事。
-     */
+    const local = readPos(docId)
+    const pending = readPendingRemotePos(docId)
+    if (pending && !local) {
+      // 本机还没有位置，远端位置是唯一进度，恢复原有的「询问后跳转」体验。
+      setPosRaw(docId, pending)
+      clearPendingRemotePos(docId)
+    } else if (pending && local && aheadBy(local, pending, chapters.map((c) => c.title))) {
+      toast.ask('另一台设备读得更远', posLabel(pending), [
+        { label: '跳到远端位置', primary: true, run: () => {
+          setPosRaw(docId, pending)
+          clearPendingRemotePos(docId)
+          jump(pending)
+        } },
+        { label: '保留本机位置', run: () => {
+          clearPendingRemotePos(docId)
+          writePos(docId, { chapter: local.chapter, page: local.page, scroll: local.scroll, ratio: local.ratio, anchor: local.anchor })
+          jump(local)
+        } },
+      ])
+      return
+    } else if (pending) {
+      // 远端时间戳虽新，但章节/页码并不更靠后；保留本机进度。
+      clearPendingRemotePos(docId)
+    }
+
+    const p = readPos(docId)
+    if (!p) return
+    const idx = p.chapter ? chapters.findIndex((c) => c.title === p.chapter) : -1
+    const want = p.page ?? 0
+    if (idx <= 0 && want === 0) return
     toast.ask('上次读到这儿', posLabel(p), [
-      { label: '跳过去', primary: true, run: jump },
+      { label: '跳过去', primary: true, run: () => jump(p) },
       { label: '从头读', run: () => {} },
     ])
-    // 只跑一次：chapters 是挂载时就算好的（该分章的话已经分好了）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -580,30 +609,35 @@ export default function ReaderView({
   }, [immersive])
   /* 跳转前记下原位置，角落给一个「回到刚才」浮条（搜索 / 目录 / 进度条 / 书签）。
      翻一两页、读下一章这类正常阅读不算跳转，不打扰。 */
-  const [back, setBack] = useState<{ ci: number; page: number } | null>(null)
+  /*
+   * 返回栈：最多 5 级，连续相同位置去重（pushSpot 里处理）。
+   * 「回到刚才」每点一次弹一级，浮条上显示还剩几级 —— 一次误跳能连续退回去。
+   */
+  const [backStack, setBackStack] = useState<{ ci: number; page: number }[]>([])
+  const back = backStack[backStack.length - 1] ?? null
   const rememberSpot = useCallback(
     (toCi: number, toPage = 0, force = false) => {
       const from = { ci, page }
-      if (force || isBigJump(from, { ci: toCi, page: toPage })) setBack(from)
+      if (force || isBigJump(from, { ci: toCi, page: toPage })) setBackStack((stack) => pushSpot(stack, from, 5))
     },
     [ci, page],
   )
   useEffect(() => {
-    if (!back) return
-    const id = window.setTimeout(() => setBack(null), 20_000)
+    if (!backStack.length) return
+    const id = window.setTimeout(() => setBackStack([]), 20_000)
     return () => window.clearTimeout(id)
-  }, [back])
+  }, [backStack])
   const goBack = useCallback(() => {
-    if (!back) return
-    if (back.ci !== ci) {
-      wantPage.current = back.page
+    const popped = popSpot(backStack)
+    if (!popped.spot) return
+    const target = popped.spot
+    setBackStack(popped.stack)
+    if (target.ci !== ci) {
+      wantPage.current = target.page
       skipReset.current = true
-      setCi(back.ci)
-    } else {
-      setPage(Math.max(0, Math.min(back.page, pages - 1)))
-    }
-    setBack(null)
-  }, [back, ci, pages])
+      setCi(target.ci)
+    } else setPage(Math.max(0, Math.min(target.page, pages - 1)))
+  }, [backStack, ci, pages])
   /** 拖章节滑块时先只显示目标章名，松手才真正跳 */
   const [scrub, setScrub] = useState<number | null>(null)
   const commitScrub = useCallback(() => {
@@ -634,6 +668,9 @@ export default function ReaderView({
     if (text.length > 0 && at < base.length) base[at] = text.length // 当前章用真实字数
     return base
   }, [heavy, outline, chapters, slicing, ci, text])
+  const chapterEtaLabels = hasStoredCpm()
+    ? chapterChars.map((chars) => (chars > 0 ? `约 ${fmtEta(minutesFor(chars, cpm))}` : ''))
+    : undefined
   const [charsLeftCh, charsLeftBook] = remaining(chapterChars, slicing ? ci : 0, page / Math.max(1, pages))
   const minsLeftCh = minutesFor(charsLeftCh, cpm)
   const minsLeftBook = minutesFor(charsLeftBook, cpm)
@@ -1069,6 +1106,7 @@ export default function ReaderView({
           current={ci}
           readSet={readSet}
           readPercent={readPercent(readSet, chapters.map((c) => c.title))}
+          etaLabels={chapterEtaLabels}
           query={tocQuery}
           onQuery={setTocQuery}
           onPick={(i) => {
@@ -1304,8 +1342,9 @@ export default function ReaderView({
         </div>
 
         {back && (
-          <button className="reader-back" onClick={goBack} title="回到跳走之前读到的地方">
+          <button className="reader-back" onClick={goBack} title="按跳转历史逐级返回">
             ↩ 回到刚才{slicing ? ` · ${chapters[back.ci]?.title ?? `第 ${back.ci + 1} 章`}` : ''}
+            {backStack.length > 1 ? ` · 还剩 ${backStack.length - 1} 级` : ''}
           </button>
         )}
 

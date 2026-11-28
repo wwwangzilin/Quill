@@ -64,6 +64,17 @@
   color: var(--text-2);
 }
 
+/* 按天展开的书目 */
+.stats-day-detail { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.stats-day-head, .stats-day-book { display: flex; align-items: center; gap: 10px; }
+.stats-day-head { color: var(--text-2); font-size: 12px; }
+.stats-day-head span { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.stats-day-head button { margin-left: auto; }
+.stats-day-books { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.stats-day-book { justify-content: space-between; font-size: 12px; color: var(--text-2); }
+.stats-day-book b { color: var(--text-3); font-weight: 500; font-variant-numeric: tabular-nums; }
+.stats-day-empty { margin-top: 8px; color: var(--text-3); font-size: 12px; }
+
 /* 数字卡 */
 .stats-tiles {
   display: grid;
@@ -123,6 +134,8 @@
 .stats-bar-col:hover .stats-bar {
   background: var(--accent-1);
 }
+.stats-bar-col.pickable { cursor: pointer; }
+.stats-bar-col.pickable:focus-visible { outline: 2px solid var(--accent-1); outline-offset: 3px; border-radius: 4px; }
 @keyframes stats-grow {
   from {
     transform: scaleY(0);
@@ -191,6 +204,8 @@
   outline: 2px solid var(--text-2);
   outline-offset: 1px;
 }
+.stats-cal .stats-cell:not(.pad) { cursor: pointer; appearance: none; padding: 0; border: 0; }
+.stats-cal .stats-cell:not(.pad):focus-visible { outline: 2px solid var(--accent-1); outline-offset: 1px; }
 .stats-legend {
   display: flex;
   align-items: center;

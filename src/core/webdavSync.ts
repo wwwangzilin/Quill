@@ -6,7 +6,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { storage } from './storage'
 import { importMarkdown } from './desktop'
 import { readBookmarks, writeBookmarks } from './bookmarks'
-import { readPos, setPosRaw } from './lastPos'
+import { clearPendingRemotePos, getActiveReaderId, readPos, setPendingRemotePos, setPosRaw } from './lastPos'
 import { PROGRESS_REMOTE, emptyProgress, mergeProgress, parseProgress, progressEqual, type ProgressSnap } from './progress'
 import {
   META_REMOTE,
@@ -143,6 +143,8 @@ export interface SyncReport {
   metaPulled: number
   /** 阅读位置 / 书签这次从别的设备补进本机的条数 */
   progressPulled: number
+  /** 当前正在读、暂不自动覆盖的远端位置数。 */
+  progressPending: number
   /** 图片上传 / 下载 / 跳过的张数 */
   assets: { pushed: number; pulled: number; skipped: string[] }
 }
@@ -173,6 +175,7 @@ export function summarize(r: SyncReport): string {
     r.pulled.length && `下载 ${r.pulled.length}`,
     r.conflicts.length && `冲突 ${r.conflicts.length}`,
     r.metaPulled && `标签/批注补入 ${r.metaPulled}`,
+    r.progressPending && `远端阅读进度待确认 ${r.progressPending} 本`,
     r.progressPulled && `进度/书签补入 ${r.progressPulled}`,
     r.assets.pushed && `传图 ${r.assets.pushed}`,
     r.assets.pulled && `收图 ${r.assets.pulled}`,
@@ -191,6 +194,7 @@ export async function runSync(cfg: DavCfg, onStep?: (msg: string) => void): Prom
     errors: [],
     metaPulled: 0,
     progressPulled: 0,
+    progressPending: 0,
     assets: { pushed: 0, pulled: 0, skipped: [] },
   }
   // 第一次要覆盖本地文档前备份一次；备份失败不拦同步（只提示），但会在报告里留一句
@@ -429,10 +433,19 @@ async function syncProgress(cfg: DavCfg, report: SyncReport, onStep?: (m: string
       if (b.length) local.bookmarks[n] = b
     }
     const { merged, posToApply, bookmarksToApply } = mergeProgress(local, remote, new Set(names))
+    const activeId = getActiveReaderId()
     for (const [n, p] of Object.entries(posToApply)) {
-      setPosRaw(n, p)
-      report.progressPulled += 1
+      if (n === activeId && local.pos[n]) {
+        // 当前正在读：先存成待确认位置，不能在翻页过程中静默改掉页码。
+        setPendingRemotePos(n, p)
+        report.progressPending += 1
+      } else {
+        setPosRaw(n, p)
+        clearPendingRemotePos(n)
+        report.progressPulled += 1
+      }
     }
+    if (activeId && !posToApply[activeId]) clearPendingRemotePos(activeId)
     for (const [n, b] of Object.entries(bookmarksToApply)) {
       writeBookmarks(n, b)
       report.progressPulled += 1

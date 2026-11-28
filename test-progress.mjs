@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { mergeProgress, mergeBookmarks, parseProgress, emptyProgress, progressEqual } from './src/core/progress.ts'
+import { aheadBy } from './src/core/progressAhead.ts'
 let n = 0
 const ok = (f) => { f(); n++ }
 const bm = (id, chapter, page, at, cat) => ({ id, chapter, page, label: id, at, ...(cat ? { cat } : {}) })
@@ -18,6 +19,12 @@ ok(() => assert.deepEqual(mergeBookmarks([bm('a', 'c', 1, 5)], [bm('a', 'c', 1, 
 const again = mergeProgress(m.merged, m.merged, names)
 ok(() => assert.deepEqual([Object.keys(again.posToApply).length, Object.keys(again.bookmarksToApply).length], [0, 0])) // 幂等
 ok(() => assert.equal(progressEqual(again.merged, m.merged), true))
+ok(() => assert.equal(aheadBy({ chapter: '第二章', page: 1, at: 1 }, { chapter: '第二章', page: 3, at: 2 }, ['第一章', '第二章']), false)) // 同章差 2 页不算更远
+ok(() => assert.equal(aheadBy({ chapter: '第二章', page: 1, at: 1 }, { chapter: '第二章', page: 4, at: 2 }, ['第一章', '第二章']), true)) // 同章差 3 页算
+ok(() => assert.equal(aheadBy({ chapter: '第三章', page: 0, at: 1 }, { chapter: '第二章', page: 9, at: 2 }, ['第一章', '第二章', '第三章']), false)) // 章节更小不算
+ok(() => assert.equal(aheadBy({ chapter: '第一章', page: 9, at: 1 }, { chapter: '第三章', page: 0, at: 2 }, ['第一章', '第二章', '第三章']), true)) // 章节更大算
+ok(() => assert.equal(aheadBy({ chapter: '旧标题', page: 1, at: 1 }, { chapter: '第二章', page: 9, at: 2 }, ['第一章', '第二章']), false)) // 标题无法对应时不猜
+// quill-reading-features:progress-ahead-tests
 ok(() => assert.deepEqual(parseProgress('{坏'), emptyProgress()))
 ok(() => assert.deepEqual(Object.keys(parseProgress('{"pos":{"a":{"at":1},"b":{"x":1},"c":5}}').pos), ['a']))
 ok(() => assert.deepEqual(parseProgress('{"bookmarks":{"a":[{"id":"1","page":2,"at":3},{"id":2}]}}').bookmarks.a.length, 1))

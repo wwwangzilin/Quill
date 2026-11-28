@@ -29,6 +29,8 @@ interface Props {
   onPick: (index: number) => void
   /** 跳到第一个未读 */
   onJumpUnread: () => void
+  /** 有个人阅读速度时才传入各章估算标签。 */
+  etaLabels?: string[]
 }
 
 /** 与样式 `.reader-toc-item` 的高度必须一致 */
@@ -46,6 +48,7 @@ export default function Toc({
   onQuery,
   onPick,
   onJumpUnread,
+  etaLabels,
 }: Props) {
   const listRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -121,6 +124,7 @@ export default function Toc({
                 >
                   <span className="reader-toc-n">{isRead && i !== current ? '✓' : i + 1}</span>
                   <span className="reader-toc-title">{c.title}</span>
+                  {etaLabels?.[i] ? <span className="reader-toc-eta">{etaLabels[i]}</span> : null}
                 </button>
               )
             })}

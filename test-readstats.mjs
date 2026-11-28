@@ -1,5 +1,5 @@
 // 阅读统计：计时累加、跨天/小时、连续天数、范围汇总、读完标记
-import { EMPTY_STATS, addReading, markFinished, lastDays, summarize, streaks, hourTotals, weekdayTotals, booksInRange, fmtDuration, dayKey } from './src/core/readStats.ts'
+import { EMPTY_STATS, addReading, markFinished, lastDays, summarize, streaks, hourTotals, weekdayTotals, booksInRange, booksOnDay, fmtDuration, dayKey } from './src/core/readStats.ts'
 
 let ok = 0
 function eq(name, got, want) {
@@ -39,6 +39,10 @@ eq('24 小时分布', hourTotals(s, 7, NOW).map((x, h) => (x ? [h, x] : null)).f
 eq('按星期（2026-11-21 是周六，11-20 是周五）', weekdayTotals(pts).map((x, i) => (x ? [i, x] : null)).filter(Boolean), [[5, 120], [6, 360]])
 eq('范围内的书按时长排', booksInRange(s, 7, NOW).map((b) => [b.id, b.rangeSecs]), [['a', 360], ['b', 120]])
 eq('范围缩到 1 天只剩今天的书', booksInRange(s, 1, NOW).map((b) => b.id), ['a'])
+eq('按天查看书目与时长', booksOnDay(s, '2026-11-21').map((b) => [b.id, b.title, b.secs]), [['a', '月下潮声', 360]])
+eq('没有记录的日期返回空数组', booksOnDay(s, '2026-11-19'), [])
+eq('只统计正数时长', booksOnDay({ ...s, days: { ...s.days, '2026-11-21': { ...s.days['2026-11-21'], docs: { a: 0 } } } }, '2026-11-21'), [])
+// quill-reading-features:day-books-tests
 const fin = markFinished(s, 'a', '月下潮声', NOW)
 eq('读完标记', fin.books.a.done, NOW)
 eq('重复标记保留第一次', markFinished(fin, 'a', '月下潮声', NOW + 5000).books.a.done, NOW)
