@@ -151,6 +151,7 @@ export interface SyncComment {
   created: number
   resolved?: boolean
   color?: string
+  tags?: string[]
 }
 export interface SyncMeta {
   version: 1

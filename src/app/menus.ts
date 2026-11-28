@@ -4,7 +4,7 @@ import type { PaletteCommand } from '../ui/CommandPalette'
 import { THEMES, nextTheme, themeInfo, type Theme } from '../core/theme'
 import { openQuickNote } from '../core/windows'
 import { storage } from '../core/storage'
-import { backupNowAction, syncWebdavNow } from '../core/quickActions'
+import { backupNowAction, exportReadingCsvAction, syncWebdavNow } from '../core/quickActions'
 import { isDesktop } from '../core/desktop'
 import { readCfg } from '../core/webdavSync'
 import type { ViewMode } from '../core/types'
@@ -289,6 +289,7 @@ export function buildPaletteCommands(c: MenuCtx): PaletteCommand[] {
     { id: 'export-md', title: '导出 Markdown', hint: '.md', icon: '⇩', run: exportMd },
     { id: 'export-html', title: '导出单文件 HTML', hint: '.html', icon: '⇩', run: exportHtml },
     { id: 'export-pdf', title: '导出 PDF', hint: '系统打印', icon: '⎙', run: exportPdf },
+    { id: 'export-reading-csv', title: '导出阅读记录 (CSV)', hint: '时长 · 进度 · 批注', icon: '⇩', run: () => void exportReadingCsvAction() },
     { id: 'export-json', title: '导出 JSON', hint: '.json', icon: '⇩', run: exportJson },
     { id: 'import', title: '从文件夹导入 Markdown', icon: '⇧', run: () => void importFolder() },
     {

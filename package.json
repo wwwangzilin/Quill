@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node test-core.mjs && node test-math.mjs && node test-conflict.mjs && node test-merge.mjs && node test-find.mjs && node test-bookmarks.mjs && node test-epub.mjs && node test-chapters.mjs && node test-comments.mjs && node test-readstats.mjs && node test-tap.mjs && node test-webdav.mjs && node test-tts.mjs && node test-shelf.mjs && node test-bookstyle.mjs && node test-card.mjs && node test-zip.mjs && node test-annot.mjs && node test-autonight.mjs && node test-booksearch.mjs && node test-chaprule.mjs && node test-progress.mjs && node test-readmarks.mjs && node test-readspeed.mjs && node test-review.mjs && node test-shelforder.mjs",
+    "test": "node test-core.mjs && node test-math.mjs && node test-conflict.mjs && node test-merge.mjs && node test-find.mjs && node test-bookmarks.mjs && node test-epub.mjs && node test-chapters.mjs && node test-comments.mjs && node test-readstats.mjs && node test-tap.mjs && node test-webdav.mjs && node test-tts.mjs && node test-shelf.mjs && node test-bookstyle.mjs && node test-card.mjs && node test-zip.mjs && node test-annot.mjs && node test-autonight.mjs && node test-booksearch.mjs && node test-chaprule.mjs && node test-progress.mjs && node test-readmarks.mjs && node test-readspeed.mjs && node test-review.mjs && node test-shelforder.mjs && node test-extras.mjs",
     "preview": "vite preview --port 4173"
   },
   "keywords": [

@@ -38,6 +38,8 @@ export interface Comment {
   resolved: boolean
   /** 荧光笔颜色；没有就是主题色的老样式（旧批注不用迁移） */
   color?: HiColor
+  /** 自定义标签（见 annotTags.ts）；旧批注没有这个字段 */
+  tags?: string[]
 }
 
 /** 导出成 Markdown：每条一个引用块，有批注的接在下面 */
@@ -47,6 +49,7 @@ export function commentsToMarkdown(title: string, list: Comment[]): string {
     const quote = c.quote.replace(/\s*\n\s*/g, ' ').trim()
     lines.push(`> ${quote}`)
     if (c.note.trim()) lines.push('', c.note.trim())
+    if (c.tags?.length) lines.push('', c.tags.map((t) => `#${t}`).join(' '))
     lines.push('')
   }
   return lines.join('\n').trimEnd() + '\n'

@@ -1,26 +1,84 @@
-/**
- * 写作目标的进度环（底栏用）：比一条 3px 的细线更看得清，也有地方放「达成」的动效。
- * 画法：两个同心圆，进度圆用 pathLength=100 把周长归一化，所以 dasharray 直接写百分比。
- * 达成（done）时挂 .done，样式里有一圈光向外扩散（styles/36-texture.css）。
- */
-export default function GoalRing({ ratio, done }: { ratio: number; done: boolean }) {
-  const pct = Math.max(0, Math.min(1, ratio)) * 100
+import { useEffect, useState } from 'react'
+import { GOAL_PRESETS, goalProgress, goalStreak, loadGoal, saveGoal } from '../core/readGoal'
+import { loadStats } from '../core/readStats'
+import { dayKey } from '../core/readStats'
+
+const R = 9
+const C = 2 * Math.PI * R
+
+/** 目标选择：几个预设 + 关闭。阅读器里的环和统计页都用它 */
+export function GoalPicker({ goal, onChange }: { goal: number; onChange: (m: number) => void }) {
   return (
-    <svg className={'goal-ring' + (done ? ' done' : '')} width="18" height="18" viewBox="0 0 20 20" aria-hidden="true">
-      <circle className="goal-track" cx="10" cy="10" r="7.5" fill="none" strokeWidth="2.6" />
-      <circle
-        className="goal-fill"
-        cx="10"
-        cy="10"
-        r="7.5"
-        fill="none"
-        strokeWidth="2.6"
-        strokeLinecap="round"
-        pathLength={100}
-        strokeDasharray={`${pct} 100`}
-        transform="rotate(-90 10 10)"
-      />
-      {done && <path className="goal-tick" d="M6.6 10.2l2.4 2.4 4.4-4.9" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />}
-    </svg>
+    <div className="goal-picker" role="radiogroup" aria-label="每日阅读目标">
+      <button type="button" role="radio" aria-checked={goal === 0} className={goal === 0 ? 'on' : ''} onClick={() => onChange(0)}>
+        不设
+      </button>
+      {GOAL_PRESETS.map((m) => (
+        <button key={m} type="button" role="radio" aria-checked={goal === m} className={goal === m ? 'on' : ''} onClick={() => onChange(m)}>
+          {m} 分钟
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** 今日读了多少秒（现读 localStorage：计时器每 5 秒写一次） */
+export function todaySecs(now = Date.now()): number {
+  return loadStats().days[dayKey(now)]?.secs ?? 0
+}
+
+/**
+ * 阅读器顶栏的「今日目标」小环：读满一圈 = 今天的目标达成。
+ * 点开可以改目标。没设目标时是一个空环，提示可以设。
+ */
+export default function GoalRing() {
+  const [goal, setGoal] = useState(loadGoal)
+  const [secs, setSecs] = useState(todaySecs)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    const id = window.setInterval(() => setSecs(todaySecs()), 15_000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  const p = goalProgress(secs, goal)
+  const streak = goal ? goalStreak(loadStats().days, goal, Date.now()) : 0
+  const tip = goal
+    ? p.done
+      ? `今日目标已达成 · 已读 ${Math.round(secs / 60)} 分钟${streak > 1 ? ` · 连续 ${streak} 天` : ''}`
+      : `今日目标 ${goal} 分钟 · 还差 ${p.leftMin} 分钟${streak ? ` · 已连续 ${streak} 天` : ''}`
+    : '设置每日阅读目标'
+
+  return (
+    <span className="goal-ring-wrap">
+      <button className={'btn ghost icon goal-ring' + (p.done ? ' done' : '')} onClick={() => setOpen((v) => !v)} title={tip} aria-expanded={open}>
+        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+          <circle cx="11" cy="11" r={R} className="goal-ring-bg" />
+          <circle
+            cx="11"
+            cy="11"
+            r={R}
+            className="goal-ring-fg"
+            strokeDasharray={C}
+            strokeDashoffset={C * (1 - p.frac)}
+            transform="rotate(-90 11 11)"
+          />
+          {p.done && <path d="M7.5 11.2l2.4 2.4 4.6-4.8" className="goal-ring-tick" />}
+        </svg>
+      </button>
+      {open && (
+        <div className="goal-pop" onMouseDown={(e) => e.stopPropagation()}>
+          <div className="goal-pop-title">每日阅读目标</div>
+          <GoalPicker
+            goal={goal}
+            onChange={(m) => {
+              saveGoal(m)
+              setGoal(m)
+            }}
+          />
+          <div className="goal-pop-tip">{tip}</div>
+        </div>
+      )}
+    </span>
   )
 }

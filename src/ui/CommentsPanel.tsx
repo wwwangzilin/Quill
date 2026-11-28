@@ -4,6 +4,7 @@ import { CARD_THEMES, renderExcerptCard } from '../core/excerptCard'
 import { HI_COLORS, commentsToMarkdown, newCommentId, whenOf, type Comment, type HiColor } from '../core/comments'
 import { toast } from './toast'
 import { makeZip, safeName, type ZipFile } from '../core/zip'
+import { filterByTag, parseTags, tagCounts, tagsText } from '../core/annotTags'
 import ReviewCards from './ReviewCards'
 import { dueList, readReview } from '../core/review'
 
@@ -56,6 +57,12 @@ export default function CommentsPanel({
   const [newText, setNewText] = useState('')
   const [editId, setEditId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
+  const [editTags, setEditTags] = useState('')
+  const [tagFilter, setTagFilter] = useState('all')
+  const counts = useMemo(() => tagCounts(comments), [comments])
+  // 筛选的标签被删光了就回到「全部」
+  const activeFilter = tagFilter === 'all' || tagFilter === 'none' || counts.some((t) => t.tag === tagFilter) ? tagFilter : 'all'
+  const shown = useMemo(() => filterByTag(comments, activeFilter), [comments, activeFilter])
   const newRef = useRef<HTMLTextAreaElement>(null)
 
   // 带着草稿进来 → 清空输入并聚焦
@@ -87,7 +94,9 @@ export default function CommentsPanel({
 
   const submitEdit = (c: Comment) => {
     // 允许改成空：那就是一条纯高亮
-    onSave({ ...c, note: editText.trim() })
+    const tags = parseTags(editTags)
+    const { tags: _old, ...rest } = c
+    onSave({ ...rest, note: editText.trim(), ...(tags.length ? { tags } : {}) })
     setEditId(null)
   }
 
@@ -264,7 +273,28 @@ export default function CommentsPanel({
           </div>
         )}
 
-        {comments.map((c) => (
+        {(counts.length > 0 || activeFilter !== 'all') && (
+          <div className="comment-tagbar" role="tablist" aria-label="按标签筛选">
+            {[
+              { id: 'all', label: `全部 ${comments.length}` },
+              ...counts.map((t) => ({ id: t.tag, label: `#${t.tag} ${t.n}` })),
+              { id: 'none', label: '无标签' },
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={activeFilter === t.id}
+                className={'comment-tagchip' + (activeFilter === t.id ? ' on' : '')}
+                onClick={() => setTagFilter(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {shown.map((c) => (
           <div
             key={c.id}
             data-id={c.id}
@@ -291,6 +321,22 @@ export default function CommentsPanel({
                     }
                   }}
                 />
+                <input
+                  className="comment-taginput"
+                  value={editTags}
+                  placeholder="标签：用逗号或空格分隔，如 金句 伏笔"
+                  onChange={(e) => setEditTags(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      submitEdit(c)
+                    }
+                    if (e.key === 'Escape') {
+                      e.preventDefault()
+                      setEditId(null)
+                    }
+                  }}
+                />
                 <div className="comment-actions">
                   <button className="btn primary" onClick={() => submitEdit(c)}>
                     保存
@@ -306,6 +352,15 @@ export default function CommentsPanel({
                   <div className="comment-note">{c.note}</div>
                 ) : (
                   <div className="comment-note comment-note-empty">仅高亮</div>
+                )}
+                {!!c.tags?.length && (
+                  <div className="comment-tags">
+                    {c.tags.map((t) => (
+                      <button key={t} type="button" className="comment-tag" onClick={() => setTagFilter(t)}>
+                        #{t}
+                      </button>
+                    ))}
+                  </div>
                 )}
                 <div className="comment-foot">
                   <span className="comment-dots" role="radiogroup" aria-label="荧光笔颜色">
@@ -339,6 +394,7 @@ export default function CommentsPanel({
                     onClick={() => {
                       setEditId(c.id)
                       setEditText(c.note)
+                      setEditTags(tagsText(c.tags ?? []))
                     }}
                   >
                     改

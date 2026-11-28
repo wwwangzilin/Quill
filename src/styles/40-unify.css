@@ -252,3 +252,31 @@ select:focus-visible,
   border: 1px solid var(--border-strong);
   box-shadow: var(--shadow);
 }
+
+/* 弹性占位：之前 .grow 只在少数几个容器里各自定义，其余地方的 <span class="grow"> 是空的 ——
+   「结束」「完成」这类按钮没被推到右边 */
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* —— 主按钮文字对比度：深色（默认）和玻璃夜间的主按钮底是浅青色，白字只有 2.1:1，换成深色字 ≥ 4.8:1 ——
+   玻璃白天的底是深青，白字本来就够（≥ 4.5），不动 */
+:root:not([data-theme="glass"]) .btn.primary {
+  color: #04222a;
+}
+
+/* —— 章节规则的预设：做成有边框的小胶囊，左缘和输入框对齐（原来是无框幽灵按钮，缩进一截、不像可点） —— */
+.chap-rule-presets .btn {
+  border-color: var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.chap-rule-presets .btn:hover {
+  border-color: var(--accent-1);
+  color: var(--accent-1);
+}
+/* —— 复习卡：提示语和引文同一侧对齐 —— */
+.review-hint {
+  text-align: left;
+}

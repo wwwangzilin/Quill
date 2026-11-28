@@ -6,6 +6,12 @@ import { toast } from '../ui/toast'
 import { isDesktop } from './desktop'
 import { readCfg, runSync, summarize } from './webdavSync'
 import { backupNow as doBackup } from './backup'
+import { storage } from './storage'
+import { loadStats } from './readStats'
+import { readBookmarks } from './bookmarks'
+import { readPos } from './lastPos'
+import { readingCsv, type ReadingRow } from './readingCsv'
+import { STATUS_LIST, effectiveStatus, loadStatuses } from './shelfStatus'
 
 let syncing = false
 
@@ -35,5 +41,52 @@ export async function backupNowAction(): Promise<void> {
     toast.success('备份完成', info?.name ?? '')
   } catch (e) {
     toast.error('备份失败', e instanceof Error ? e.message : String(e))
+  }
+}
+
+/** 把每本书的阅读时长、进度、批注 / 书签数、书架状态导成一份 CSV（Excel 直接能开） */
+export async function exportReadingCsvAction(): Promise<void> {
+  try {
+    const docs = await storage.list()
+    const stats = loadStats()
+    const manual = loadStatuses()
+    const rows: ReadingRow[] = []
+    for (const d of docs) {
+      const b = stats.books[d.id]
+      const st = effectiveStatus(manual[d.id], b)
+      let comments = 0
+      try {
+        comments = ((await storage.comments?.(d.id)) ?? []).length
+      } catch {
+        /* 读不出就算 0 */
+      }
+      const bookmarks = readBookmarks(d.id).length
+      // 没读过、没批注、没标状态的书不进表，免得几百行全是空的
+      if (!b && !st && !comments && !bookmarks) continue
+      rows.push({
+        title: d.title,
+        chapter: readPos(d.id)?.chapter,
+        secs: b?.secs ?? 0,
+        first: b?.first,
+        last: b?.last,
+        done: b?.done,
+        comments,
+        bookmarks,
+        status: STATUS_LIST.find((x) => x.id === st)?.name,
+      })
+    }
+    if (!rows.length) return void toast.info('还没有阅读记录可导出')
+    const blob = new Blob([readingCsv(rows)], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '阅读记录.csv'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 2000)
+    toast.success('已导出阅读记录', `${rows.length} 本书 · 阅读记录.csv`)
+  } catch (e) {
+    toast.error('导出失败', e instanceof Error ? e.message : String(e))
   }
 }

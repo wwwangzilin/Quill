@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAllFonts, addCustomFont, removeCustomFont } from '../core/customFonts'
 import { toast } from './toast'
 import type { NightCfg } from '../core/autoNight'
+import { QUOTE_FMTS, isQuoteFmt, loadQuoteFmt, saveQuoteFmt, type QuoteFmt } from '../core/quoteFmt'
 import {
   READER_RANGE as R,
   PAGE_TURNS,
@@ -113,6 +114,7 @@ export default function ReaderStylePanel({ style, onChange, book, onOpenChange, 
               </button>
             ))}
           </div>
+          <QuoteFmtRow />
           {night && onNight && (
             <div className="rstyle-night">
               <label className="rstyle-night-row">
@@ -324,5 +326,32 @@ export default function ReaderStylePanel({ style, onChange, book, onOpenChange, 
         </div>
       )}
     </div>
+  )
+}
+
+/** 复制引用的格式。选区浮条上的「引用」按钮读这个设置，不需要和面板同步状态 */
+function QuoteFmtRow() {
+  const [fmt, setFmt] = useState<QuoteFmt>(loadQuoteFmt)
+  return (
+    <label>
+      <span>引用格式</span>
+      <select
+        value={fmt}
+        onChange={(e) => {
+          const v = e.target.value
+          if (isQuoteFmt(v)) {
+            setFmt(v)
+            saveQuoteFmt(v)
+          }
+        }}
+        title="选中文字后点「引用」复制出来的样子"
+      >
+        {QUOTE_FMTS.map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.name}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }

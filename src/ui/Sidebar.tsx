@@ -10,6 +10,8 @@ import ShelfSorter from './ShelfSorter'
 import { useSetting } from '../core/settings'
 import { applyOrder, reorderVisible } from '../core/shelfOrder'
 import { filterShelf, resolveGroup, shelfGroups } from '../core/shelfGroups'
+import { STATUS_LIST, effectiveStatus, inStatusGroup, isStatusGroup, loadStatuses, saveStatuses, setStatus, statusGroups, type Status } from '../core/shelfStatus'
+import { loadStats } from '../core/readStats'
 import { usePerf } from '../core/perf'
 import BrandMark from './BrandMark'
 import { Icon } from './Icon'
@@ -158,11 +160,28 @@ export default function Sidebar({
   // 书架上的顺序 = 列表从上到下的顺序，转书就是在列表里上下走
   const listDocs = useMemo(() => groups.flatMap((g) => g.items), [groups])
   const [groupPref, setGroupPref] = useSetting('shelfGroup', 'all')
-  const shelfGroupList = useMemo(() => shelfGroups(listDocs), [listDocs])
+  const [manualStatus, setManualStatus] = useState(loadStatuses)
+  const statusOf = useMemo(() => {
+    const books = loadStats().books
+    return (id: string): Status | undefined => effectiveStatus(manualStatus[id], books[id])
+    // 书架状态随文档列表刷新（读完一本后列表会更新）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manualStatus, docs])
+  const shelfGroupList = useMemo(
+    () => [...shelfGroups(listDocs), ...statusGroups(listDocs.map((d) => d.id), statusOf)],
+    [listDocs, statusOf],
+  )
   const shelfGroup = resolveGroup(shelfGroupList, groupPref)
+  const pickStatus = (id: string, s: Status | undefined) => {
+    setManualStatus((m) => {
+      const next = setStatus(m, id, s)
+      saveStatuses(next)
+      return next
+    })
+  }
   const [order, setOrder] = useSetting<string[]>('shelfOrder', [])
   const [sorting, setSorting] = useState(false)
-  const shelfDocs = useMemo(() => applyOrder(filterShelf(listDocs, shelfGroup), order), [listDocs, shelfGroup, order])
+  const shelfDocs = useMemo(() => applyOrder(isStatusGroup(shelfGroup) ? listDocs.filter((d) => inStatusGroup(shelfGroup, statusOf(d.id))) : filterShelf(listDocs, shelfGroup), order), [listDocs, shelfGroup, order, statusOf])
 
   // 书架正中换了一本：列表里对应那条滚进视野
   useEffect(() => {
@@ -268,6 +287,26 @@ export default function Sidebar({
               >
                 排序
               </button>
+            </div>
+          )}
+          {shelfOpen && centerId && listDocs.some((d) => d.id === centerId) && (
+            <div className="shelf-status" role="radiogroup" aria-label="这本书的阅读状态">
+              <span className="shelf-status-name" title={listDocs.find((d) => d.id === centerId)?.title}>
+                {listDocs.find((d) => d.id === centerId)?.title || '未命名'}
+              </span>
+              {STATUS_LIST.map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={statusOf(centerId) === st.id}
+                  className={statusOf(centerId) === st.id ? 'on' : ''}
+                  title={manualStatus[centerId] === st.id ? '再点一次回到自动判断' : `标为「${st.name}」`}
+                  onClick={() => pickStatus(centerId, manualStatus[centerId] === st.id ? undefined : st.id)}
+                >
+                  {st.name}
+                </button>
+              ))}
             </div>
           )}
           {shelfOpen && sorting && (

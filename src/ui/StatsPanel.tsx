@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   booksInRange,
   clearStats,
+  dayKey,
   fmtDuration,
   hourTotals,
   lastDays,
@@ -11,6 +12,8 @@ import {
   weekdayTotals,
   type DayPoint,
 } from '../core/readStats'
+import { goalProgress, goalStreak, loadGoal, saveGoal } from '../core/readGoal'
+import { GoalPicker } from './GoalRing'
 
 interface Props {
   open: boolean
@@ -45,6 +48,7 @@ export default function StatsPanel({ open, onClose }: Props) {
   const [tab, setTab] = useState<Tab>('overview')
   const [stats, setStats] = useState(loadStats)
   const [tip, setTip] = useState<Tip | null>(null)
+  const [goal, setGoal] = useState(loadGoal)
 
   // 每次打开都重新读，免得看到的是上次的快照
   useEffect(() => {
@@ -174,6 +178,39 @@ export default function StatsPanel({ open, onClose }: Props) {
             </div>
           ) : tab === 'overview' ? (
             <>
+              <div className="stats-goal">
+                <div className="stats-goal-head">
+                  <span>每日目标</span>
+                  <GoalPicker
+                    goal={goal}
+                    onChange={(m) => {
+                      saveGoal(m)
+                      setGoal(m)
+                    }}
+                  />
+                </div>
+                {goal > 0 && (
+                  <div className="stats-goal-body">
+                    {(() => {
+                      const secsToday = stats.days[dayKey(now)]?.secs ?? 0
+                      const g = goalProgress(secsToday, goal)
+                      const n = goalStreak(stats.days, goal, now)
+                      return (
+                        <>
+                          <div className="stats-goal-bar" aria-hidden="true">
+                            <i style={{ width: `${Math.round(g.frac * 100)}%` }} />
+                          </div>
+                          <span>
+                            今天 {Math.round(secsToday / 60)} / {goal} 分钟
+                            {g.done ? ' · 已达成' : ` · 还差 ${g.leftMin} 分钟`}
+                            {n > 0 ? ` · 连续达标 ${n} 天` : ''}
+                          </span>
+                        </>
+                      )
+                    })()}
+                  </div>
+                )}
+              </div>
               <div className="stats-tiles">
                 <div className="stats-tile">
                   <b>{fmtDuration(sum.secs)}</b>

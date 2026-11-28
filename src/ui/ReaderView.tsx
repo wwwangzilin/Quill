@@ -26,6 +26,9 @@ import ChapterRuleDialog, { type RuleSource } from './ChapterRuleDialog'
 import { fmtEta, loadCpm, minutesFor, remaining, saveCpm, updateCpm } from '../core/readSpeed'
 import { BM_CATS } from '../core/bookmarks'
 import { Icon } from './Icon'
+import GoalRing from './GoalRing'
+import { isBigJump } from '../core/backSpot'
+import { formatQuote, loadQuoteFmt } from '../core/quoteFmt'
 import { useSetting } from '../core/settings'
 import { recordFinished, useReadingTracker } from '../core/readTracker'
 import { assetUrl } from '../core/asset'
@@ -575,14 +578,43 @@ export default function ReaderView({
     document.documentElement.classList.toggle('novel-immersive', immersive)
     return () => document.documentElement.classList.remove('novel-immersive')
   }, [immersive])
+  /* 跳转前记下原位置，角落给一个「回到刚才」浮条（搜索 / 目录 / 进度条 / 书签）。
+     翻一两页、读下一章这类正常阅读不算跳转，不打扰。 */
+  const [back, setBack] = useState<{ ci: number; page: number } | null>(null)
+  const rememberSpot = useCallback(
+    (toCi: number, toPage = 0, force = false) => {
+      const from = { ci, page }
+      if (force || isBigJump(from, { ci: toCi, page: toPage })) setBack(from)
+    },
+    [ci, page],
+  )
+  useEffect(() => {
+    if (!back) return
+    const id = window.setTimeout(() => setBack(null), 20_000)
+    return () => window.clearTimeout(id)
+  }, [back])
+  const goBack = useCallback(() => {
+    if (!back) return
+    if (back.ci !== ci) {
+      wantPage.current = back.page
+      skipReset.current = true
+      setCi(back.ci)
+    } else {
+      setPage(Math.max(0, Math.min(back.page, pages - 1)))
+    }
+    setBack(null)
+  }, [back, ci, pages])
   /** 拖章节滑块时先只显示目标章名，松手才真正跳 */
   const [scrub, setScrub] = useState<number | null>(null)
   const commitScrub = useCallback(() => {
     setScrub((to) => {
-      if (to !== null && to !== ci) setCi(to)
+      if (to !== null && to !== ci) {
+        rememberSpot(to)
+        setCi(to)
+      }
       return null
     })
-  }, [ci])
+  }, [ci, rememberSpot])
   const nCh = chapters.length
   const bookPct = Math.min(
     100,
@@ -679,6 +711,7 @@ export default function ReaderView({
   const goHit = useCallback(
     (hitCi: number, from: number, to: number) => {
       pendingHit.current = { ci: hitCi, from, to }
+      rememberSpot(hitCi, 0, true)
       if (slicing && hitCi !== ci) {
         skipReset.current = true
         setCi(hitCi)
@@ -686,7 +719,7 @@ export default function ReaderView({
         requestAnimationFrame(() => void settleHit())
       }
     },
-    [slicing, ci, settleHit],
+    [slicing, ci, settleHit, rememberSpot],
   )
   // 换章后、内容和页数都就绪了再落位；没就绪就等下一次依赖变化
   useEffect(() => {
@@ -718,7 +751,10 @@ export default function ReaderView({
     chapters,
     ci,
     pages,
-    setCi,
+    setCi: (n: number) => {
+      rememberSpot(n)
+      setCi(n)
+    },
     setPage,
     wantPage,
     skipReset,
@@ -1036,12 +1072,16 @@ export default function ReaderView({
           query={tocQuery}
           onQuery={setTocQuery}
           onPick={(i) => {
+            rememberSpot(i)
             setCi(i)
             setTocQuery('')
           }}
           onJumpUnread={() => {
             const u = firstUnread(readSet, chapters.map((c) => c.title))
-            if (u >= 0) setCi(u)
+            if (u >= 0) {
+              rememberSpot(u)
+              setCi(u)
+            }
           }}
         />
       )}
@@ -1102,6 +1142,7 @@ export default function ReaderView({
           <span className="reader-page">
             {page + 1} / {pages}
           </span>
+          <GoalRing />
           <ReaderStylePanel
             style={rstyle}
             onChange={setRstyle}
@@ -1215,6 +1256,21 @@ export default function ReaderView({
                 <button className="ai-sel-btn" onClick={startNote}>
                   ＋ 加批注
                 </button>
+                <button
+                  className="ai-sel-btn"
+                  title="复制成带书名和章节的引用（格式在「Aa」里选）"
+                  onClick={() => {
+                    const text = formatQuote(sel.quote, { title, chapter: slicing ? chapter?.title : undefined }, loadQuoteFmt())
+                    void navigator.clipboard.writeText(text).then(
+                      () => toast.success('已复制引用', text.length > 40 ? `${text.slice(0, 40)}…` : text),
+                      () => toast.error('复制失败', '浏览器不允许访问剪贴板'),
+                    )
+                    setSel(null)
+                    window.getSelection()?.removeAllRanges()
+                  }}
+                >
+                  引用
+                </button>
               </div>
             </div>
           )}
@@ -1246,6 +1302,12 @@ export default function ReaderView({
             })}
           </div>
         </div>
+
+        {back && (
+          <button className="reader-back" onClick={goBack} title="回到跳走之前读到的地方">
+            ↩ 回到刚才{slicing ? ` · ${chapters[back.ci]?.title ?? `第 ${back.ci + 1} 章`}` : ''}
+          </button>
+        )}
 
         <footer className="reader-foot">
           <button className="btn" disabled={!slicing || ci === 0} onClick={() => setCi(ci - 1)}>

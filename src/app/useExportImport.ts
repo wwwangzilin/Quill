@@ -3,6 +3,7 @@ import type { JSONContent, Editor } from '@tiptap/core'
 import { toast } from '../ui/toast'
 import { importMarkdown, isDesktop, readMarkdownFolder, readPathsAsDocs } from '../core/desktop'
 import { docToMarkdown, safeFileName } from '../core/markdown'
+import { checkImports } from '../core/fingerprint'
 import type { Doc } from '../core/types'
 import { download, buildStandaloneHtml } from './exportUtils'
 
@@ -90,6 +91,19 @@ export function useExportImport(opts: {
         }
         const n = await importMarkdown(items)
         await refreshDocs()
+        let dups: ReturnType<typeof checkImports> = []
+        try {
+          dups = checkImports(items)
+        } catch {
+          /* 查重只是提醒，出错不影响导入 */
+        }
+        if (dups.length) {
+          const d = dups[0]
+          toast.info(
+            `《${d.title}》和《${d.like}》很像（${Math.round(d.score * 100)}%）`,
+            dups.length > 1 ? `另外还有 ${dups.length - 1} 本疑似重复，可以去书架看看是不是导重了` : '可能是同一本书的不同版本，导重了的话删掉一份就好',
+          )
+        }
         toast.success(`已导入 ${n} 篇文档`, '同名文件自动加序号，不会覆盖；EPUB 按整本书导入，每章一个二级标题')
       } catch (err) {
         toast.error('导入失败', String(err).slice(0, 120))

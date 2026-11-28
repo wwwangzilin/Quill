@@ -12,6 +12,7 @@ export interface AComment {
   note: string
   created: number
   color?: string
+  tags?: string[]
 }
 export interface ABookmark {
   id: string
@@ -49,7 +50,7 @@ export function searchAnnots(entries: AEntry[], query: string, limit = 200): { g
     const bookHit = norm(e.docTitle).includes(q)
     const hits: AnnotHit[] = []
     for (const c of e.comments) {
-      if (bookHit || norm(c.quote).includes(q) || norm(c.note).includes(q)) {
+      if (bookHit || norm(c.quote).includes(q) || norm(c.note).includes(q) || (c.tags ?? []).some((t) => norm(t).includes(q))) {
         hits.push({ kind: 'comment', id: c.id, quote: c.quote, note: c.note, created: c.created })
       }
     }
@@ -110,7 +111,7 @@ export function bookMarkdown(e: AEntry, states: Record<string, CardState> = {}, 
     for (const c of list) {
       L.push(`> ${c.quote.replace(/\s*\n\s*/g, ' ').trim()}`, '')
       if (c.note.trim()) L.push(c.note.trim(), '')
-      const meta = [c.color ? `${COLOR_NAME[c.color] ?? c.color}色` : '', dayKey(c.created), reviewLine(states[c.id])].filter(Boolean)
+      const meta = [(c.tags ?? []).map((t) => `#${t}`).join(' '), c.color ? `${COLOR_NAME[c.color] ?? c.color}色` : '', dayKey(c.created), reviewLine(states[c.id])].filter(Boolean)
       L.push(`<sub>${meta.join(' · ')}</sub>`, '')
     }
   }

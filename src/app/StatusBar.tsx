@@ -1,6 +1,6 @@
 import BacklinksPanel from '../ui/BacklinksPanel'
 import { Glyph } from '../ui/Icon'
-import GoalRing from '../ui/GoalRing'
+import GoalProgressRing from '../ui/GoalProgressRing'
 import { goalProgress } from '../core/stats'
 import TypePopover from '../ui/TypePopover'
 import { clampWidth, PROSE_RANGE, type ProseStyle } from '../core/fonts'
@@ -78,7 +78,7 @@ export default function StatusBar({
       {progress.goal > 0 && (
         <>
           <span className="sb-goal" title={`目标 ${progress.goal} 字`}>
-            <GoalRing ratio={progress.ratio} done={progress.done} />
+            <GoalProgressRing ratio={progress.ratio} done={progress.done} />
           </span>
           <span className={'sb-item' + (progress.done ? ' done' : '')}>
             {progress.done ? '已达标 ✓' : `还差 ${progress.remain} 字`}
