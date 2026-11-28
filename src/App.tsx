@@ -353,7 +353,13 @@ export default function App() {
     saveComment,
     removeComment,
     jumpToComment,
-  } = useComments({ docRef, editorRef, docId: doc?.id, sessionKey })
+  } = useComments({
+    editorRef,
+    // 超大小说没有 doc，批注归它自己的 id；不然阅读页里加的批注无处可存
+    docId: heavyOutline?.id ?? doc?.id,
+    readerOnly: Boolean(heavyOutline),
+    sessionKey,
+  })
   const {
     copyRichText,
     exportMd,
@@ -728,7 +734,7 @@ export default function App() {
               title={heavyOutline?.title ?? doc!.title}
               doc={heavyOutline ? undefined : doc!.content}
               outline={heavyOutline?.marks}
-              comments={heavyOutline ? [] : comments}
+              comments={comments}
               onSaveComment={saveComment}
               onRemoveComment={removeComment}
               onEditChapter={editChapterFromReader}

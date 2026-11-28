@@ -10,6 +10,7 @@
  */
 import { hierarchy, tree, type HierarchyPointNode } from 'd3-hierarchy'
 import type { JSONContent } from '@tiptap/core'
+import { extractChapters } from './chapters'
 
 export type MapLayout = 'logic' | 'logicLeft' | 'mind' | 'org' | 'outline' | 'fishbone'
 
@@ -28,7 +29,7 @@ export interface OutlineNode {
   children: OutlineNode[]
   /** 从 doc 根算起的 child index 链，用于点回正文定位、以及改写文档 */
   path: number[]
-  /** 节点来源：标题 / 列表项 / 正文段落 */
+  /** 节点来源：标题 / 列表项 / 正文段落（段落不再自成节点，类型保留只为兼容旧样式） */
   kind?: 'heading' | 'item' | 'para'
   /** 标题级别 1~6 */
   level?: number
@@ -65,12 +66,40 @@ function liToNode(li: JSONContent, id: string, path: number[]): OutlineNode {
 }
 
 /**
+ * 纯文本里的章名（「第一章」「Chapter 3」「1、开端」……）→ 一排章节节点。
+ *
+ * 识别规则直接复用阅读视图的 extractChapters，两边认出来的章保持一致。
+ * 只收「独占一个段落」的章名：从网页粘来的小说常把章名和上一章结尾挤在
+ * 同一块里，点这种节点会连带整块，改名更会把整段正文覆盖掉，宁可不要。
+ */
+function chapterNodes(doc: JSONContent): OutlineNode[] {
+  const top = doc.content ?? []
+  const out: OutlineNode[] = []
+  for (const c of extractChapters(doc)) {
+    const block = top[c.start]
+    if (!block || block.type !== 'paragraph') continue
+    if (textOf(block).includes('\n')) continue
+    out.push({
+      id: `c${c.start}`,
+      text: c.title,
+      children: [],
+      path: [c.start],
+      kind: 'heading',
+      level: 2,
+    })
+  }
+  return out
+}
+
+/**
  * 把文档摊成一棵树。
  *
- * 按文档顺序走一遍：
+ * 导图表达的是**结构**，不是正文：一段话不是一个想法，一段一个节点只会
+ * 把导图淹没，所以段落不进导图。按文档顺序走一遍：
  *   · 标题 → 按级别嵌套成分支
  *   · 列表 → 挂到当前标题下（列表项之间保持缩进层级）
- *   · 整篇既没标题也没列表时，才退回「段落平铺」的老办法
+ * 整篇既没标题也没列表（典型是粘进来的纯文本小说）时，退而按章名排一排；
+ * 章名也认不出就只剩根节点，界面会提示怎么开始列大纲。
  * 每个节点都记着自己的物理 path，所以点节点照样能跳回正文。
  */
 export function extractOutline(content: JSONContent | undefined, title: string): OutlineNode {
@@ -79,19 +108,8 @@ export function extractOutline(content: JSONContent | undefined, title: string):
   const hasHeading = nodes.some((n) => n.type === 'heading')
   const hasList = nodes.some((n) => LIST_TYPES.includes(n.type ?? ''))
 
-  // 纯段落文章：保持平铺（最多 24 条），至少还能看一眼结构
   if (!hasHeading && !hasList) {
-    root.children = nodes
-      .map((n, i) => ({ n, i }))
-      .filter(({ n }) => n.type === 'paragraph')
-      .slice(0, 24)
-      .map(({ n, i }) => ({
-        id: `p${i}`,
-        text: textOf(n).trim() || '(空)',
-        children: [],
-        path: [i],
-        kind: 'para' as const,
-      }))
+    if (content) root.children = chapterNodes(content)
     return root
   }
 
@@ -119,23 +137,6 @@ export function extractOutline(content: JSONContent | undefined, title: string):
     if (LIST_TYPES.includes(n.type ?? '')) {
       const items = (n.content ?? []).map((li, k) => liToNode(li, `n${i}-${k}`, [i, k]))
       mount().children.push(...items)
-      return
-    }
-
-    // 段落：只在「这一节还没任何列表」时作为说明挂上去，免得导图被正文淹没
-    if (n.type === 'paragraph') {
-      const text = textOf(n).trim()
-      if (!text) return
-      const parent = mount()
-      const alreadyHasItems = parent.children.some((c) => c.kind === 'item')
-      if (alreadyHasItems || text.length > 60) return
-      parent.children.push({
-        id: `t${i}`,
-        text,
-        children: [],
-        path: [i],
-        kind: 'para',
-      })
     }
   })
 
@@ -260,9 +261,9 @@ function layoutLogic(outline: OutlineNode, dir: 1 | -1): MapResult {
 
   root.links().forEach((l, i) => {
     const pw = boxWidth(l.source.data.text)
-    const cw = boxWidth(l.target.data.text)
-    const sx = dir > 0 ? l.source.y + pw : -l.source.y
-    const tx = dir > 0 ? l.target.y : -l.target.y - cw
+    // 向右：父框右缘 → 子框左缘；向左：父框左缘 → 子框右缘
+    const sx = dir > 0 ? l.source.y + pw : -l.source.y - pw
+    const tx = dir > 0 ? l.target.y : -l.target.y
     links.push({ id: `l${i}`, d: curve(sx, l.source.x, tx, l.target.x, true), depth: l.source.depth })
   })
 
@@ -344,20 +345,22 @@ function layoutMind(outline: OutlineNode): MapResult {
     sub.links().forEach((l, i) => {
       const goingRight = dir > 0
       const pw = boxWidth(l.source.data.text)
-      const cw = boxWidth(l.target.data.text)
       // 第一层从真实根的边缘出发（虚拟根不画，但连线得接上）
+      // 节点的实际位置是 offset ± (y - GAP_DEPTH)，连线必须用同一套坐标
+      const srcAway = l.source.y - GAP_DEPTH
+      const tgtAway = l.target.y - GAP_DEPTH
       const fx =
         l.source.depth === 0
           ? goingRight
             ? rootW / 2
             : -rootW / 2
           : goingRight
-            ? l.source.y + pw
-            : -l.source.y
+            ? offset + srcAway + pw // 父框右缘
+            : offset - srcAway - pw // 父框左缘
       const fy = l.source.depth === 0 ? 0 : l.source.x
       const tx = goingRight
-        ? offset + (l.target.y - GAP_DEPTH)
-        : offset - (l.target.y - GAP_DEPTH) - cw
+        ? offset + tgtAway // 子框左缘
+        : offset - tgtAway // 子框右缘
       links.push({
         id: `m${si}-${i}`,
         d: curve(fx, fy, tx, l.target.x, true),

@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { Editor } from '@tiptap/core'
 import { toast } from '../ui/toast'
 import { locate, type Comment } from '../core/comments'
 import { applyComments, onCommentPick } from '../editor/commentMark'
 import { storage } from '../core/storage'
-import type { Doc } from '../core/types'
 
 /**
  * 当前文档的批注：读取、落盘、增删、跳转。
@@ -12,14 +11,24 @@ import type { Doc } from '../core/types'
  * 批注存 .quill-meta.json，不进 .md；落盘一律「先读磁盘再合并」，见 persistComments。
  */
 export function useComments(opts: {
-  docRef: RefObject<Doc | null>
   editorRef: RefObject<Editor | null>
-  /** 当前文档 id；换文档时据此重读批注 */
+  /**
+   * 批注归属的文档 id；换文档时据此重读批注。
+   *
+   * 注意它**不一定是编辑器里那篇**：超大小说走的是只读的分章阅读通道，
+   * 根本没有 `doc`，批注得认这个 id，不能去问编辑器当前开着谁 ——
+   * 否则要么存不下（没有 doc），要么挂到别的文档名下。
+   */
   docId: string | undefined
+  /** 这个 id 是不是超大文档（正文不在编辑器里）；是的话别往编辑器里灌底纹 */
+  readerOnly?: boolean
   /** 编辑器重建键；重建后要把底纹重新灌进去 */
   sessionKey: number
 }) {
-  const { docRef, editorRef, docId, sessionKey } = opts
+  const { editorRef, docId, readerOnly = false, sessionKey } = opts
+  /** 写操作永远按「此刻的」归属 id 走，不用闭包里可能过期的那份 */
+  const idRef = useRef(docId)
+  idRef.current = docId
 
   /** 当前文档的批注（存 .quill-meta.json，不进 .md） */
   const [comments, setComments] = useState<Comment[]>([])
@@ -55,8 +64,10 @@ export function useComments(opts: {
   // 灌进编辑器的 decoration（编辑器重建后也要重来一次）
   useEffect(() => {
     const ed = editorRef.current
-    if (ed && !ed.isDestroyed) applyComments(ed, comments)
-  }, [comments, sessionKey])
+    if (!ed || ed.isDestroyed) return
+    // 超大文档的批注属于另一篇正文，灌进当前编辑器会按引文乱匹配
+    applyComments(ed, readerOnly ? [] : comments)
+  }, [comments, sessionKey, readerOnly])
 
   // 点正文里的批注底纹 → 打开面板并定位
   useEffect(() => {
@@ -81,7 +92,7 @@ export function useComments(opts: {
       const onDisk = await storage.comments(fileId).catch(() => [] as Comment[])
       const next = mutate(onDisk)
       await storage.setComments(fileId, next)
-      if (docRef.current?.id === fileId) setComments(next)
+      if (idRef.current === fileId) setComments(next)
     },
     [],
   )
@@ -90,7 +101,7 @@ export function useComments(opts: {
 
   const saveComment = useCallback(
     (next: Comment) => {
-      const id = docRef.current?.id
+      const id = idRef.current
       if (!id) return
       // 界面先跟上（乐观更新），磁盘那份交给 persistComments 以磁盘为准去合并
       setComments((prev) => {
@@ -107,7 +118,7 @@ export function useComments(opts: {
 
   const removeComment = useCallback(
     (cid: string) => {
-      const id = docRef.current?.id
+      const id = idRef.current
       if (!id) return
       setComments((prev) => prev.filter((c) => c.id !== cid))
       void persistComments(id, (list) => list.filter((c) => c.id !== cid)).catch((err) =>

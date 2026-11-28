@@ -464,7 +464,7 @@ export default function MindMap({ content, title, onJump, editor }: Props) {
 
       <div className="mm-hint">
         {empty ? (
-          '暂无大纲结构 · 回到写作页，输入 - 加空格即可开始列条目'
+          '暂无大纲结构 · 回到写作页，用 # 加标题，或输入 - 加空格列条目'
         ) : editable ? (
           <>
             {map.nodes.length - 1} 个分支 · 双击改字 · Tab 加子节点 · Delete 删 · 拖动调层级 · 回车跳正文
