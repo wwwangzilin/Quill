@@ -1006,3 +1006,19 @@
   opacity: 0.85;
 }
 
+
+/* ---- 目录虚拟化：行高固定，位置由内联 top 决定 ---- */
+.reader-toc-vlist {
+  position: relative;
+}
+.reader-toc-item {
+  /* ⚠️ 高度和 src/ui/reader/Toc.tsx 里的 ROW 必须一致（32），
+     虚拟化是靠它算位置的；改这里记得一起改。 */
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 32px;
+  padding: 0 9px;
+  align-items: center;
+  box-sizing: border-box;
+}
